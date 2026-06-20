@@ -9,11 +9,11 @@
  * NON è esposto in rete — gira localmente sul PC di sviluppo o sul Pi.
  *
  * Utilizzo:
- *   # Modalità interattiva (consigliata)
+ *   # Modalità interattiva (consigliata — la password NON compare nel terminale)
  *   node tools/create-host.js
  *
- *   # Modalità argomenti diretti
- *   node tools/create-host.js --username mario --password SuperSegreto99
+ *   # Modalità argomenti diretti (attenzione: la password è visibile nella shell history)
+ *   node tools/create-host.js --username <username> --password <password>
  *
  * Requisiti:
  *   - Il file .env deve esistere nella root del progetto (o DB_PATH impostato)
