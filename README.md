@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="NodeJS">
+  <img src="https://img.shields.io/badge/Node.js_v24+-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="NodeJS">
   <img src="https://img.shields.io/badge/Socket.io-010101?style=for-the-badge&logo=socketdotio&logoColor=white" alt="Socket.io">
   <img src="https://img.shields.io/badge/SQLite-07405E?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite">
   <img src="https://img.shields.io/badge/Raspberry%20Pi-A22846?style=for-the-badge&logo=raspberrypi&logoColor=white" alt="Raspberry Pi">
@@ -40,12 +40,12 @@ I giocatori possono connettersi istantaneamente dal proprio smartphone inquadran
 
 ## 🛠️ Stack Tecnologico
 
-- **Runtime:** Node.js (v22+)
+- **Runtime:** Node.js (v24+)
 - **Server Web:** Express.js + Socket.io (WebSocket in tempo reale)
-- **Database:** SQLite via `better-sqlite3` (modulo nativo C++, API sincrona, ad alte prestazioni). **Nota:** essendo un modulo nativo, allo Step 10 (packaging SEA) il file `.node` compilato andrà incluso come asset esterno e compilato specificamente per ARM. In futuro, se `node:sqlite` (integrato nel core di Node.js) uscirà dallo stato sperimentale, potrà essere valutato come migrazione per eliminare completamente questa dipendenza nativa.
+- **Database:** SQLite via [`node:sqlite`](https://nodejs.org/api/sqlite.html) — modulo integrato nel core di Node.js v24+, stabile, API sincrona, **zero dipendenze esterne e zero moduli nativi da gestire**. Elimina completamente le problematiche di compilazione C++ e di packaging SEA che caratterizzavano `better-sqlite3`.
 - **Sicurezza:** Hashing delle password host tramite `bcryptjs` (pura implementazione JavaScript, per evitare le problematiche di packaging SEA associate a moduli nativi come `bcrypt` standard).
 - **Frontend:** HTML5, CSS3 Custom (Vanilla CSS con design responsive moderno), JavaScript Vanilla (SPA leggera)
-- **Compilazione & Packaging:** [Node.js Single Executable Applications (SEA)](https://nodejs.org/api/single-executable-applications.html) — funzionalità sperimentale integrata nel runtime, sostituto ufficiale di `pkg` (archiviato e non più mantenuto dal dicembre 2024). I moduli nativi (like `better-sqlite3`) vanno inclusi come asset esterni, scritti su file temporaneo e caricati a runtime con `process.dlopen`.
+- **Compilazione & Packaging:** [Node.js Single Executable Applications (SEA)](https://nodejs.org/api/single-executable-applications.html) — funzionalità integrata nel runtime, sostituto ufficiale di `pkg` (archiviato e non più mantenuto dal dicembre 2024). Grazie all'adozione di `node:sqlite`, il backend non ha moduli nativi esterni da gestire come asset SEA.
 - **Sistema Host:** Linux (Debian/Raspbian OS) configurato con `hostapd` per l'Access Point Wi-Fi e `dnsmasq` per il routing DNS locale (dominio `quizarena.gioca`)
 
 ---
@@ -98,18 +98,19 @@ Il flusso di una partita segue una macchina a stati solida e sincronizzata in te
 Il codice è organizzato in modo modulare per separare nettamente le responsabilità di backend, frontend e strumenti interni:
 
 ```text
-quiz-game/
+quiz-arena/
 ├── server/
 │   ├── index.js              # Entrypoint: avvia il server Express/Socket.io (+ hook licenza in produzione)
+│   ├── config.js             # Configurazione centralizzata: legge .env, valida, ri-esporta
 │   ├── license.js            # (Fase Futura) Modulo licenza: controlli GitHub API + gestione cache locale
 │   ├── game.js               # Macchina a stati di gioco e logica WebSocket
-│   ├── quiz-manager.js       # Gestore database SQLite per CRUD quiz e importazioni
+│   ├── quiz-manager.js       # Gestore database SQLite (node:sqlite) per CRUD quiz e importazioni
 │   ├── routes/
 │   │   ├── host.js           # Endpoint API per pannello amministratore
 │   │   └── player.js         # Endpoint API per interfacce giocatori
 │   └── db/
 │       ├── schema.sql        # Struttura delle tabelle database SQLite
-│       └── database.sqlite   # Database SQLite locale autogenerato
+│       └── database.sqlite   # Database SQLite locale autogenerato (escluso da git)
 ├── client/
 │   ├── host/                 # Frontend Dashboard di controllo per l'Host
 │   │   ├── index.html
@@ -119,7 +120,8 @@ quiz-game/
 │       └── app.js
 ├── tools/
 │   └── generate-license.js   # Script di utility interno per generare e caricare licenze
-├── .env                      # Token di accesso GitHub PAT e configurazioni d'ambiente
+├── .env.example              # Template variabili d'ambiente (committato)
+├── .env                      # Valori reali — escluso da git
 └── package.json              # Dipendenze e script NPM del progetto
 ```
 
@@ -159,8 +161,8 @@ Il progetto viene sviluppato seguendo un approccio **Game-First**: prima si cost
 
 ### Fase Attiva — Sviluppo su PC (senza hardware Pi)
 
-1. **Step 1:** Setup progetto Node.js — Struttura cartelle, dipendenze, `.env` e `.gitignore`.
-2. **Step 2:** `server/quiz-manager.js` + SQLite Schema — Tabelle `users` (host, password hashate con **bcryptjs**, implementazione JS pura per evitare dipendenze native) e `quizzes` (max 3 per utente), import CSV/Excel.
+1. **Step 1:** Setup progetto Node.js — Struttura cartelle, dipendenze, `.env` e `.gitignore`. Database via `node:sqlite` (stabile in Node.js v24, integrato nel runtime, zero dipendenze native).
+2. **Step 2:** `server/quiz-manager.js` + SQLite Schema — Tabelle `users` (host, password hashate con **bcryptjs**, implementazione JS pura) e `quizzes` (max 3 per utente), import CSV/Excel.
 3. **Step 3:** `server/index.js` — Bootstrap del server Express, configurazione Socket.io.
 4. **Step 4:** `server/game.js` — Logica centrale e macchina a stati del gioco (LOBBY → QUESTION → RESULTS → FINAL_LEADERBOARD).
 5. **Step 5:** Socket.io Integration — Configurazione ed eventi real-time tra Host e Player.

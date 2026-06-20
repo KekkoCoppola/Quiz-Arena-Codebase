@@ -13,12 +13,12 @@ Gioco a quiz multiplayer locale (tipo Kahoot) che funziona **completamente offli
 ---
 
 ## Stack Tecnologico (100% Gratuito & Open Source)
-- **Runtime:** Node.js v22+ (gratuito)
+- **Runtime:** Node.js v24+ (gratuito)
 - **Server:** Express + Socket.io (WebSocket in tempo reale, gratuito)
-- **DB:** SQLite via `better-sqlite3` (modulo nativo C++, API sincrona). Allo Step 10 (SEA) il file `.node` andrà gestito come asset esterno compilato per ARM. Se `node:sqlite` (core di Node.js) uscirà dallo stato sperimentale, potrà eliminare questa dipendenza nativa.
+- **DB:** SQLite via [`node:sqlite`](https://nodejs.org/api/sqlite.html) — modulo integrato nel core di Node.js v24+, stabile, API sincrona, **zero dipendenze native e zero complicazioni SEA**. Nessun file `.node` da compilare o gestire come asset esterno.
 - **Sicurezza:** Hashing delle password host via `bcryptjs` (implementazione 100% JS per evitare ulteriori dipendenze native in fase di packaging SEA).
 - **Frontend:** HTML/CSS/JS vanilla (SPA leggera, nessun costo di hosting/framework)
-- **Compilazione:** [Node.js Single Executable Applications (SEA)](https://nodejs.org/api/single-executable-applications.html) per produrre un binario ARM singolo (sostituto ufficiale di `pkg`, archiviato dal dicembre 2024). I moduli nativi (come `better-sqlite3`) vanno inclusi come asset esterni e compilati per l'architettura target.
+- **Compilazione:** [Node.js Single Executable Applications (SEA)](https://nodejs.org/api/single-executable-applications.html) per produrre un binario ARM singolo (sostituto ufficiale di `pkg`, archiviato dal dicembre 2024). Grazie a `node:sqlite`, non ci sono moduli nativi esterni da includere come asset SEA.
 - **Sistema:** Linux su Raspberry Pi, hotspot via `hostapd` + DNS locale via `dnsmasq` (integrati e gratuiti)
 
 ---
@@ -131,7 +131,7 @@ LOBBY → QUESTION → RESULTS → (loop) → FINAL_LEADERBOARD
 ### Fase Futura — Richiede l'Hardware Raspberry Pi
 8. `license.js` — check GitHub API + cache locale + hardware lock (`/proc/device-tree/serial-number`)
 9. `generate-license.js` — tool emissione licenze
-10. Script setup Raspberry Pi (hostapd, dnsmasq, installazione esplicita **Node.js v22+**, compilazione binario ARM con Node.js SEA, autostart al boot)
+10. Script setup Raspberry Pi (hostapd, dnsmasq, installazione esplicita **Node.js v24+** via NodeSource o binari ufficiali, compilazione binario ARM con Node.js SEA, autostart al boot). Grazie a `node:sqlite`, non esistono moduli nativi da compilare per ARM.
 
 ---
 

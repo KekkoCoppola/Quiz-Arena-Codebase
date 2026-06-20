@@ -17,7 +17,7 @@ Questa roadmap delinea gli step per sviluppare l'intero gioco sul PC locale (Win
 ### Fase 1: Setup Progetto e Struttura Base
 - [ ] Inizializzare progetto Node.js (`npm init -y`).
 - [ ] Creare la struttura di cartelle (`server/`, `client/host/`, `client/player/`).
-- [ ] Installare dipendenze core: `express`, `socket.io`, `better-sqlite3`, `bcryptjs`, `dotenv`.
+- [ ] Installare dipendenze core: `express`, `socket.io`, `bcryptjs`, `dotenv`, `jsonwebtoken`. Il database SQLite viene gestito da `node:sqlite` (integrato nel runtime Node.js v24+, nessuna installazione necessaria).
 - [ ] Configurare il file `.env` (porta del server, URL pannello host, segreto sessione).
 
 ### Fase 2: Database SQLite & Autenticazione Host
@@ -58,6 +58,6 @@ Questa roadmap delinea gli step per sviluppare l'intero gioco sul PC locale (Win
 
 ### 🔮 Fasi Future (Richiedono l'Hardware Raspberry Pi)
 *(In Sospeso)*
-1. Implementazione sistema di **Licenza SaaS** hardware lock (`/proc/device-tree/serial-number`, preferito a `/proc/cpuinfo`) + GitHub API con PAT **fine-grained** in sola lettura.
-2. Script di deploy per sistema Linux (installazione manuale Node.js v22+, configurazione `hostapd`, `dnsmasq` con fallback IP `192.168.4.1` garantito per DNS-over-HTTPS).
-3. Compilazione del server in binario ARM con **Node.js SEA** (Single Executable Applications) — sostituto ufficiale di `pkg` (archiviato, dicembre 2024). `better-sqlite3` è un modulo nativo C++: il suo file `.node` andrà compilato per ARM e incluso come asset esterno nel binario SEA (caricato a runtime con `process.dlopen`). Se `node:sqlite` (core di Node.js) sarà stabile a quel punto, valutare la migrazione per eliminare completamente l'asset nativo.
+1. Implementazione sistema di **Licenza SaaS** hardware lock (`/proc/device-tree/serial-number`, preferito a `/proc/cpuinfo` che può essere sovrascritto da U-Boot) + GitHub API con PAT **fine-grained** in sola lettura.
+2. Script di deploy per sistema Linux (installazione manuale **Node.js v24+** via NodeSource o binari ufficiali, configurazione `hostapd`, `dnsmasq` con fallback IP `192.168.4.1` garantito per DNS-over-HTTPS).
+3. Compilazione del server in binario ARM con **Node.js SEA** (Single Executable Applications) — sostituto ufficiale di `pkg` (archiviato, dicembre 2024). Grazie all'adozione di `node:sqlite` (integrato nel runtime), **non esistono moduli nativi da compilare per ARM o da includere come asset esterno nel binario SEA**.
