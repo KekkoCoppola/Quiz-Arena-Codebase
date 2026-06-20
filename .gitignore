@@ -1,49 +1,32 @@
-# Dependencies
-node_modules/
+# Logs
+logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+lerna-debug.log*
 
-# Environment & secrets
+# Diagnostic reports
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# dotenv environment variables file
 .env
-.env.*
-!.env.example
+.env.test
+.env.production
 
-# License cache
-*.lic
-license-cache.json
-
-# Database
-*.sqlite
-*.sqlite3
-*.db
-
-server/db/database.sqlite
-
-# Build output (pkg)
-dist/
-build/
-*.bin
-*.exe
-
-# Logs
-logs/
-*.log
-
-# OS
+# Mac OS files
 .DS_Store
-Thumbs.db
 
-# Editor
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Temp
-tmp/
-temp/
-
-# Instructions
-Istructions.md
-*.txt
+# Quiz Arena Specific
+server/db/*.sqlite
+server/db/*.sqlite-journal

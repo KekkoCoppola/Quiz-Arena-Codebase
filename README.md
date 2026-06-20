@@ -32,20 +32,21 @@ I giocatori possono connettersi istantaneamente dal proprio smartphone inquadran
 - **⚡ Real-Time WebSockets:** Interazioni istantanee a bassissima latenza tra host e giocatori grazie a **Socket.io**.
 - **📱 Zero Barriere d'Ingresso:** I giocatori scansionano il QR Code generato a schermo e partecipano direttamente dal proprio browser mobile preferito.
 - **🎯 Gamification in Stile Kahoot:** Assegnazione dei punteggi dinamica basata sulla velocità e correttezza della risposta.
-- **🛠️ Gestione Quiz Flessibile:** Creazione dei quiz da interfaccia amministrativa o importazione massiva da file **CSV/Excel**.
-- **🔒 Hardware Lock & Licenza SaaS:** Sistema di protezione e attivazione SaaS a tempo, vincolato al seriale hardware della CPU del Raspberry Pi (`/proc/cpuinfo`) verificato periodicamente tramite le API private di GitHub.
-- **📦 Distribuzione Singolo Binario:** Backend offuscato e compilato in un unico file eseguibile per architettura ARM tramite `pkg`, per proteggere il codice sorgente e facilitare il deploy.
+- **🛠️ Gestione Quiz Flessibile:** Creazione dei quiz da interfaccia amministrativa (con account host e limite di 3 quiz personalizzati salvabili) o importazione massiva da file **CSV/Excel**.
+- **🔒 Hardware Lock & Licenza SaaS:** Sistema di protezione e attivazione SaaS a tempo, vincolato al seriale hardware della CPU del Raspberry Pi (fonte preferita: `/proc/device-tree/serial-number`) verificato periodicamente tramite le API private di GitHub con PAT fine-grained in sola lettura.
+- **📦 Distribuzione Singolo Binario:** Backend compilato in un unico file eseguibile per architettura ARM tramite le [Node.js Single Executable Applications (SEA)](https://nodejs.org/api/single-executable-applications.html), la via ufficialmente supportata dal runtime Node.js.
 
 ---
 
 ## 🛠️ Stack Tecnologico
 
-- **Runtime:** Node.js (v18+)
+- **Runtime:** Node.js (v22+)
 - **Server Web:** Express.js + Socket.io (WebSocket in tempo reale)
-- **Database:** SQLite (file-based, integrato e a configurazione zero)
+- **Database:** SQLite via `better-sqlite3` (modulo nativo C++, API sincrona, ad alte prestazioni). **Nota:** essendo un modulo nativo, allo Step 10 (packaging SEA) il file `.node` compilato andrà incluso come asset esterno e compilato specificamente per ARM. In futuro, se `node:sqlite` (integrato nel core di Node.js) uscirà dallo stato sperimentale, potrà essere valutato come migrazione per eliminare completamente questa dipendenza nativa.
+- **Sicurezza:** Hashing delle password host tramite `bcryptjs` (pura implementazione JavaScript, per evitare le problematiche di packaging SEA associate a moduli nativi come `bcrypt` standard).
 - **Frontend:** HTML5, CSS3 Custom (Vanilla CSS con design responsive moderno), JavaScript Vanilla (SPA leggera)
-- **Compilazione & Packaging:** `pkg` (compilazione del backend Node.js in un binario nativo ARM)
-- **Sistema Host:** Linux (Debian/Raspbian OS) configurato con `hostapd` e `dnsmasq` per l'Access Point locale
+- **Compilazione & Packaging:** [Node.js Single Executable Applications (SEA)](https://nodejs.org/api/single-executable-applications.html) — funzionalità sperimentale integrata nel runtime, sostituto ufficiale di `pkg` (archiviato e non più mantenuto dal dicembre 2024). I moduli nativi (like `better-sqlite3`) vanno inclusi come asset esterni, scritti su file temporaneo e caricati a runtime con `process.dlopen`.
+- **Sistema Host:** Linux (Debian/Raspbian OS) configurato con `hostapd` per l'Access Point Wi-Fi e `dnsmasq` per il routing DNS locale (dominio `quizarena.gioca`)
 
 ---
 
@@ -63,7 +64,9 @@ Quiz Arena non richiede infrastruttura esterna. Il Raspberry Pi funge da server 
          |                                                   |
          v                                                   v
 🌐 Dispositivo Host                               📱 Smartphone Giocatori
-   Apre: http://192.168.4.1/host                     Aprono: http://192.168.4.1 (o QR Code)
+   Apre: http://quizarena.gioca/admin-console        Aprono: http://quizarena.gioca (o QR Code)
+   Fallback: http://192.168.4.1/admin-console        Fallback: http://192.168.4.1
+   (URL host oscurato e personalizzabile da .env)    (⚠️ DNS-over-HTTPS può ignorare il DNS locale)
    - Avvia e controlla i quiz                        - Inseriscono il nickname
    - Mostra domande, grafici e classifiche           - Inviano le risposte in tempo reale
 ```
@@ -97,8 +100,8 @@ Il codice è organizzato in modo modulare per separare nettamente le responsabil
 ```text
 quiz-game/
 ├── server/
-│   ├── index.js              # Entrypoint: verifica licenza ed avvia il server Express/Socket.io
-│   ├── license.js            # Modulo licenza: controlli GitHub API + gestione cache locale
+│   ├── index.js              # Entrypoint: avvia il server Express/Socket.io (+ hook licenza in produzione)
+│   ├── license.js            # (Fase Futura) Modulo licenza: controlli GitHub API + gestione cache locale
 │   ├── game.js               # Macchina a stati di gioco e logica WebSocket
 │   ├── quiz-manager.js       # Gestore database SQLite per CRUD quiz e importazioni
 │   ├── routes/
@@ -143,25 +146,32 @@ Il software integra un meccanismo di licenza a tempo vincolato all'hardware per 
 ```
 
 1. **GitHub come Backend:** Le licenze sono memorizzate come file JSON nella cartella `licenze/<serial_pi>.json` di un repository privato GitHub (utilizzando il piano gratuito di GitHub).
-2. **Validazione Hardware:** Il server legge l'identificativo seriale unico del chip Raspberry Pi leggendo `/proc/cpuinfo`.
-3. **Grace Period Offline:** Il sistema richiede una connessione ad internet per il rinnovo della licenza almeno una volta ogni 7 giorni. In caso di mancanza di rete, si appoggia ad una cache locale crittografata.
+2. **Validazione Hardware:** Il server legge l'identificativo seriale unico del chip Raspberry Pi dalla fonte preferita `/proc/device-tree/serial-number` (più affidabile di `/proc/cpuinfo`, che può essere sovrascritto da U-Boot). Da testare sul modello/OS specifico prima di costruire la logica finale.
+3. **Grace Period Offline:** Il sistema richiede una connessione ad internet per il rinnovo della licenza almeno una volta ogni 7 giorni. In caso di mancanza di rete, si appoggia ad una cache locale crittografata. *(Nota: la chiave di decifrazione risiede nello stesso binario, il che protegge da manomissioni casuali ma non da un reverse engineer motivato — accettabile per il mercato target.)*
 4. **Costi di Infrastruttura e Manutenzione Zero:** Non sono necessari server cloud dedicati né database SaaS a pagamento. Tutto il database risiede in locale su SQLite, e GitHub gestisce la distribuzione delle licenze a costo zero. L'unico costo fisico del progetto è l'hardware del Raspberry Pi.
+5. **Sicurezza del PAT:** Utilizzare un PAT **fine-grained**, limitato in scope al solo repository licenze e con permessi di **sola lettura**. Se un singolo binario viene decompilato e il PAT estratto, l'attaccante otterrebbe accesso a tutte le licenze nel repository — non solo alla propria. Tenere a mente questo rischio quando il numero di installazioni crescerà.
 
 ---
 
 ## 📋 Ordine di Sviluppo Concordato
 
-Il progetto viene sviluppato seguendo un approccio incrementale in 9 step:
+Il progetto viene sviluppato seguendo un approccio **Game-First**: prima si costruisce e si valida l'intero gioco su PC, poi si integrano i vincoli hardware e la licenza quando il Raspberry Pi sarà disponibile.
 
-1. **Step 1:** `server/license.js` — Integrazione e test chiamate GitHub API + cache locale di fallback.
-2. **Step 2:** `server/index.js` — Bootstrap iniziale, aggancio del controllo licenza all'avvio.
-3. **Step 3:** `server/game.js` — Logica centrale e macchina a stati del gioco.
-4. **Step 4:** `server/quiz-manager.js` + SQLite Schema — Gestione CRUD quiz e import CSV/Excel.
+### Fase Attiva — Sviluppo su PC (senza hardware Pi)
+
+1. **Step 1:** Setup progetto Node.js — Struttura cartelle, dipendenze, `.env` e `.gitignore`.
+2. **Step 2:** `server/quiz-manager.js` + SQLite Schema — Tabelle `users` (host, password hashate con **bcryptjs**, implementazione JS pura per evitare dipendenze native) e `quizzes` (max 3 per utente), import CSV/Excel.
+3. **Step 3:** `server/index.js` — Bootstrap del server Express, configurazione Socket.io.
+4. **Step 4:** `server/game.js` — Logica centrale e macchina a stati del gioco (LOBBY → QUESTION → RESULTS → FINAL_LEADERBOARD).
 5. **Step 5:** Socket.io Integration — Configurazione ed eventi real-time tra Host e Player.
-6. **Step 6:** Frontend Host — UI della dashboard amministrativa e di visualizzazione in sala.
+6. **Step 6:** Frontend Host — UI della dashboard amministrativa (login, gestione quiz, conduzione partita).
 7. **Step 7:** Frontend Player — Interfaccia mobile responsive, pulsanti di risposta e feedback.
-8. **Step 8:** `tools/generate-license.js` — Script CLI interno per i developer per creare nuove licenze.
-9. **Step 9:** Script di Deploy per Pi — Automazione installazione di `hostapd`, `dnsmasq` e avvio del binario compilato al boot.
+
+### Fase Futura — Richiede l'Hardware Raspberry Pi
+
+8. **Step 8:** `server/license.js` — Integrazione GitHub API + cache locale + hardware lock (`/proc/device-tree/serial-number`).
+9. **Step 9:** `tools/generate-license.js` — Script CLI interno per generare e pushare nuove licenze.
+10. **Step 10:** Script di Deploy per Pi — Automazione installazione di `hostapd`, `dnsmasq`, installazione esplicita di **Node.js v22+** (via NodeSource o binari ufficiali, per superare i limiti dell'apt di sistema), compilazione binario ARM con Node.js SEA e avvio al boot.
 
 ---
 
