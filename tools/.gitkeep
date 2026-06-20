@@ -1,0 +1,5 @@
+# tools/
+# Questa cartella conterrà gli script di utilità interni per le fasi future:
+#   - generate-license.js  (Step 9)  — genera e pusha licenze sul repo GitHub privato
+#
+# Non contiene codice applicativo di produzione.
