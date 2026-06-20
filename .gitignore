@@ -30,3 +30,6 @@ jspm_packages/
 # Quiz Arena Specific
 server/db/*.sqlite
 server/db/*.sqlite-journal
+
+# Script di smoke test temporanei (non committare)
+tools/test-db.js
