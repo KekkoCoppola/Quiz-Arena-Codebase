@@ -3,15 +3,23 @@
 /**
  * server/routes/player.js
  *
- * Router Express per gli endpoint dei giocatori.
+ * Step 3: Serve la SPA mobile del giocatore.
  *
- * Step 3+: Servire la SPA player e gestire il join alla partita.
- * Step 5+: Coordinamento eventi Socket.io per il flusso di gioco.
+ * GET / → restituisce client/player/index.html (entry point della SPA).
+ * Gli asset statici (app.js, CSS, immagini) vengono serviti dal middleware
+ * express.static registrato in index.js subito dopo questo router.
+ *
+ * Step 5+: Aggiungere qui eventuali endpoint REST player
+ *          (es. GET /api/player/state per recuperare lo stato corrente del gioco).
+ * La logica real-time (join, risposta, classifica) avviene via Socket.io in game.js.
  */
 
+const path   = require('node:path');
 const router = require('express').Router();
 
-// TODO (Step 3): GET / — serve la SPA mobile del giocatore (client/player/index.html)
-// TODO (Step 5): La logica real-time (join, risposta, ecc.) avviene via Socket.io in game.js
+// GET / → SPA player (entry point)
+router.get('/', (_req, res) => {
+  res.sendFile(path.resolve(__dirname, '../../client/player/index.html'));
+});
 
 module.exports = router;
