@@ -27,7 +27,7 @@ jspm_packages/
 # Mac OS files
 .DS_Store
 
-# Quiz Arena Specific
+# Quiz-Zata! Specific
 server/db/*.sqlite
 server/db/*.sqlite-journal
 

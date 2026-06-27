@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
--- Quiz Arena — Schema Database SQLite
+-- Quiz-Zata! — Schema Database SQLite
 -- Versione : 1.0
 -- Creato   : Step 1 (struttura dati) — applicato a runtime da quiz-manager.js (Step 2)
 -- Runtime  : node:sqlite (integrato in Node.js v24+, zero dipendenze esterne)

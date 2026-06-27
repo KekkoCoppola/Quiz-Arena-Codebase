@@ -1,5 +1,5 @@
 {
-  "name": "quiz-arena",
+  "name": "quiz-zata",
   "version": "0.1.0",
   "description": "Motore di gioco a quiz multiplayer locale e in tempo reale per Raspberry Pi.",
   "main": "server/index.js",

@@ -1,4 +1,4 @@
-# 🚀 Quiz Arena - Roadmap di Sviluppo Locale (PC-First)
+# 🚀 Quiz-Zata! - Roadmap di Sviluppo Locale (PC-First)
 
 Questa roadmap delinea gli step per sviluppare l'intero gioco sul PC locale (Windows), ignorando momentaneamente i vincoli hardware (licenza e Access Point) che verranno affrontati in futuro quando sarà disponibile il Raspberry Pi.
 

@@ -25,11 +25,11 @@ Gioco a quiz multiplayer locale (tipo Kahoot) che funziona **completamente offli
 
 ## Architettura di Rete
 ```
-Raspberry Pi (Access Point "QuizArena")
+Raspberry Pi (Access Point "QuizZata")
   └── IP fisso: 192.168.4.1 (mappato su DNS locale via dnsmasq)
-        ├── Host si connette → apre http://quizarena.gioca/admin-console (custom in .env)
+        ├── Host si connette → apre http://quizzata.gioca/admin-console (custom in .env)
         │   Fallback: http://192.168.4.1/admin-console
-        └── Giocatori si connettono → aprono http://quizarena.gioca (o via QR code)
+        └── Giocatori si connettono → aprono http://quizzata.gioca (o via QR code)
             Fallback: http://192.168.4.1 (⚠️ DNS-over-HTTPS può ignorare il DNS locale)
 ```
 Nessun router esterno necessario. Il Pi crea la propria rete Wi-Fi isolata.

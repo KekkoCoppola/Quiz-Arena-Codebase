@@ -67,7 +67,7 @@ function validatePassword(value) {
 
 async function main() {
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('  🎮  Quiz Arena — Creazione Account Host');
+  console.log('  🎮  Quiz-Zata! — Creazione Account Host');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
   // Inizializza il DB (crea il file se non esiste)
