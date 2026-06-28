@@ -33,6 +33,8 @@ const {
   createQuiz,
   updateQuiz,
   deleteQuiz,
+  getPreloadedQuizzes,
+  getPreloadedQuizById,
   QuizLimitError,
   NotFoundError,
   MAX_QUIZZES_PER_USER,
@@ -275,6 +277,45 @@ router.delete('/quizzes/:id', verifyToken, (req, res) => {
       return sendError(res, 404, err.message);
     }
     console.error('[host/quizzes DELETE]', err);
+    return sendError(res, 500, 'Errore interno del server.');
+  }
+});
+
+// ─── GET /preloaded-quizzes ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Lista quiz precaricati di sistema.
+ * Risposta: { success: true, data: { quizzes: [] } }
+ */
+router.get('/preloaded-quizzes', verifyToken, (req, res) => {
+  try {
+    const quizzes = getPreloadedQuizzes();
+    return res.status(200).json({ success: true, data: { quizzes } });
+  } catch (err) {
+    console.error('[host/preloaded-quizzes GET]', err);
+    return sendError(res, 500, 'Errore interno del server.');
+  }
+});
+
+// ─── GET /preloaded-quizzes/:id ─────────────────────────────────────────────────────────────
+
+/**
+ * Dettaglio di un quiz precaricato per ID.
+ * Risposta: { success: true, data: { quiz } }
+ */
+router.get('/preloaded-quizzes/:id', verifyToken, (req, res) => {
+  try {
+    const quizId = parseInt(req.params.id, 10);
+    if (isNaN(quizId) || quizId <= 0) {
+      return sendError(res, 400, 'ID quiz non valido.');
+    }
+    const quiz = getPreloadedQuizById(quizId);
+    if (!quiz) {
+      return sendError(res, 404, 'Quiz precaricato non trovato.');
+    }
+    return res.status(200).json({ success: true, data: { quiz } });
+  } catch (err) {
+    console.error('[host/preloaded-quizzes/:id GET]', err);
     return sendError(res, 500, 'Errore interno del server.');
   }
 });

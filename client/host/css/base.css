@@ -1,0 +1,122 @@
+/* ─── Reset & Base ───────────────────────────────────────────────────────── */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--text-body-md);
+  font-weight: 700;
+  line-height: var(--text-body-md-lh);
+  background-color: var(--background);
+  color: var(--on-background);
+  min-height: 100vh;
+  overflow-x: hidden;
+  /* Dot grid pattern */
+  background-image: radial-gradient(var(--surface-dim) 2px, transparent 2px);
+  background-size: 24px 24px;
+}
+
+#app {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+/* ─── Typography ─────────────────────────────────────────────────────────── */
+
+h1, h2, h3, h4 {
+  font-family: var(--font-family);
+  font-weight: 900;
+  line-height: 1.2;
+  color: var(--on-background);
+}
+
+h1 { font-size: var(--text-display-lg); line-height: var(--text-display-lg-lh); letter-spacing: -0.02em; }
+h2 { font-size: var(--text-headline-md); line-height: var(--text-headline-md-lh); }
+h3 { font-size: var(--text-body-lg); line-height: var(--text-body-lg-lh); font-weight: 700; }
+h4 { font-size: var(--text-body-md); font-weight: 700; }
+
+p  { color: var(--on-surface-variant); line-height: 1.7; font-weight: 700; }
+
+a  {
+  color: var(--secondary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+a:hover { color: var(--on-secondary-container); }
+
+/* ─── Animations ─────────────────────────────────────────────────────────── */
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-8px); }
+  40%       { transform: translateX(8px); }
+  60%       { transform: translateX(-5px); }
+  80%       { transform: translateX(5px); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes staggerIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateX(110%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes toastSlideOut {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(110%); }
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--surface-container); }
+::-webkit-scrollbar-thumb { background: var(--outline-variant); border-radius: var(--radius-full); }
+::-webkit-scrollbar-thumb:hover { background: var(--outline); }
+
+/* ─── Utilities ───────────────────────────────────────────────────────────── */
+
+.hidden     { display: none !important; }
+.sr-only    { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+.text-muted { color: var(--on-surface-variant); }
+.text-sm    { font-size: 0.875rem; }
+.mt-auto    { margin-top: auto; }
+.w-full     { width: 100%; }

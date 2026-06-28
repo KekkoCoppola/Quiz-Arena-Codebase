@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="resources/img/QuizArenaLogo.png" alt="Quiz Arena Logo" width="300" style="border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
+  <img src="resources/img/LogoHalfWall.png" alt="Quiz-Zata! Logo" width="300" style="border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
 </p>
 
-<h1 align="center">Quiz Arena</h1>
+<h1 align="center">Quiz-Zata!</h1>
 
 <p align="center">
   <strong>Il motore di gioco a quiz multiplayer locale e in tempo reale per Raspberry Pi.</strong><br>
@@ -18,9 +18,9 @@
 
 ---
 
-## 📌 Cos'è Quiz Arena?
+## 📌 Cos'è Quiz-Zata!?
 
-**Quiz Arena** è una piattaforma di quiz interattivi multiplayer in tempo reale che funziona **completamente offline**. Viene eseguita a bordo di un **Raspberry Pi** configurato come Access Point Wi-Fi isolato. 
+**Quiz-Zata!** è una piattaforma di quiz interattivi multiplayer in tempo reale che funziona **completamente offline**. Viene eseguita a bordo di un **Raspberry Pi** configurato come Access Point Wi-Fi isolato. 
 
 I giocatori possono connettersi istantaneamente dal proprio smartphone inquadrando un **QR Code** o navigando all'indirizzo IP locale, senza installare alcuna applicazione o aver bisogno di una connessione internet attiva. L'host controlla la partita, le domande e la classifica in tempo reale tramite una dashboard dedicata.
 
@@ -46,17 +46,17 @@ I giocatori possono connettersi istantaneamente dal proprio smartphone inquadran
 - **Sicurezza:** Hashing delle password host tramite `bcryptjs` (pura implementazione JavaScript, per evitare le problematiche di packaging SEA associate a moduli nativi come `bcrypt` standard).
 - **Frontend:** HTML5, CSS3 Custom (Vanilla CSS con design responsive moderno), JavaScript Vanilla (SPA leggera)
 - **Compilazione & Packaging:** [Node.js Single Executable Applications (SEA)](https://nodejs.org/api/single-executable-applications.html) — funzionalità integrata nel runtime, sostituto ufficiale di `pkg` (archiviato e non più mantenuto dal dicembre 2024). Grazie all'adozione di `node:sqlite`, il backend non ha moduli nativi esterni da gestire come asset SEA.
-- **Sistema Host:** Linux (Debian/Raspbian OS) configurato con `hostapd` per l'Access Point Wi-Fi e `dnsmasq` per il routing DNS locale (dominio `quizarena.gioca`)
+- **Sistema Host:** Linux (Debian/Raspbian OS) configurato con `hostapd` per l'Access Point Wi-Fi e `dnsmasq` per il routing DNS locale (dominio `quizzata.gioca`)
 
 ---
 
 ## 🌐 Architettura di Rete
 
-Quiz Arena non richiede infrastruttura esterna. Il Raspberry Pi funge da server e da router Wi-Fi contemporaneamente:
+Quiz-Zata! non richiede infrastruttura esterna. Il Raspberry Pi funge da server e da router Wi-Fi contemporaneamente:
 
 ```text
                +----------------------------------------+
-               |  Raspberry Pi (Hotspot "QuizArena")    |
+               |  Raspberry Pi (Hotspot "QuizZata")    |
                |             IP: 192.168.4.1            |
                +----------------------------------------+
                                    |
@@ -64,7 +64,7 @@ Quiz Arena non richiede infrastruttura esterna. Il Raspberry Pi funge da server 
          |                                                   |
          v                                                   v
 🌐 Dispositivo Host                               📱 Smartphone Giocatori
-   Apre: http://quizarena.gioca/admin-console        Aprono: http://quizarena.gioca (o QR Code)
+   Apre: http://quizzata.gioca/admin-console        Aprono: http://quizzata.gioca (o QR Code)
    Fallback: http://192.168.4.1/admin-console        Fallback: http://192.168.4.1
    (URL host oscurato e personalizzabile da .env)    (⚠️ DNS-over-HTTPS può ignorare il DNS locale)
    - Avvia e controlla i quiz                        - Inseriscono il nickname
@@ -98,7 +98,7 @@ Il flusso di una partita segue una macchina a stati solida e sincronizzata in te
 Il codice è organizzato in modo modulare per separare nettamente le responsabilità di backend, frontend e strumenti interni:
 
 ```text
-quiz-arena/
+quiz-zata/
 ├── server/
 │   ├── index.js              # Entrypoint: avvia il server Express/Socket.io (+ hook licenza in produzione)
 │   ├── config.js             # Configurazione centralizzata: legge .env, valida, ri-esporta
@@ -144,7 +144,7 @@ Il software integra un meccanismo di licenza a tempo vincolato all'hardware per 
                                                             │
                                          ┌──────────────────┴──────────────────┐
                                          ▼ OK                                  ▼ FALLITO / SCADUTO
-                                  [ Avvia Quiz Arena ]                  [ Blocca Esecuzione ]
+                                  [ Avvia Quiz-Zata! ]                  [ Blocca Esecuzione ]
 ```
 
 1. **GitHub come Backend:** Le licenze sono memorizzate come file JSON nella cartella `licenze/<serial_pi>.json` di un repository privato GitHub (utilizzando il piano gratuito di GitHub).
