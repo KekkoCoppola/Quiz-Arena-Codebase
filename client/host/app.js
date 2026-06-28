@@ -295,6 +295,16 @@ function showView(viewName) {
     target.classList.add('active');
   }
 
+  // Gestione visibilità Sidebar Globale
+  const sidebar = document.getElementById('main-sidebar');
+  if (sidebar) {
+    if (viewName === 'dashboard' || viewName === 'editor') {
+      sidebar.classList.add('show');
+    } else {
+      sidebar.classList.remove('show');
+    }
+  }
+
   // Aggiorna navbar se autenticato
   if (viewName !== 'login' && state.user) {
     updateNavbar();
@@ -857,7 +867,6 @@ async function saveQuiz() {
 
 /* ── Pulsanti torna ── */
 document.getElementById('editor-back-btn').addEventListener('click', goBackToDashboard);
-document.getElementById('editor-cancel-btn').addEventListener('click', goBackToDashboard);
 
 function goBackToDashboard() {
   showView('dashboard');
@@ -870,7 +879,6 @@ function goBackToDashboard() {
 const gameQuizTitle     = document.getElementById('game-quiz-title');
 const gameQuestionCount = document.getElementById('game-question-count');
 const gameTypeBadge     = document.getElementById('game-type-badge');
-const gameQuestionList  = document.getElementById('game-question-list');
 
 /**
  * Apre la schermata di conduzione partita (placeholder).
@@ -888,24 +896,11 @@ function openGame(quiz, type) {
     ? `<span aria-hidden="true">🌟</span> <span>Sistema${quiz.category ? ` · ${escapeHtml(quiz.category)}` : ''}</span>`
     : `<span aria-hidden="true">✨</span> <span>Personale</span>`;
 
-  // Preview domande
-  gameQuestionList.innerHTML = '';
-  (quiz.questions || []).forEach((q, i) => {
-    const row = document.createElement('div');
-    row.className = 'question-preview-item';
-    row.style.animationDelay = `${i * 40}ms`;
-    row.innerHTML = `
-      <span class="question-preview-num">${i + 1}</span>
-      <span>${escapeHtml(q.text || '—')}</span>
-      <span class="question-preview-time">⏱ ${q.time_limit_s}s</span>
-    `;
-    gameQuestionList.appendChild(row);
-  });
 
   showView('game');
 }
 
-document.getElementById('game-back-btn').addEventListener('click', () => showView('dashboard'));
+
 document.getElementById('game-back-btn-2').addEventListener('click', () => showView('dashboard'));
 
 /* ═══════════════════════════════════════════════════════════════════════════

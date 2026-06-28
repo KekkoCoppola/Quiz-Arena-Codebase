@@ -53,6 +53,13 @@ app.use(
   express.static(path.join(__dirname, '../client/host'))
 );
 
+// ─── Static: Risorse condivise (loghi, sfondi, ecc.) ─────────────────────────
+// Montato su /resources per servire gli asset grafici usati da tutte le SPA.
+app.use(
+  '/resources',
+  express.static(path.join(__dirname, '../resources'))
+);
+
 // ─── API Host ─────────────────────────────────────────────────────────────────
 app.use('/api/host', hostRouter);
 
