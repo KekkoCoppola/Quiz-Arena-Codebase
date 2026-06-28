@@ -48,3 +48,24 @@ CREATE TABLE IF NOT EXISTS quizzes (
 -- ─── Indici ─────────────────────────────────────────────────────────────────────
 -- Ottimizza la query più frequente: recupero di tutti i quiz di un dato utente.
 CREATE INDEX IF NOT EXISTS idx_quizzes_user_id ON quizzes(user_id);
+
+-- ─── Tabella: preloaded_quizzes ──────────────────────────────────────────────────
+-- Quiz precaricati di sistema (non modificabili dagli host).
+-- Vengono popolati tramite tools/seed-preloaded.js.
+--
+-- La struttura di `questions` è identica alla tabella `quizzes`:
+--   {
+--     "text":          "Testo della domanda",
+--     "options":       ["Opzione A", "Opzione B", "Opzione C", "Opzione D"],
+--     "correct_index": 0,
+--     "time_limit_s":  30
+--   }
+CREATE TABLE IF NOT EXISTS preloaded_quizzes (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    title       TEXT    NOT NULL,
+    category    TEXT    NOT NULL DEFAULT 'Generale',
+    questions   TEXT    NOT NULL DEFAULT '[]',
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_preloaded_category ON preloaded_quizzes(category);

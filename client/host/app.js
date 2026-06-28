@@ -1,15 +1,940 @@
 /**
  * client/host/app.js
  *
- * Logica del pannello di controllo host (SPA).
+ * SPA Pannello Host — Quiz-Zata!
  *
- * Step 6: Implementare le seguenti sezioni:
- *  - Login host (autenticazione JWT)
- *  - Dashboard: selezione quiz (precaricati o personalizzati)
- *  - Editor quiz: creazione/modifica/eliminazione (max 3 per account)
- *  - Schermata conduzione partita: avanza domanda, mostra classifica
- *  - Integrazione Socket.io per aggiornamenti real-time
+ * Moduli interni (tutti in questo file, nessun bundler):
+ *   1. Config & State
+ *   2. Toast System
+ *   3. Modal System
+ *   4. API Client
+ *   5. Auth Module
+ *   6. Router (View Manager)
+ *   7. Dashboard Module
+ *   8. Editor Quiz Module (con Drag & Drop nativo HTML5)
+ *   9. Game Placeholder Module
+ *  10. Init
  */
 
-// TODO (Step 6): implementare logica pannello host
-console.log('[Host] Pannello host — placeholder (Step 6)');
+'use strict';
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   1. CONFIG & STATE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const API_BASE      = '/api/host';
+const TOKEN_KEY     = 'quizzata_token';
+const MAX_QUESTIONS = 20;
+
+const state = {
+  token:         null,   // JWT string
+  user:          null,   // { id, username }
+  quizzes:       [],     // quiz personali
+  preloaded:     [],     // quiz di sistema
+  currentQuiz:   null,   // quiz aperto in game view
+  editingId:     null,   // id del quiz in modifica (null = nuovo)
+  questions:     [],     // domande nell'editor
+  dragSrcIndex:  null,   // indice item draggato
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   2. TOAST SYSTEM
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const toastContainer = document.getElementById('toast-container');
+
+/**
+ * Mostra un toast temporaneo.
+ * @param {string} message
+ * @param {'success'|'error'|'info'} type
+ */
+function showToast(message, type = 'info') {
+  const ICONS = { success: '✅', error: '❌', info: 'ℹ️' };
+
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.setAttribute('role', 'alert');
+  toast.innerHTML = `
+    <span class="toast-icon" aria-hidden="true">${ICONS[type] ?? 'ℹ️'}</span>
+    <span class="toast-message">${escapeHtml(message)}</span>
+    <button class="toast-close" aria-label="Chiudi notifica">✕</button>
+  `;
+
+  const closeBtn = toast.querySelector('.toast-close');
+  closeBtn.addEventListener('click', () => dismissToast(toast));
+
+  toastContainer.appendChild(toast);
+
+  // Auto-dismiss dopo 3.5 secondi
+  setTimeout(() => dismissToast(toast), 3500);
+}
+
+function dismissToast(toast) {
+  if (toast.classList.contains('removing')) return;
+  toast.classList.add('removing');
+  toast.addEventListener('animationend', () => toast.remove(), { once: true });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   3. MODAL SYSTEM
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const modalOverlay = document.getElementById('modal-overlay');
+const modalTitle   = document.getElementById('modal-title');
+const modalMessage = document.getElementById('modal-message');
+const modalIcon    = document.getElementById('modal-icon');
+const modalConfirm = document.getElementById('modal-confirm');
+const modalCancel  = document.getElementById('modal-cancel');
+
+let _modalConfirmCallback = null;
+
+/**
+ * Apre il modale di conferma.
+ * @param {object} opts
+ * @param {string} opts.title
+ * @param {string} opts.message
+ * @param {string} [opts.icon]
+ * @param {string} [opts.confirmLabel]
+ * @param {Function} opts.onConfirm
+ */
+function showModal({ title, message, icon = '⚠️', confirmLabel = 'Conferma', onConfirm }) {
+  modalIcon.textContent    = icon;
+  modalTitle.textContent   = title;
+  modalMessage.textContent = message;
+  modalConfirm.textContent = confirmLabel;
+  _modalConfirmCallback    = onConfirm;
+  modalOverlay.classList.add('active');
+  modalCancel.focus();
+}
+
+function closeModal() {
+  modalOverlay.classList.remove('active');
+  _modalConfirmCallback = null;
+}
+
+modalCancel.addEventListener('click', closeModal);
+modalConfirm.addEventListener('click', () => {
+  if (typeof _modalConfirmCallback === 'function') _modalConfirmCallback();
+  closeModal();
+});
+modalOverlay.addEventListener('click', (e) => {
+  if (e.target === modalOverlay) closeModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && modalOverlay.classList.contains('active')) closeModal();
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   4. API CLIENT
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Wrapper fetch con JWT + gestione 401.
+ * @param {string} endpoint  — relativo ad API_BASE (es. '/login')
+ * @param {RequestInit} [opts]
+ * @returns {Promise<{ success: boolean, data?: any, error?: string }>}
+ */
+async function apiFetch(endpoint, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
+
+  const res = await fetch(`${API_BASE}${endpoint}`, { ...opts, headers });
+
+  if (res.status === 401) {
+    // Token scaduto o non valido → auto-logout
+    logout(false);
+    showToast('Sessione scaduta. Effettua nuovamente il login.', 'error');
+    return { success: false, error: 'Sessione scaduta.' };
+  }
+
+  return res.json();
+}
+
+const apiGet    = (ep)          => apiFetch(ep, { method: 'GET' });
+const apiPost   = (ep, body)    => apiFetch(ep, { method: 'POST',   body: JSON.stringify(body) });
+const apiPut    = (ep, body)    => apiFetch(ep, { method: 'PUT',    body: JSON.stringify(body) });
+const apiDelete = (ep)          => apiFetch(ep, { method: 'DELETE' });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   5. AUTH MODULE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const loginForm     = document.getElementById('login-form');
+const loginUsername = document.getElementById('login-username');
+const loginPassword = document.getElementById('login-password');
+const loginError    = document.getElementById('login-error');
+const loginBtn      = document.getElementById('login-btn');
+const loginBtnText  = document.getElementById('login-btn-text');
+const loginSpinner  = document.getElementById('login-spinner');
+
+function setLoginLoading(loading) {
+  loginBtn.disabled        = loading;
+  loginBtnText.textContent = loading ? 'Accesso...' : 'Accedi';
+  loginSpinner.style.display = loading ? 'block' : 'none';
+}
+
+function showLoginError(message) {
+  loginError.textContent  = message;
+  loginError.style.display = 'block';
+  loginUsername.classList.add('error');
+  loginPassword.classList.add('error');
+  // Rimuovi la classe dopo l'animazione
+  setTimeout(() => {
+    loginUsername.classList.remove('error');
+    loginPassword.classList.remove('error');
+  }, 500);
+}
+
+function clearLoginError() {
+  loginError.style.display = 'none';
+  loginError.textContent   = '';
+}
+
+loginForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearLoginError();
+
+  const username = loginUsername.value.trim();
+  const password = loginPassword.value;
+
+  if (!username || !password) {
+    showLoginError('Inserisci username e password.');
+    return;
+  }
+
+  setLoginLoading(true);
+
+  try {
+    const res = await apiPost('/login', { username, password });
+    if (res.success) {
+      state.token = res.data.token;
+      state.user  = res.data.user;
+      localStorage.setItem(TOKEN_KEY, state.token);
+      loginPassword.value = '';
+      await loadDashboard();
+      showView('dashboard');
+    } else {
+      showLoginError(res.error ?? 'Credenziali non valide.');
+    }
+  } catch {
+    showLoginError('Errore di rete. Controlla la connessione al server.');
+  } finally {
+    setLoginLoading(false);
+  }
+});
+
+/**
+ * Esegue il logout dell'utente.
+ * @param {boolean} [showMessage=true] — mostra toast di conferma
+ */
+function logout(showMessage = true) {
+  state.token  = null;
+  state.user   = null;
+  state.quizzes   = [];
+  state.preloaded = [];
+  localStorage.removeItem(TOKEN_KEY);
+  showView('login');
+  if (showMessage) showToast('Logout effettuato con successo.', 'success');
+}
+
+/**
+ * Controlla il token in localStorage e valida la sessione.
+ * @returns {Promise<boolean>}
+ */
+async function checkAuth() {
+  const savedToken = localStorage.getItem(TOKEN_KEY);
+  if (!savedToken) return false;
+
+  state.token = savedToken;
+  try {
+    const res = await apiGet('/me');
+    if (res.success) {
+      state.user = res.data.user;
+      return true;
+    }
+  } catch {
+    // Ignora errori di rete al bootstrap
+  }
+  state.token = null;
+  localStorage.removeItem(TOKEN_KEY);
+  return false;
+}
+
+document.getElementById('logout-btn').addEventListener('click', () => {
+  showModal({
+    title: 'Esci dal pannello',
+    message: 'Vuoi davvero effettuare il logout?',
+    icon: '⏏️',
+    confirmLabel: 'Esci',
+    onConfirm: () => logout(true),
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   6. ROUTER (VIEW MANAGER)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const VIEWS = ['login', 'dashboard', 'editor', 'game'];
+
+/**
+ * Mostra una vista SPA, nasconde le altre.
+ * @param {'login'|'dashboard'|'editor'|'game'} viewName
+ */
+function showView(viewName) {
+  VIEWS.forEach((name) => {
+    const el = document.getElementById(`view-${name}`);
+    if (el) {
+      el.classList.remove('active');
+    }
+  });
+
+  const target = document.getElementById(`view-${viewName}`);
+  if (target) {
+    // Force reflow per far ripartire l'animazione
+    void target.offsetWidth;
+    target.classList.add('active');
+  }
+
+  // Aggiorna navbar se autenticato
+  if (viewName !== 'login' && state.user) {
+    updateNavbar();
+  }
+}
+
+function updateNavbar() {
+  const avatarEl   = document.getElementById('navbar-avatar');
+  const usernameEl = document.getElementById('navbar-username');
+  if (state.user) {
+    avatarEl.textContent   = state.user.username.charAt(0).toUpperCase();
+    usernameEl.textContent = state.user.username;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   7. DASHBOARD MODULE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const personalGrid  = document.getElementById('personal-quiz-grid');
+const preloadedGrid = document.getElementById('preloaded-quiz-grid');
+const slotDots      = document.querySelectorAll('.slot-dot');
+const slotLabel     = document.getElementById('slot-label');
+
+async function loadDashboard() {
+  // Carica quiz personali e precaricati in parallelo
+  try {
+    const [personalRes, preloadedRes] = await Promise.all([
+      apiGet('/quizzes'),
+      apiGet('/preloaded-quizzes'),
+    ]);
+
+    state.quizzes   = personalRes.success  ? personalRes.data.quizzes   : [];
+    state.preloaded = preloadedRes.success ? preloadedRes.data.quizzes  : [];
+  } catch {
+    showToast('Errore nel caricamento dei quiz. Riprova.', 'error');
+  }
+
+  renderPersonalSection();
+  renderPreloadedSection();
+}
+
+/* ── Slot counter ── */
+function updateSlotCounter(used) {
+  slotLabel.textContent = `${used} / 3 quiz`;
+  slotDots.forEach((dot, i) => {
+    dot.classList.remove('used', 'full');
+    if (i < used) {
+      dot.classList.add(used >= 3 ? 'full' : 'used');
+    }
+  });
+}
+
+/* ── Sezione quiz personali ── */
+function renderPersonalSection() {
+  const count = state.quizzes.length;
+  updateSlotCounter(count);
+  personalGrid.innerHTML = '';
+
+  // Card "Crea nuovo"
+  const newCard = document.createElement('div');
+  const atLimit = count >= 3;
+  newCard.className = 'quiz-card-new';
+  if (atLimit) newCard.setAttribute('disabled', '');
+  newCard.setAttribute('role', 'button');
+  newCard.setAttribute('tabindex', atLimit ? '-1' : '0');
+  newCard.setAttribute('aria-label', atLimit ? 'Limite quiz raggiunto (3/3)' : 'Crea nuovo quiz');
+  newCard.setAttribute('title', atLimit ? 'Hai raggiunto il limite di 3 quiz personali' : 'Crea un nuovo quiz');
+  newCard.innerHTML = `
+    <span class="new-icon" aria-hidden="true">${atLimit ? '🔒' : '＋'}</span>
+    <span class="new-label">${atLimit ? 'Limite raggiunto' : 'Crea nuovo quiz'}</span>
+  `;
+  if (!atLimit) {
+    newCard.addEventListener('click', () => openEditor(null));
+    newCard.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') openEditor(null); });
+  }
+  personalGrid.appendChild(newCard);
+
+  if (state.quizzes.length === 0) {
+    // Messaggio vuoto (dopo la card new)
+    const empty = document.createElement('div');
+    empty.style.cssText = 'display:flex;align-items:center;color:var(--text-muted);font-size:0.875rem;padding: 1rem 0;';
+    empty.textContent = 'Nessun quiz personale creato ancora.';
+    personalGrid.appendChild(empty);
+    return;
+  }
+
+  state.quizzes.forEach((quiz, i) => {
+    const card = buildQuizCard(quiz, 'personal', i);
+    personalGrid.appendChild(card);
+  });
+}
+
+/* ── Sezione quiz precaricati ── */
+function renderPreloadedSection() {
+  preloadedGrid.innerHTML = '';
+
+  if (state.preloaded.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.innerHTML = `
+      <span class="empty-icon" aria-hidden="true">📦</span>
+      <p>Nessun quiz precaricato trovato.<br>Esegui <code>node tools/seed-preloaded.js</code> per aggiungerli.</p>
+    `;
+    preloadedGrid.appendChild(empty);
+    return;
+  }
+
+  state.preloaded.forEach((quiz, i) => {
+    const card = buildQuizCard(quiz, 'preloaded', i);
+    preloadedGrid.appendChild(card);
+  });
+}
+
+/**
+ * Costruisce una quiz card DOM.
+ * @param {object} quiz
+ * @param {'personal'|'preloaded'} type
+ * @param {number} animIndex
+ */
+function buildQuizCard(quiz, type, animIndex) {
+  const isPersonal   = type === 'personal';
+  const questionCount = Array.isArray(quiz.questions) ? quiz.questions.length : 0;
+
+  const card = document.createElement('article');
+  card.className = 'quiz-card';
+  card.style.animationDelay = `${animIndex * 60}ms`;
+  card.setAttribute('aria-label', `Quiz: ${quiz.title}`);
+
+  const accentClass = isPersonal ? '' : 'preloaded';
+  const badgeHtml   = isPersonal
+    ? `<span class="badge badge-violet">Personale</span>`
+    : `<span class="badge badge-cyan">${escapeHtml(quiz.category ?? 'Sistema')}</span>`;
+
+  const actionsHtml = isPersonal ? `
+    <button class="btn btn-secondary btn-sm" data-action="edit" data-id="${quiz.id}" title="Modifica quiz">
+      ✏️ Modifica
+    </button>
+    <button class="btn btn-accent btn-sm" data-action="play" data-type="personal" data-id="${quiz.id}" title="Avvia partita">
+      ▶ Avvia
+    </button>
+    <button class="btn btn-danger btn-sm btn-icon" data-action="delete" data-id="${quiz.id}" title="Elimina quiz" aria-label="Elimina quiz ${escapeHtml(quiz.title)}">
+      🗑
+    </button>
+  ` : `
+    <button class="btn btn-accent btn-sm" style="width:100%;" data-action="play" data-type="preloaded" data-id="${quiz.id}" title="Avvia partita">
+      ▶ Avvia
+    </button>
+  `;
+
+  card.innerHTML = `
+    <div class="quiz-card-accent ${accentClass}"></div>
+    <div class="quiz-card-body">
+      <div class="quiz-card-header">
+        <h3 class="quiz-card-title">${escapeHtml(quiz.title)}</h3>
+        ${badgeHtml}
+      </div>
+      <div class="quiz-card-meta">
+        <span title="Numero di domande">❓ ${questionCount} domand${questionCount === 1 ? 'a' : 'e'}</span>
+      </div>
+      <div class="quiz-card-actions">
+        ${actionsHtml}
+      </div>
+    </div>
+  `;
+
+  // Event delegation sulle azioni
+  card.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+
+    const action = btn.dataset.action;
+    const id     = parseInt(btn.dataset.id, 10);
+
+    if (action === 'edit') {
+      openEditor(id);
+    } else if (action === 'play') {
+      const quizType = btn.dataset.type;
+      const quiz = quizType === 'personal'
+        ? state.quizzes.find((q) => q.id === id)
+        : state.preloaded.find((q) => q.id === id);
+      if (quiz) openGame(quiz, quizType);
+    } else if (action === 'delete') {
+      const quiz = state.quizzes.find((q) => q.id === id);
+      if (quiz) confirmDeleteQuiz(quiz);
+    }
+  });
+
+  return card;
+}
+
+/* ── Elimina quiz ── */
+function confirmDeleteQuiz(quiz) {
+  showModal({
+    title: 'Elimina quiz',
+    message: `Vuoi davvero eliminare "${quiz.title}"? Questa azione è irreversibile.`,
+    icon: '🗑️',
+    confirmLabel: 'Elimina',
+    onConfirm: async () => {
+      try {
+        const res = await apiDelete(`/quizzes/${quiz.id}`);
+        if (res.success) {
+          showToast(`"${quiz.title}" eliminato.`, 'success');
+          await loadDashboard();
+        } else {
+          showToast(res.error ?? 'Errore durante l\'eliminazione.', 'error');
+        }
+      } catch {
+        showToast('Errore di rete. Riprova.', 'error');
+      }
+    },
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   8. EDITOR QUIZ MODULE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const editorTitle       = document.getElementById('editor-title');
+const quizTitleInput    = document.getElementById('quiz-title-input');
+const questionsList     = document.getElementById('questions-list');
+const questionsEmpty    = document.getElementById('questions-empty');
+const questionCountBadge = document.getElementById('question-count-badge');
+const addQuestionBtn    = document.getElementById('add-question-btn');
+const editorSaveBtn     = document.getElementById('editor-save-btn');
+const editorSaveText    = document.getElementById('editor-save-text');
+const editorSaveSpinner = document.getElementById('editor-save-spinner');
+
+const OPTION_LABELS = ['A', 'B', 'C', 'D'];
+const TIME_OPTIONS  = [5, 10, 15, 20, 25, 30, 45, 60, 90, 120];
+
+/**
+ * Apre la vista editor.
+ * @param {number|null} quizId — null per nuovo quiz
+ */
+async function openEditor(quizId) {
+  state.editingId = quizId;
+  state.questions = [];
+
+  if (quizId !== null) {
+    // Carica quiz esistente
+    try {
+      const res = await apiGet(`/quizzes/${quizId}`);
+      if (!res.success) {
+        showToast('Impossibile caricare il quiz. Riprova.', 'error');
+        return;
+      }
+      const quiz = res.data.quiz;
+      quizTitleInput.value = quiz.title;
+      state.questions      = quiz.questions.map((q) => ({ ...q }));
+      editorTitle.textContent = 'Modifica Quiz';
+    } catch {
+      showToast('Errore di rete. Riprova.', 'error');
+      return;
+    }
+  } else {
+    quizTitleInput.value    = '';
+    editorTitle.textContent = 'Nuovo Quiz';
+    // Aggiungi una domanda vuota di default
+    state.questions = [createEmptyQuestion()];
+  }
+
+  renderQuestionList();
+  showView('editor');
+}
+
+function createEmptyQuestion() {
+  return {
+    text:          '',
+    options:       ['', '', '', ''],
+    correct_index: 0,
+    time_limit_s:  20,
+  };
+}
+
+/* ── Render lista domande ── */
+function renderQuestionList() {
+  questionsList.innerHTML = '';
+  const count = state.questions.length;
+
+  // Badge contatore
+  questionCountBadge.textContent = `${count} / ${MAX_QUESTIONS}`;
+  questionCountBadge.classList.toggle('at-limit', count >= MAX_QUESTIONS);
+
+  // Stato empty
+  questionsEmpty.classList.toggle('hidden', count > 0);
+
+  // Pulsante aggiungi
+  addQuestionBtn.disabled = count >= MAX_QUESTIONS;
+
+  state.questions.forEach((q, idx) => {
+    const item = buildQuestionItem(q, idx);
+    questionsList.appendChild(item);
+  });
+}
+
+/**
+ * Costruisce il DOM di una singola domanda nell'editor.
+ */
+function buildQuestionItem(q, idx) {
+  const item = document.createElement('div');
+  item.className = 'question-item';
+  item.setAttribute('draggable', 'true');
+  item.dataset.index = idx;
+  item.setAttribute('role', 'listitem');
+
+  // Genera le righe opzioni
+  const optionsHtml = OPTION_LABELS.slice(0, q.options.length).map((letter, oIdx) => {
+    const isCorrect = (q.correct_index === oIdx);
+    return `
+      <div class="option-row ${isCorrect ? 'correct' : ''}" data-option="${oIdx}">
+        <span class="option-label-char">${letter}</span>
+        <input
+          type="text"
+          class="form-input"
+          placeholder="Opzione ${letter}..."
+          value="${escapeHtml(q.options[oIdx] ?? '')}"
+          data-role="option-text"
+          data-q="${idx}"
+          data-o="${oIdx}"
+          aria-label="Opzione ${letter} domanda ${idx + 1}"
+        >
+        <div class="option-correct-indicator"
+          role="radio"
+          aria-checked="${isCorrect}"
+          aria-label="Risposta corretta: opzione ${letter}"
+          tabindex="0"
+          data-role="correct-indicator"
+          data-q="${idx}"
+          data-o="${oIdx}"
+          title="Segna come risposta corretta"
+        ></div>
+      </div>
+    `;
+  }).join('');
+
+  // Time options
+  const timeOpts = TIME_OPTIONS.map((t) =>
+    `<option value="${t}" ${q.time_limit_s === t ? 'selected' : ''}>${t}s</option>`
+  ).join('');
+
+  item.innerHTML = `
+    <div class="question-item-header" data-role="drag-handle">
+      <span class="drag-handle" aria-hidden="true">⠿</span>
+      <span class="question-number">Domanda ${idx + 1}</span>
+      <button class="btn btn-danger btn-sm btn-icon" data-role="remove-q" data-q="${idx}" aria-label="Rimuovi domanda ${idx + 1}" title="Rimuovi questa domanda">
+        ✕
+      </button>
+    </div>
+    <div class="question-item-body">
+      <div class="form-group">
+        <label class="form-label" for="q-text-${idx}">Testo della domanda</label>
+        <textarea
+          id="q-text-${idx}"
+          class="form-textarea"
+          placeholder="Scrivi qui la domanda..."
+          data-role="q-text"
+          data-q="${idx}"
+          rows="2"
+          aria-label="Testo domanda ${idx + 1}"
+        >${escapeHtml(q.text)}</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Opzioni di risposta <span class="form-hint">(clicca il cerchio per segnare la risposta corretta)</span></label>
+        <div class="options-grid">
+          ${optionsHtml}
+        </div>
+      </div>
+      <div class="time-row">
+        <label for="q-time-${idx}" class="form-label">⏱ Tempo limite:</label>
+        <select
+          id="q-time-${idx}"
+          class="form-select time-select"
+          data-role="q-time"
+          data-q="${idx}"
+          aria-label="Tempo limite domanda ${idx + 1}"
+        >${timeOpts}</select>
+      </div>
+    </div>
+  `;
+
+  attachQuestionEvents(item, idx);
+  attachDragEvents(item, idx);
+
+  return item;
+}
+
+/** Collega gli event listener agli input di una singola domanda. */
+function attachQuestionEvents(item, idx) {
+  // Testo domanda
+  const textArea = item.querySelector('[data-role="q-text"]');
+  textArea.addEventListener('input', () => {
+    state.questions[idx].text = textArea.value;
+  });
+
+  // Testo opzioni
+  item.querySelectorAll('[data-role="option-text"]').forEach((input) => {
+    input.addEventListener('input', () => {
+      const oIdx = parseInt(input.dataset.o, 10);
+      state.questions[idx].options[oIdx] = input.value;
+    });
+  });
+
+  // Indicatori risposta corretta (click + enter/space)
+  item.querySelectorAll('[data-role="correct-indicator"]').forEach((indicator) => {
+    const selectCorrect = () => {
+      const oIdx = parseInt(indicator.dataset.o, 10);
+      state.questions[idx].correct_index = oIdx;
+      // Aggiorna visualmente solo le righe opzione di questo item
+      item.querySelectorAll('.option-row').forEach((row, rIdx) => {
+        const isNowCorrect = rIdx === oIdx;
+        row.classList.toggle('correct', isNowCorrect);
+        row.querySelector('[data-role="correct-indicator"]').setAttribute('aria-checked', isNowCorrect);
+      });
+    };
+    indicator.addEventListener('click', selectCorrect);
+    indicator.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectCorrect(); }
+    });
+  });
+
+  // Tempo limite
+  const timeSelect = item.querySelector('[data-role="q-time"]');
+  timeSelect.addEventListener('change', () => {
+    state.questions[idx].time_limit_s = parseInt(timeSelect.value, 10);
+  });
+
+  // Rimuovi domanda
+  const removeBtn = item.querySelector('[data-role="remove-q"]');
+  removeBtn.addEventListener('click', () => removeQuestion(idx));
+}
+
+/* ── Drag & Drop ── */
+function attachDragEvents(item, idx) {
+  item.addEventListener('dragstart', (e) => {
+    state.dragSrcIndex = idx;
+    item.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', idx);
+  });
+
+  item.addEventListener('dragend', () => {
+    item.classList.remove('dragging');
+    document.querySelectorAll('.question-item').forEach((el) => el.classList.remove('drag-over'));
+  });
+
+  item.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    document.querySelectorAll('.question-item').forEach((el) => el.classList.remove('drag-over'));
+    item.classList.add('drag-over');
+  });
+
+  item.addEventListener('dragleave', (e) => {
+    if (!item.contains(e.relatedTarget)) {
+      item.classList.remove('drag-over');
+    }
+  });
+
+  item.addEventListener('drop', (e) => {
+    e.preventDefault();
+    item.classList.remove('drag-over');
+    const srcIdx = state.dragSrcIndex;
+    const dstIdx = idx;
+    if (srcIdx === null || srcIdx === dstIdx) return;
+
+    // Sposta l'elemento nell'array state.questions
+    const [moved] = state.questions.splice(srcIdx, 1);
+    state.questions.splice(dstIdx, 0, moved);
+    state.dragSrcIndex = null;
+    renderQuestionList();
+  });
+}
+
+/* ── Aggiungi / Rimuovi domanda ── */
+addQuestionBtn.addEventListener('click', () => {
+  if (state.questions.length >= MAX_QUESTIONS) {
+    showToast(`Limite massimo di ${MAX_QUESTIONS} domande raggiunto.`, 'error');
+    return;
+  }
+  state.questions.push(createEmptyQuestion());
+  renderQuestionList();
+  // Scroll all'ultima domanda
+  setTimeout(() => {
+    const items = questionsList.querySelectorAll('.question-item');
+    items[items.length - 1]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 50);
+});
+
+function removeQuestion(idx) {
+  if (state.questions.length <= 1) {
+    showToast('Il quiz deve avere almeno una domanda.', 'error');
+    return;
+  }
+  state.questions.splice(idx, 1);
+  renderQuestionList();
+}
+
+/* ── Salva quiz ── */
+function setSaveLoading(loading) {
+  editorSaveBtn.disabled = loading;
+  editorSaveText.textContent = loading ? 'Salvataggio...' : 'Salva Quiz';
+  editorSaveSpinner.classList.toggle('hidden', !loading);
+}
+
+editorSaveBtn.addEventListener('click', saveQuiz);
+
+async function saveQuiz() {
+  const title     = quizTitleInput.value.trim();
+  const questions = state.questions;
+
+  // Validazione base lato client
+  if (!title) {
+    quizTitleInput.classList.add('error');
+    setTimeout(() => quizTitleInput.classList.remove('error'), 500);
+    showToast('Inserisci un titolo per il quiz.', 'error');
+    quizTitleInput.focus();
+    return;
+  }
+  if (questions.length === 0) {
+    showToast('Aggiungi almeno una domanda.', 'error');
+    return;
+  }
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+    if (!q.text.trim()) {
+      showToast(`Domanda ${i + 1}: il testo è obbligatorio.`, 'error');
+      return;
+    }
+    const hasEmpty = q.options.some((o) => !o.trim());
+    if (hasEmpty) {
+      showToast(`Domanda ${i + 1}: tutte le opzioni devono essere compilate.`, 'error');
+      return;
+    }
+  }
+
+  setSaveLoading(true);
+  try {
+    const body = { title, questions };
+    const res  = state.editingId !== null
+      ? await apiPut(`/quizzes/${state.editingId}`, body)
+      : await apiPost('/quizzes', body);
+
+    if (res.success) {
+      showToast(
+        state.editingId !== null ? 'Quiz aggiornato!' : 'Quiz creato!',
+        'success'
+      );
+      await loadDashboard();
+      showView('dashboard');
+    } else {
+      showToast(res.error ?? 'Errore nel salvataggio. Riprova.', 'error');
+    }
+  } catch {
+    showToast('Errore di rete. Riprova.', 'error');
+  } finally {
+    setSaveLoading(false);
+  }
+}
+
+/* ── Pulsanti torna ── */
+document.getElementById('editor-back-btn').addEventListener('click', goBackToDashboard);
+document.getElementById('editor-cancel-btn').addEventListener('click', goBackToDashboard);
+
+function goBackToDashboard() {
+  showView('dashboard');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   9. GAME PLACEHOLDER MODULE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const gameQuizTitle     = document.getElementById('game-quiz-title');
+const gameQuestionCount = document.getElementById('game-question-count');
+const gameTypeBadge     = document.getElementById('game-type-badge');
+const gameQuestionList  = document.getElementById('game-question-list');
+
+/**
+ * Apre la schermata di conduzione partita (placeholder).
+ * @param {object} quiz
+ * @param {'personal'|'preloaded'} type
+ */
+function openGame(quiz, type) {
+  state.currentQuiz = quiz;
+
+  const count = Array.isArray(quiz.questions) ? quiz.questions.length : 0;
+
+  gameQuizTitle.textContent     = quiz.title;
+  gameQuestionCount.textContent = `${count} domand${count === 1 ? 'a' : 'e'}`;
+  gameTypeBadge.innerHTML = type === 'preloaded'
+    ? `<span aria-hidden="true">🌟</span> <span>Sistema${quiz.category ? ` · ${escapeHtml(quiz.category)}` : ''}</span>`
+    : `<span aria-hidden="true">✨</span> <span>Personale</span>`;
+
+  // Preview domande
+  gameQuestionList.innerHTML = '';
+  (quiz.questions || []).forEach((q, i) => {
+    const row = document.createElement('div');
+    row.className = 'question-preview-item';
+    row.style.animationDelay = `${i * 40}ms`;
+    row.innerHTML = `
+      <span class="question-preview-num">${i + 1}</span>
+      <span>${escapeHtml(q.text || '—')}</span>
+      <span class="question-preview-time">⏱ ${q.time_limit_s}s</span>
+    `;
+    gameQuestionList.appendChild(row);
+  });
+
+  showView('game');
+}
+
+document.getElementById('game-back-btn').addEventListener('click', () => showView('dashboard'));
+document.getElementById('game-back-btn-2').addEventListener('click', () => showView('dashboard'));
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   UTILITY
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Sfugge caratteri HTML per prevenire XSS nelle interpolazioni. */
+function escapeHtml(str) {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   10. INIT
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+async function init() {
+  const isAuthenticated = await checkAuth();
+  if (isAuthenticated) {
+    await loadDashboard();
+    showView('dashboard');
+  } else {
+    showView('login');
+  }
+}
+
+init();

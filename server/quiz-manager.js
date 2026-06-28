@@ -292,7 +292,36 @@ function deleteQuiz(quizId, userId) {
   }
 }
 
-// ─── Exports ─────────────────────────────────────────────────────────────────────
+// ─── Preloaded Quizzes ────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Restituisce tutti i quiz precaricati di sistema, ordinati per categoria e titolo.
+ *
+ * @returns {Array<object>}
+ */
+function getPreloadedQuizzes() {
+  const database = getDb();
+  const stmt = database.prepare(
+    'SELECT id, title, category, questions, created_at FROM preloaded_quizzes ORDER BY category ASC, title ASC'
+  );
+  return stmt.all().map(parseQuizRow);
+}
+
+/**
+ * Recupera un singolo quiz precaricato per ID.
+ *
+ * @param {number} quizId
+ * @returns {object | null}
+ */
+function getPreloadedQuizById(quizId) {
+  const database = getDb();
+  const stmt = database.prepare(
+    'SELECT id, title, category, questions, created_at FROM preloaded_quizzes WHERE id = ?'
+  );
+  return parseQuizRow(stmt.get(quizId));
+}
+
+// ─── Exports ────────────────────────────────────────────────────────────────────────────────────
 
 module.exports = {
   // Init
@@ -309,6 +338,9 @@ module.exports = {
   createQuiz,
   updateQuiz,
   deleteQuiz,
+  // Preloaded Quizzes (sola lettura)
+  getPreloadedQuizzes,
+  getPreloadedQuizById,
   // Error classes (usate dai route handler per il mapping HTTP status)
   QuizLimitError,
   NotFoundError,
