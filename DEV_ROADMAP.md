@@ -31,27 +31,27 @@ Questa roadmap delinea gli step per sviluppare l'intero gioco sul PC locale (Win
 - [ ] Servire le pagine statiche del frontend Host e Player.
 - [ ] Configurare Socket.io e agganciarlo al server Express.
 
-### Fase 4: Sviluppo Frontend Host (Il Pannello di Controllo)
-- [ ] Creare la pagina di Login per l'Host.
-- [ ] Dashboard: UI per visualizzare quiz precaricati, i propri salvati o crearne di nuovi.
-- [ ] Interfaccia di gestione partita (avvia quiz, prossima domanda, mostra classifica).
-- [ ] **Grafica:** Utilizzare CSS moderno (Vanilla) per un look premium e accattivante.
+### Fase 4: Sviluppo Frontend Host (UI-First) - *Completata (Parziale)*
+- [x] Creare la pagina di Login per l'Host.
+- [x] Dashboard: UI per visualizzare quiz precaricati, i propri salvati o crearne di nuovi.
+- [x] Interfaccia di gestione partita (UI placeholder, logica e bottoni da collegare).
+- [x] **Grafica:** Utilizzare CSS moderno (Vanilla) per un look premium e accattivante.
+*(Nota: L'implementazione completa della UI host si sospende qui in attesa dell'engine di gioco).*
 
-### Fase 5: Motore di Gioco (State Machine)
-- [ ] Implementare la logica in `server/game.js` (LOBBY -> QUESTION -> RESULTS -> FINAL_LEADERBOARD).
-- [ ] Gestire i punteggi in base alla velocità e alla correttezza delle risposte.
-- [ ] Gestire eventi Socket.io per sincronizzare Host e Player in tempo reale.
+### Fase 5: Motore di Gioco (State Machine) - *[ IN CORSO ]*
+- [ ] Implementare la logica "pura" in `server/game.js` (LOBBY -> QUESTION -> RESULTS -> FINAL_LEADERBOARD).
+- [ ] Logica in-memory testabile (senza rete o UI): registrazione giocatori, timer, calcolo dei punteggi basato su velocità e correttezza.
 
-### Fase 6: Sviluppo Frontend Player (Mobile)
-- [ ] Creare l'interfaccia mobile per l'inserimento del Nickname.
-- [ ] Schermata di attesa (Lobby).
-- [ ] Schermata dinamica dei pulsanti di risposta.
-- [ ] Schermata di feedback (Giusto/Sbagliato + punti).
-- [ ] **Grafica:** Estremamente reattiva al tap e pensata per l'uso mobile ("mobile first").
+### Fase 6: Integrazione Socket.io & Test E2E Minimale
+- [ ] Gestire eventi Socket.io per esporre la state machine di `game.js`.
+- [ ] Creare un Frontend Player **minimale** (solo bottoni base e form nome, zero design) per testare le funzionalità.
+- [ ] Validare una partita completa end-to-end (Host UI attuale -> Server Socket -> Player minimale).
 
-### Fase 7: Versione Alpha & Playtesting Locale
+### Fase 7: Rifinitura UI e Playtesting Locale
+- [ ] Cablare il vero engine di gioco alla UI dell'Host (attivare controlli "disabilitati").
+- [ ] Sviluppare il Frontend Player finale ("mobile first", dinamico e reattivo).
 - [ ] Connettere il PC e alcuni smartphone alla stessa rete Wi-Fi.
-- [ ] Giocare una partita completa per testare latenza, socket, disconnessioni e calcolo punteggi.
+- [ ] Giocare una partita completa per testare latenza, socket, disconnessioni.
 - [ ] Bugfixing per arrivare alla versione Beta.
 
 ---
