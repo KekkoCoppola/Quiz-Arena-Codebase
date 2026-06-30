@@ -42,12 +42,10 @@
   gap: 1rem;
   z-index: 200;
   overflow-y: auto;
-  color: var(--secondary);
-  background-color: var(--secondary-container);
-  background-image:
-    linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)),
-    url('/resources/img/BackgroundBricks.jpeg');
-  background-size: cover;
+  color: var(--on-background);
+  background-color: var(--background);
+  background-image: radial-gradient(var(--surface-dim) 2px, transparent 2px);
+  background-size: 24px 24px;
   background-position: center;
   border-right: 4px solid var(--on-background);
   box-shadow: var(--retro-shadow-right);
