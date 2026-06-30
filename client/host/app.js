@@ -326,7 +326,6 @@ function updateNavbar() {
 
 const personalGrid  = document.getElementById('personal-quiz-grid');
 const preloadedGrid = document.getElementById('preloaded-quiz-grid');
-const slotDots      = document.querySelectorAll('.slot-dot');
 const slotLabel     = document.getElementById('slot-label');
 
 async function loadDashboard() {
@@ -350,12 +349,6 @@ async function loadDashboard() {
 /* ── Slot counter ── */
 function updateSlotCounter(used) {
   slotLabel.textContent = `${used} / 3 quiz`;
-  slotDots.forEach((dot, i) => {
-    dot.classList.remove('used', 'full');
-    if (i < used) {
-      dot.classList.add(used >= 3 ? 'full' : 'used');
-    }
-  });
 }
 
 /* ── Sezione quiz personali ── */
@@ -806,7 +799,7 @@ function removeQuestion(idx) {
 /* ── Salva quiz ── */
 function setSaveLoading(loading) {
   editorSaveBtn.disabled = loading;
-  editorSaveText.textContent = loading ? 'Salvataggio...' : 'Salva Quiz';
+  editorSaveText.textContent = loading ? 'Salvataggio...' : 'Salva Bozza';
   editorSaveSpinner.classList.toggle('hidden', !loading);
 }
 
@@ -917,6 +910,73 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SIDEBAR TOGGLE LOGIC
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const sidebarToggleBtn   = document.getElementById('sidebar-toggle-btn');
+const sidebarToggleArrow = document.getElementById('sidebar-toggle-arrow');
+const editorMenuBtn      = document.getElementById('editor-menu-btn');
+const mainSidebar        = document.getElementById('main-sidebar');
+const sidebarBackdrop    = document.getElementById('sidebar-backdrop');
+
+function openMobileSidebar() {
+  if (mainSidebar)     mainSidebar.classList.add('open');
+  if (sidebarBackdrop) sidebarBackdrop.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeMobileSidebar() {
+  if (mainSidebar)     mainSidebar.classList.remove('open');
+  if (sidebarBackdrop) sidebarBackdrop.classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+// Hamburger btn (topbar) — mobile slide / desktop collapse
+if (sidebarToggleBtn) {
+  sidebarToggleBtn.addEventListener('click', () => {
+    if (window.innerWidth < 769) {
+      if (mainSidebar && mainSidebar.classList.contains('open')) {
+        closeMobileSidebar();
+      } else {
+        openMobileSidebar();
+      }
+    } else {
+      document.body.classList.toggle('sidebar-collapsed');
+    }
+  });
+}
+
+// Hamburger nell'editor — visibile solo su mobile, apre la sidebar off-canvas
+if (editorMenuBtn) {
+  editorMenuBtn.addEventListener('click', openMobileSidebar);
+}
+
+// Freccia dentro la sidebar: mobile chiude, desktop collassa
+if (sidebarToggleArrow) {
+  sidebarToggleArrow.addEventListener('click', () => {
+    if (window.innerWidth < 769) {
+      closeMobileSidebar();
+    } else {
+      document.body.classList.toggle('sidebar-collapsed');
+      const isCollapsed = document.body.classList.contains('sidebar-collapsed');
+      sidebarToggleArrow.setAttribute('aria-label', isCollapsed ? 'Espandi menu' : 'Comprimi menu');
+    }
+  });
+}
+
+// Chiudi mobile sidebar cliccando sul backdrop
+if (sidebarBackdrop) {
+  sidebarBackdrop.addEventListener('click', closeMobileSidebar);
+}
+
+// Chiudi sidebar su mobile cambiando view
+window.addEventListener('resize', () => {
+  if (window.innerWidth >= 769) {
+    closeMobileSidebar();
+  }
+});
 
 /* ═══════════════════════════════════════════════════════════════════════════
    10. INIT

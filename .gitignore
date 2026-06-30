@@ -35,3 +35,6 @@ server/db/*.sqlite-shm
 
 # Script di smoke test temporanei (non committare)
 tools/test-db.js
+
+# Claude Code (config locale, non committare)
+.claude/

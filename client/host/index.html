@@ -1,23 +1,27 @@
 <!DOCTYPE html>
 <html lang="it">
+
 <head>
+  <link rel="icon" type="image/svg+xml" href="/resources/img/Logo.svg">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Quiz-Zata! — Pannello di controllo host per la gestione e conduzione dei quiz multiplayer.">
+  <meta name="description"
+    content="Quiz-Zata! — Pannello di controllo host per la gestione e conduzione dei quiz multiplayer.">
   <meta name="robots" content="noindex, nofollow">
   <title>Quiz-Zata! Admin</title>
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 
-  <!-- ═══════════════════════════════════════════════════════════
+  <!-- ═══════════════════════════════════════════════════════════════════════════
        TOAST CONTAINER (globale)
-  ════════════════════════════════════════════════════════════ -->
+  ════════════════════════════════════════════════════════════════════════════ -->
   <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="false"></div>
 
-  <!-- ═══════════════════════════════════════════════════════════
+  <!-- ═══════════════════════════════════════════════════════════════════════════
        MODAL (globale)
-  ════════════════════════════════════════════════════════════ -->
+  ════════════════════════════════════════════════════════════════════════════ -->
   <div id="modal-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal">
       <span id="modal-icon" class="modal-icon" aria-hidden="true">⚠️</span>
@@ -30,47 +34,41 @@
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════════════════════════════
+  <!-- ═══════════════════════════════════════════════════════════════════════════
        APP ROOT
-  ════════════════════════════════════════════════════════════ -->
+  ════════════════════════════════════════════════════════════════════════════ -->
   <div id="app">
-    <!-- ══ Sidebar Globale (Desktop) ══ -->
+    <!-- Sidebar Backdrop (mobile overlay) -->
+    <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+
+    <!-- ══ Sidebar Globale ══ -->
     <nav id="main-sidebar" class="sidebar" aria-label="Navigazione principale">
+
+      <!-- Freccia: chiudi (mobile) / comprimi (desktop) — in cima sopra il logo -->
+      <button id="sidebar-toggle-arrow" class="sidebar-toggle-arrow" aria-label="Comprimi menu">
+        <span class="material-symbols-outlined">chevron_left</span>
+      </button>
+
       <div class="sidebar-logo">
-        <img src="/resources/img/LogoNoBG.png" alt="Quiz-Zata Logo" class="login-logo-img" style="max-width: 180px; width: 100%;">
+        <img src="/resources/img/Logo.svg" alt="Quiz-Zata Logo">
       </div>
 
       <div class="sidebar-header">
-        <h2>Admin Panel</h2>
-        <p>Host Mode</p>
+        <h2>Pannello Admin</h2>
+        <p>Modalità Host</p>
       </div>
 
       <div class="sidebar-nav">
-        <a href="#" class="sidebar-link active">
-          <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">quiz</span>
-          <span>My Quizzes</span>
-        </a>
-        <a href="#" class="sidebar-link">
-          <span class="material-symbols-outlined">add_circle</span>
-          <span>Create New</span>
-        </a>
-        <a href="#" class="sidebar-link">
-          <span class="material-symbols-outlined">category</span>
-          <span>System Quizzes</span>
-        </a>
         <a href="#" class="sidebar-link">
           <span class="material-symbols-outlined">settings</span>
-          <span>Settings</span>
+          <span class="sidebar-link-label">Impostazioni</span>
         </a>
       </div>
 
       <div class="sidebar-footer">
-        <button class="sidebar-start-btn">
-          Start Quiz Session
-        </button>
         <button class="sidebar-logout" id="logout-btn">
           <span class="material-symbols-outlined">logout</span>
-          <span>Log Out</span>
+          <span class="sidebar-logout-label">Esci</span>
         </button>
       </div>
     </nav>
@@ -80,36 +78,24 @@
       <div class="login-wrapper">
         <header class="login-header">
           <div class="login-logo">
-            <img src="/resources/img/LogoNoBG.png" alt="Quiz-Zata! Logo" class="login-logo-img">
+            <img src="/resources/img/Logo.svg" alt="Quiz-Zata! Logo" class="login-logo-img">
           </div>
-          <h1 class="login-title">Quiz-Zata!</h1>
-          <p class="login-subtitle">Admin Panel - Host Mode</p>
+          <h1 class="login-title">Gestionale Admin</h1>
+          <h2 class="login-subtitle">Inserisci le credenziali amministratore</h2>
         </header>
 
         <div class="card login-card">
           <form id="login-form" class="login-form" novalidate>
             <div class="form-group">
               <label class="form-label" for="login-username">Username</label>
-              <input
-                id="login-username"
-                type="text"
-                class="form-input"
-                placeholder="Il tuo username"
-                autocomplete="username"
-                required
-              >
+              <input id="login-username" type="text" class="form-input" placeholder="Il tuo username"
+                autocomplete="username" required>
             </div>
 
             <div class="form-group">
               <label class="form-label" for="login-password">Password</label>
-              <input
-                id="login-password"
-                type="password"
-                class="form-input"
-                placeholder="••••••••"
-                autocomplete="current-password"
-                required
-              >
+              <input id="login-password" type="password" class="form-input" placeholder="••••••••"
+                autocomplete="current-password" required>
             </div>
 
             <div id="login-error" class="login-error" role="alert"></div>
@@ -133,11 +119,11 @@
           <!-- Top App Bar -->
           <header class="topbar">
             <div class="topbar-left">
-              <button class="topbar-menu-btn" aria-label="Apri menu">
+              <button id="sidebar-toggle-btn" class="topbar-menu-btn" aria-label="Apri menu">
                 <span class="material-symbols-outlined" style="font-size: 1.75rem;">menu</span>
               </button>
             </div>
-            
+
             <div class="topbar-right">
               <div class="topbar-actions">
                 <button class="topbar-icon-btn" aria-label="Notifiche">
@@ -172,7 +158,7 @@
               </div>
 
               <div id="personal-quiz-grid" class="quiz-grid">
-                <!-- Create New Card (Hardcoded as requested by the framework structure, but JS usually renders this. We add it here for visual completeness if JS relies on it, or JS will overwrite it. Assuming JS overwrites `personal-quiz-grid`, but we need the exact look. Actually, app.js empties the grid and populates it. Let's make sure the JS rendering matches the new classes. For now, let's leave it empty as app.js will populate it.) -->
+                <!-- Popolato da JS -->
               </div>
             </section>
 
@@ -205,16 +191,21 @@
     <!-- ─── Vista: EDITOR QUIZ ────────────────────────────────────── -->
     <section id="view-editor" class="view" role="main" aria-label="Editor quiz">
       <div class="editor-layout">
-        <!-- Nessuna Navbar sticky come richiesto dal design (usiamo l'header integrato) -->
-        
+
         <!-- Contenuto editor -->
         <div class="editor-content">
-          
+
           <!-- Page Header -->
           <div class="editor-page-header">
-            <h2 id="editor-title" class="editor-page-title">CREATE QUIZ</h2>
-            <button id="editor-back-btn" class="btn btn-secondary btn-sm" aria-label="Torna alla Dashboard">
-              <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span> Dashboard
+            <div class="editor-page-header-left">
+              <button id="editor-menu-btn" class="topbar-menu-btn editor-menu-btn" aria-label="Apri menu">
+                <span class="material-symbols-outlined" style="font-size: 1.75rem;">menu</span>
+              </button>
+              <h2 id="editor-title" class="editor-page-title">NUOVO QUIZ</h2>
+            </div>
+            <button id="editor-back-btn" class="btn btn-secondary btn-sm editor-back-btn" aria-label="Torna alla Dashboard">
+              <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+              <span class="editor-back-label">Dashboard</span>
             </button>
           </div>
 
@@ -222,14 +213,9 @@
           <section class="brutal-card quiz-info-block">
             <div class="brutal-badge-info">INFO</div>
             <div class="form-group" style="margin-top: 0.5rem;">
-              <label class="form-label-brutal" for="quiz-title-input">Quiz Title</label>
-              <input
-                id="quiz-title-input"
-                type="text"
-                class="brutal-input-lg"
-                placeholder="e.g. Animali del mondo"
-                maxlength="100"
-              >
+              <label class="form-label-brutal" for="quiz-title-input">Titolo Quiz</label>
+              <input id="quiz-title-input" type="text" class="brutal-input-lg" placeholder="es. Animali del mondo"
+                maxlength="100">
             </div>
           </section>
 
@@ -237,14 +223,14 @@
           <div class="questions-block">
             <div class="questions-header">
               <div class="questions-header-title">
-                <h3>Questions</h3>
+                <h3>Domande</h3>
                 <span id="question-count-badge" class="question-count-badge">1 / 20</span>
               </div>
               <button id="add-question-btn" class="btn-add-question">
                 <div class="btn-add-icon">
                   <span class="material-symbols-outlined text-sm font-bold">add</span>
                 </div>
-                <span>Add Question</span>
+                <span>Aggiungi Domanda</span>
               </button>
             </div>
 
@@ -254,14 +240,14 @@
 
             <div id="questions-empty" class="empty-state hidden">
               <span class="empty-icon material-symbols-outlined" aria-hidden="true">edit_document</span>
-              <p>Nessuna domanda aggiunta.<br>Clicca "Add Question" per iniziare.</p>
+              <p>Nessuna domanda aggiunta.<br>Clicca "Aggiungi Domanda" per iniziare.</p>
             </div>
           </div>
 
           <!-- Save Action Area -->
           <div class="editor-save-area">
             <button id="editor-save-btn" class="btn-save-draft">
-              <span id="editor-save-text">Save Draft</span>
+              <span id="editor-save-text">Salva Bozza</span>
               <span id="editor-save-spinner" class="spinner hidden" aria-hidden="true"></span>
             </button>
           </div>
@@ -284,7 +270,8 @@
         <svg class="game-sticker sticker-2" fill="currentColor" viewBox="0 0 100 100">
           <circle cx="50" cy="50" r="40" stroke="var(--retro-dark)" stroke-dasharray="10 5" stroke-width="6"></circle>
         </svg>
-        <svg class="game-sticker sticker-3" fill="none" stroke="var(--retro-dark)" stroke-linecap="round" stroke-width="8" viewBox="0 0 100 100">
+        <svg class="game-sticker sticker-3" fill="none" stroke="var(--retro-dark)" stroke-linecap="round"
+          stroke-width="8" viewBox="0 0 100 100">
           <path d="M20,20 L80,80 M80,20 L20,80"></path>
         </svg>
         <svg class="game-sticker sticker-4" fill="currentColor" viewBox="0 0 100 100">
@@ -297,9 +284,11 @@
         <header class="game-top-bar">
           <div class="game-progress-wrapper">
             <div aria-label="Quiz Progress" class="game-progress">
-              <div class="dot-small drawn-circle bg-retro-terracotta" style="background-color: var(--retro-terracotta);"></div>
+              <div class="dot-small drawn-circle bg-retro-terracotta"
+                style="background-color: var(--retro-terracotta);"></div>
               <div class="bar bg-retro-terracotta" style="background-color: var(--retro-terracotta);"></div>
-              <div class="dot-large drawn-circle bg-primary-container" style="background-color: var(--primary-container);">
+              <div class="dot-large drawn-circle bg-primary-container"
+                style="background-color: var(--primary-container);">
                 <div class="dot-inner"></div>
               </div>
               <div class="bar bg-surface-dim" style="background-color: var(--surface-dim);"></div>
@@ -308,7 +297,7 @@
           </div>
           <!-- Centered Logo -->
           <div class="game-logo-wrapper">
-            <img alt="Quizzata Logo" src="/resources/img/LogoNoBG.png">
+            <img alt="Quizzata Logo" src="/resources/img/Logo.svg">
           </div>
           <div class="game-timer-wrapper">
             <div class="game-timer-badge">00:00</div>
@@ -319,14 +308,15 @@
         <main class="game-main-canvas">
           <div class="game-admin-card">
             <h2 id="game-quiz-title">Titolo Quiz</h2>
-            
+
             <div class="game-admin-badges">
               <div id="game-question-count" class="game-badge count">0 domande</div>
               <div id="game-type-badge" class="game-badge type">Personalizzato</div>
             </div>
-            
+
             <div class="game-controls-grid">
-              <button class="btn-game-control btn-game-primary btn-start-game" disabled title="La logica sarà attivata nella Fase 5">
+              <button class="btn-game-control btn-game-primary btn-start-game" disabled
+                title="La logica sarà attivata nella Fase 5">
                 <span class="material-symbols-outlined">play_arrow</span> Avvia Partita
               </button>
               <button class="btn-game-control btn-game-secondary" disabled>
@@ -348,4 +338,5 @@
 
   <script src="app.js"></script>
 </body>
+
 </html>

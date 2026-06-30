@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="resources/img/LogoNoBG.png" alt="Quiz-Zata! Logo" width="300" style="border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
+  <img src="resources/img/Logo.svg" alt="Quiz-Zata! Logo" width="300" style="border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
 </p>
 
 <h1 align="center">Quiz-Zata!</h1>
