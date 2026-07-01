@@ -35,6 +35,7 @@ const state = {
   editingId:     null,   // id del quiz in modifica (null = nuovo)
   questions:     [],     // domande nell'editor
   dragSrcIndex:  null,   // indice item draggato
+  editorSnapshot: null,  // JSON di titolo+domande all'apertura editor, per rilevare modifiche non salvate
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -49,15 +50,19 @@ const toastContainer = document.getElementById('toast-container');
  * @param {'success'|'error'|'info'} type
  */
 function showToast(message, type = 'info') {
-  const ICONS = { success: '✅', error: '❌', info: 'ℹ️' };
+  const ICONS = {
+    success: '<i class="fas fa-circle-check"></i>',
+    error:   '<i class="fas fa-circle-xmark"></i>',
+    info:    '<i class="fas fa-circle-info"></i>',
+  };
 
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
   toast.setAttribute('role', 'alert');
   toast.innerHTML = `
-    <span class="toast-icon" aria-hidden="true">${ICONS[type] ?? 'ℹ️'}</span>
+    <span class="toast-icon" aria-hidden="true">${ICONS[type] ?? ICONS.info}</span>
     <span class="toast-message">${escapeHtml(message)}</span>
-    <button class="toast-close" aria-label="Chiudi notifica">✕</button>
+    <button class="toast-close" aria-label="Chiudi notifica"><i class="fas fa-xmark"></i></button>
   `;
 
   const closeBtn = toast.querySelector('.toast-close');
@@ -97,8 +102,8 @@ let _modalConfirmCallback = null;
  * @param {string} [opts.confirmLabel]
  * @param {Function} opts.onConfirm
  */
-function showModal({ title, message, icon = '⚠️', confirmLabel = 'Conferma', onConfirm }) {
-  modalIcon.textContent    = icon;
+function showModal({ title, message, icon = '<i class="fas fa-triangle-exclamation"></i>', confirmLabel = 'Conferma', onConfirm }) {
+  modalIcon.innerHTML      = icon;
   modalTitle.textContent   = title;
   modalMessage.textContent = message;
   modalConfirm.textContent = confirmLabel;
@@ -260,11 +265,20 @@ async function checkAuth() {
   return false;
 }
 
+document.getElementById('help-btn').addEventListener('click', () => {
+  showModal({
+    title: 'Come funziona',
+    message: 'Scegli o crea un quiz dalla dashboard, poi premi "Avvia" per aprire la schermata di conduzione partita: da lì controlli domande e classifica sullo schermo che il pubblico vede. Per creare un quiz, aggiungi domande con 4 opzioni di risposta e un tempo limite, poi salva.',
+    icon: '<i class="fas fa-circle-info"></i>',
+    confirmLabel: 'Ho capito',
+  });
+});
+
 document.getElementById('logout-btn').addEventListener('click', () => {
   showModal({
     title: 'Esci dal pannello',
     message: 'Vuoi davvero effettuare il logout?',
-    icon: '⏏️',
+    icon: '<i class="fas fa-right-from-bracket"></i>',
     confirmLabel: 'Esci',
     onConfirm: () => logout(true),
   });
@@ -367,7 +381,7 @@ function renderPersonalSection() {
   newCard.setAttribute('aria-label', atLimit ? 'Limite quiz raggiunto (3/3)' : 'Crea nuovo quiz');
   newCard.setAttribute('title', atLimit ? 'Hai raggiunto il limite di 3 quiz personali' : 'Crea un nuovo quiz');
   newCard.innerHTML = `
-    <span class="new-icon" aria-hidden="true">${atLimit ? '🔒' : '＋'}</span>
+    <span class="new-icon" aria-hidden="true">${atLimit ? '<i class="fas fa-lock"></i>' : '<i class="fas fa-plus"></i>'}</span>
     <span class="new-label">${atLimit ? 'Limite raggiunto' : 'Crea nuovo quiz'}</span>
   `;
   if (!atLimit) {
@@ -399,7 +413,7 @@ function renderPreloadedSection() {
     const empty = document.createElement('div');
     empty.className = 'empty-state';
     empty.innerHTML = `
-      <span class="empty-icon" aria-hidden="true">📦</span>
+      <span class="empty-icon" aria-hidden="true"><i class="fas fa-box-open"></i></span>
       <p>Nessun quiz precaricato trovato.<br>Esegui <code>node tools/seed-preloaded.js</code> per aggiungerli.</p>
     `;
     preloadedGrid.appendChild(empty);
@@ -434,17 +448,17 @@ function buildQuizCard(quiz, type, animIndex) {
 
   const actionsHtml = isPersonal ? `
     <button class="btn btn-secondary btn-sm" data-action="edit" data-id="${quiz.id}" title="Modifica quiz">
-      ✏️ Modifica
+      <i class="fas fa-pen-to-square"></i> Modifica
     </button>
     <button class="btn btn-accent btn-sm" data-action="play" data-type="personal" data-id="${quiz.id}" title="Avvia partita">
-      ▶ Avvia
+      <i class="fas fa-play"></i> Avvia
     </button>
     <button class="btn btn-danger btn-sm btn-icon" data-action="delete" data-id="${quiz.id}" title="Elimina quiz" aria-label="Elimina quiz ${escapeHtml(quiz.title)}">
-      🗑
+      <i class="fas fa-trash-can"></i>
     </button>
   ` : `
     <button class="btn btn-accent btn-sm" style="width:100%;" data-action="play" data-type="preloaded" data-id="${quiz.id}" title="Avvia partita">
-      ▶ Avvia
+      <i class="fas fa-play"></i> Avvia
     </button>
   `;
 
@@ -456,7 +470,7 @@ function buildQuizCard(quiz, type, animIndex) {
         ${badgeHtml}
       </div>
       <div class="quiz-card-meta">
-        <span title="Numero di domande">❓ ${questionCount} domand${questionCount === 1 ? 'a' : 'e'}</span>
+        <span title="Numero di domande"><i class="fas fa-circle-question"></i> ${questionCount} domand${questionCount === 1 ? 'a' : 'e'}</span>
       </div>
       <div class="quiz-card-actions">
         ${actionsHtml}
@@ -494,7 +508,7 @@ function confirmDeleteQuiz(quiz) {
   showModal({
     title: 'Elimina quiz',
     message: `Vuoi davvero eliminare "${quiz.title}"? Questa azione è irreversibile.`,
-    icon: '🗑️',
+    icon: '<i class="fas fa-trash-can"></i>',
     confirmLabel: 'Elimina',
     onConfirm: async () => {
       try {
@@ -560,8 +574,17 @@ async function openEditor(quizId) {
     state.questions = [createEmptyQuestion()];
   }
 
+  state.editorSnapshot = JSON.stringify({ title: quizTitleInput.value, questions: state.questions });
+
   renderQuestionList();
   showView('editor');
+}
+
+/** true se titolo/domande sono cambiati rispetto all'apertura dell'editor. */
+function hasUnsavedEditorChanges() {
+  if (state.editorSnapshot == null) return false;
+  const current = JSON.stringify({ title: quizTitleInput.value, questions: state.questions });
+  return current !== state.editorSnapshot;
 }
 
 function createEmptyQuestion() {
@@ -641,10 +664,10 @@ function buildQuestionItem(q, idx) {
 
   item.innerHTML = `
     <div class="question-item-header" data-role="drag-handle">
-      <span class="drag-handle" aria-hidden="true">⠿</span>
+      <span class="drag-handle" aria-hidden="true"><i class="fas fa-grip-vertical"></i></span>
       <span class="question-number">Domanda ${idx + 1}</span>
       <button class="btn btn-danger btn-sm btn-icon" data-role="remove-q" data-q="${idx}" aria-label="Rimuovi domanda ${idx + 1}" title="Rimuovi questa domanda">
-        ✕
+        <i class="fas fa-xmark"></i>
       </button>
     </div>
     <div class="question-item-body">
@@ -862,6 +885,16 @@ async function saveQuiz() {
 document.getElementById('editor-back-btn').addEventListener('click', goBackToDashboard);
 
 function goBackToDashboard() {
+  if (hasUnsavedEditorChanges()) {
+    showModal({
+      title: 'Modifiche non salvate',
+      message: 'Hai modifiche non salvate su questo quiz. Vuoi uscire senza salvare?',
+      icon: '<i class="fas fa-triangle-exclamation"></i>',
+      confirmLabel: 'Esci senza salvare',
+      onConfirm: () => showView('dashboard'),
+    });
+    return;
+  }
   showView('dashboard');
 }
 
@@ -886,15 +919,23 @@ function openGame(quiz, type) {
   gameQuizTitle.textContent     = quiz.title;
   gameQuestionCount.textContent = `${count} domand${count === 1 ? 'a' : 'e'}`;
   gameTypeBadge.innerHTML = type === 'preloaded'
-    ? `<span aria-hidden="true">🌟</span> <span>Sistema${quiz.category ? ` · ${escapeHtml(quiz.category)}` : ''}</span>`
-    : `<span aria-hidden="true">✨</span> <span>Personale</span>`;
+    ? `<span aria-hidden="true"><i class="fas fa-star"></i></span> <span>Sistema${quiz.category ? ` · ${escapeHtml(quiz.category)}` : ''}</span>`
+    : `<span aria-hidden="true"><i class="fas fa-wand-magic-sparkles"></i></span> <span>Personale</span>`;
 
 
   showView('game');
 }
 
 
-document.getElementById('game-back-btn-2').addEventListener('click', () => showView('dashboard'));
+document.getElementById('game-back-btn-2').addEventListener('click', () => {
+  showModal({
+    title: 'Termina partita',
+    message: 'Vuoi davvero terminare la partita e tornare alla dashboard? I giocatori collegati verranno disconnessi.',
+    icon: '<i class="fas fa-triangle-exclamation"></i>',
+    confirmLabel: 'Termina partita',
+    onConfirm: () => showView('dashboard'),
+  });
+});
 
 /* ═══════════════════════════════════════════════════════════════════════════
    UTILITY

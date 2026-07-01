@@ -25,6 +25,12 @@ const { DatabaseSync } = require('node:sqlite');
 /** Numero massimo di quiz personalizzati per account host. */
 const MAX_QUIZZES_PER_USER = 3;
 
+/**
+ * Numero massimo di domande per quiz.
+ * Deve restare allineato a `MAX_QUESTIONS` in client/host/app.js (limite lato UI).
+ */
+const MAX_QUESTIONS_PER_QUIZ = 20;
+
 // ─── Errori Custom ───────────────────────────────────────────────────────────────
 
 /**
@@ -347,4 +353,5 @@ module.exports = {
   DuplicateUsernameError,
   // Costanti
   MAX_QUIZZES_PER_USER,
+  MAX_QUESTIONS_PER_QUIZ,
 };

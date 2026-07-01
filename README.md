@@ -165,7 +165,7 @@ Il progetto viene sviluppato seguendo un approccio **Game-First**: prima si cost
 2. **Step 2:** `server/quiz-manager.js` + SQLite Schema — Tabelle `users` (host, password hashate con **bcryptjs**, implementazione JS pura) e `quizzes` (max 3 per utente), import CSV/Excel.
 3. **Step 3:** `server/index.js` — Bootstrap del server Express, configurazione Socket.io.
 4. **Step 4 (Completato Parzialmente):** Frontend Host (UI-First) — UI della dashboard amministrativa e grafica premium (sospeso in attesa dell'engine di gioco).
-5. **Step 5 (In Corso):** `server/game.js` — Motore di gioco e macchina a stati in-memory (LOBBY → QUESTION → RESULTS → FINAL_LEADERBOARD).
+5. **Step 5 (Completato):** `server/game.js` — Motore di gioco e macchina a stati in-memory (LOBBY → QUESTION → RESULTS → FINAL_LEADERBOARD). Timer via timestamp iniettati, punteggio stile Kahoot. Smoke test: `tools/test-game.js`.
 6. **Step 6:** Socket.io Integration + Player E2E Minimale — Configurazione eventi real-time tra Host e client giocatore "base" per test end-to-end senza UI definitiva.
 7. **Step 7:** Rifinitura UI e Beta — Completamento dell'interfaccia Host (cablaggi logici) e sviluppo UI mobile-first per il Player. Playtesting locale e bugfixing.
 

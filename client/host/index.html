@@ -10,6 +10,8 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Quiz-Zata! Admin</title>
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/js/all.min.js"
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 </head>
 
 <body>
@@ -24,7 +26,7 @@
   ════════════════════════════════════════════════════════════════════════════ -->
   <div id="modal-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal">
-      <span id="modal-icon" class="modal-icon" aria-hidden="true">⚠️</span>
+      <span id="modal-icon" class="modal-icon" aria-hidden="true"><i class="fas fa-triangle-exclamation"></i></span>
       <h2 id="modal-title" class="modal-title">Conferma azione</h2>
       <p id="modal-message" class="modal-message">Sei sicuro di voler procedere?</p>
       <div class="modal-actions">
@@ -126,10 +128,7 @@
 
             <div class="topbar-right">
               <div class="topbar-actions">
-                <button class="topbar-icon-btn" aria-label="Notifiche">
-                  <span class="material-symbols-outlined">notifications</span>
-                </button>
-                <button class="topbar-icon-btn" aria-label="Aiuto">
+                <button id="help-btn" class="topbar-icon-btn" aria-label="Aiuto">
                   <span class="material-symbols-outlined">help</span>
                 </button>
               </div>
@@ -314,18 +313,27 @@
               <div id="game-type-badge" class="game-badge type">Personalizzato</div>
             </div>
 
+            <div id="game-status-note" class="game-status-note" role="status">
+              <i class="fas fa-hourglass-half" aria-hidden="true"></i>
+              Conduzione partita in arrivo: per ora puoi solo terminare o tornare alla dashboard.
+            </div>
+
             <div class="game-controls-grid">
-              <button class="btn-game-control btn-game-primary btn-start-game" disabled
-                title="La logica sarà attivata nella Fase 5">
+              <button class="btn-game-control btn-game-primary btn-start-game btn-game-primary--dominant" disabled
+                aria-describedby="game-status-note">
                 <span class="material-symbols-outlined">play_arrow</span> Avvia Partita
               </button>
-              <button class="btn-game-control btn-game-secondary" disabled>
-                <span class="material-symbols-outlined">skip_next</span> Prossima Domanda
-              </button>
-              <button class="btn-game-control btn-game-tertiary" disabled>
-                <span class="material-symbols-outlined">leaderboard</span> Mostra Classifica
-              </button>
-              <button id="game-back-btn-2" class="btn-game-control btn-game-danger">
+              <div class="game-controls-secondary">
+                <button class="btn-game-control btn-game-secondary" disabled
+                  aria-describedby="game-status-note">
+                  <span class="material-symbols-outlined">skip_next</span> Prossima Domanda
+                </button>
+                <button class="btn-game-control btn-game-tertiary" disabled
+                  aria-describedby="game-status-note">
+                  <span class="material-symbols-outlined">leaderboard</span> Mostra Classifica
+                </button>
+              </div>
+              <button id="game-back-btn-2" class="btn-game-control btn-game-danger btn-game-danger--demoted">
                 <span class="material-symbols-outlined">close</span> Termina Partita
               </button>
             </div>
