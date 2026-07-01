@@ -38,6 +38,7 @@ const {
   QuizLimitError,
   NotFoundError,
   MAX_QUIZZES_PER_USER,
+  MAX_QUESTIONS_PER_QUIZ,
 } = require('../quiz-manager');
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────────
@@ -65,6 +66,9 @@ function validateQuizInput({ title, questions }) {
   }
   if (!Array.isArray(questions) || questions.length === 0) {
     return 'Il quiz deve contenere almeno una domanda.';
+  }
+  if (questions.length > MAX_QUESTIONS_PER_QUIZ) {
+    return `Il quiz può contenere al massimo ${MAX_QUESTIONS_PER_QUIZ} domande.`;
   }
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
@@ -210,6 +214,32 @@ router.post('/quizzes', verifyToken, (req, res) => {
       return sendError(res, 422, err.message);
     }
     console.error('[host/quizzes POST]', err);
+    return sendError(res, 500, 'Errore interno del server.');
+  }
+});
+
+// ─── GET /quizzes/:id ─────────────────────────────────────────────────────────────
+
+/**
+ * Dettaglio di un quiz personale dell'host autenticato (usato dall'editor per il caricamento
+ * di un quiz esistente).
+ * Risposta: { success: true, data: { quiz } }
+ */
+router.get('/quizzes/:id', verifyToken, (req, res) => {
+  try {
+    const quizId = parseInt(req.params.id, 10);
+    if (isNaN(quizId) || quizId <= 0) {
+      return sendError(res, 400, 'ID quiz non valido.');
+    }
+
+    const quiz = getQuizById(quizId, req.user.userId);
+    if (!quiz) {
+      return sendError(res, 404, 'Quiz non trovato o non di tua proprietà.');
+    }
+
+    return res.status(200).json({ success: true, data: { quiz } });
+  } catch (err) {
+    console.error('[host/quizzes/:id GET]', err);
     return sendError(res, 500, 'Errore interno del server.');
   }
 });

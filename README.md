@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="resources/img/LogoHalfWall.png" alt="Quiz-Zata! Logo" width="300" style="border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
+  <img src="resources/img/Logo.svg" alt="Quiz-Zata! Logo" width="300" style="border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
 </p>
 
 <h1 align="center">Quiz-Zata!</h1>
@@ -164,10 +164,10 @@ Il progetto viene sviluppato seguendo un approccio **Game-First**: prima si cost
 1. **Step 1:** Setup progetto Node.js — Struttura cartelle, dipendenze, `.env` e `.gitignore`. Database via `node:sqlite` (stabile in Node.js v24, integrato nel runtime, zero dipendenze native).
 2. **Step 2:** `server/quiz-manager.js` + SQLite Schema — Tabelle `users` (host, password hashate con **bcryptjs**, implementazione JS pura) e `quizzes` (max 3 per utente), import CSV/Excel.
 3. **Step 3:** `server/index.js` — Bootstrap del server Express, configurazione Socket.io.
-4. **Step 4:** `server/game.js` — Logica centrale e macchina a stati del gioco (LOBBY → QUESTION → RESULTS → FINAL_LEADERBOARD).
-5. **Step 5:** Socket.io Integration — Configurazione ed eventi real-time tra Host e Player.
-6. **Step 6:** Frontend Host — UI della dashboard amministrativa (login, gestione quiz, conduzione partita).
-7. **Step 7:** Frontend Player — Interfaccia mobile responsive, pulsanti di risposta e feedback.
+4. **Step 4 (Completato Parzialmente):** Frontend Host (UI-First) — UI della dashboard amministrativa e grafica premium (sospeso in attesa dell'engine di gioco).
+5. **Step 5 (Completato):** `server/game.js` — Motore di gioco e macchina a stati in-memory (LOBBY → QUESTION → RESULTS → FINAL_LEADERBOARD). Timer via timestamp iniettati, punteggio stile Kahoot. Smoke test: `tools/test-game.js`.
+6. **Step 6:** Socket.io Integration + Player E2E Minimale — Configurazione eventi real-time tra Host e client giocatore "base" per test end-to-end senza UI definitiva.
+7. **Step 7:** Rifinitura UI e Beta — Completamento dell'interfaccia Host (cablaggi logici) e sviluppo UI mobile-first per il Player. Playtesting locale e bugfixing.
 
 ### Fase Futura — Richiede l'Hardware Raspberry Pi
 

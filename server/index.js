@@ -13,7 +13,7 @@
  *   - Inizializzare il database prima di avviare il listener
  *   - Gestire SIGINT/SIGTERM con chiusura pulita di server e DB
  *
- * NON contiene logica di gioco (→ Step 4: game.js).
+ * NON contiene logica di gioco (→ Step 5: game.js).
  */
 
 const path             = require('node:path');
@@ -105,7 +105,7 @@ const io = new SocketServer(httpServer, {
   },
 });
 
-// Rende `io` accessibile nei moduli successivi (es. game.js — Step 4/5)
+// Rende `io` accessibile nei moduli successivi (es. game.js — Step 5/6)
 // tramite req.app.get('io') senza creare dipendenze circolari tra moduli.
 app.set('io', io);
 
@@ -126,7 +126,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // TODO (Step 4-5): agganciare qui gli handler di gioco tramite game.js
+  // TODO (Step 6): agganciare qui gli handler di gioco tramite game.js
 });
 
 // ─── Inizializzazione DB ──────────────────────────────────────────────────────
