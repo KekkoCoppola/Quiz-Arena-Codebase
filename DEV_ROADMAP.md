@@ -42,15 +42,16 @@ Questa roadmap delinea gli step per sviluppare l'intero gioco sul PC locale (Win
 ### Fase 5: Motore di Gioco (State Machine) - *Completata*
 - [x] Implementare la logica "pura" in `server/game.js` (LOBBY -> QUESTION -> RESULTS -> FINAL_LEADERBOARD).
 - [x] Logica in-memory testabile (senza rete o UI): registrazione giocatori, timer, calcolo dei punteggi basato su velocità e correttezza.
-  *(Timer via timestamp iniettati (`now`), non `setTimeout` reale — resta puro/deterministico. Il countdown reale + eventi Socket.io arrivano in Fase 6. Smoke test: `tools/test-game.js`, 37/37 verifiche superate.)*
+  *(Timer via timestamp iniettati (`now`), non `setTimeout` reale — resta puro/deterministico. Il countdown reale + eventi Socket.io arrivano in Fase 6. Smoke test: `tools/test-game.js`, 39/39 verifiche superate.)*
 
 > **Nota terminologia:** i commenti nel codice e il README usano la parola "Step N", questa roadmap usa "Fase N" — **stessa numerazione** (Step 5 = Fase 5, ecc.). Riferimenti allineati.
 
-### Fase 6: Integrazione Socket.io & Test E2E Minimale
-- [ ] Gestire eventi Socket.io per esporre la state machine di `game.js`.
-- [ ] Creare un Frontend Player **minimale** (solo bottoni base e form nome, zero design) per testare le funzionalità.
-- [ ] Validare una partita completa end-to-end (Host UI attuale -> Server Socket -> Player minimale).
-- [ ] **Riavvio partita da FINAL_LEADERBOARD** (previsto in Istructions.md, non ancora in `game.js`): valutare se aggiungere `resetGame()` a `GameSession` o istanziare una nuova sessione lato Socket.io. Da decidere qui perché la scelta dipende da come Fase 6 gestisce il ciclo di vita delle sessioni in memoria.
+### Fase 6: Integrazione Socket.io & Test E2E Minimale - *Completata*
+- [x] Gestire eventi Socket.io per esporre la state machine di `game.js`.
+- [x] Creare un Frontend Player **minimale** (solo bottoni base e form nome, zero design) per testare le funzionalità.
+- [x] Validare una partita completa end-to-end (Host UI attuale -> Server Socket -> Player minimale).
+- [x] **Riavvio partita da FINAL_LEADERBOARD** (previsto in Istructions.md, non ancora in `game.js`): valutare se aggiungere `resetGame()` a `GameSession` o istanziare una nuova sessione lato Socket.io. Da decidere qui perché la scelta dipende da come Fase 6 gestisce il ciclo di vita delle sessioni in memoria.
+  *(Implementato in `server/game-socket.js` (una partita globale, timer server con chiusura anticipata, auth host JWT su handshake). Riavvio da FINAL_LEADERBOARD: nuova `GameSession` lato socket, `game.js` immutato. Test integrazione: `npm run test:socket`. Design spec: `docs/superpowers/specs/2026-07-02-fase6-socketio-design.md`.)*
 
 ### Fase 7: Rifinitura UI e Playtesting Locale
 - [ ] Cablare il vero engine di gioco alla UI dell'Host (attivare controlli "disabilitati").

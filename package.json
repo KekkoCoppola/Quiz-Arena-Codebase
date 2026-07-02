@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "node --watch server/index.js",
     "start": "node server/index.js",
-    "lint": "npx eslint ."
+    "lint": "npx eslint .",
+    "test:socket": "node tools/test-socket.js"
   },
   "keywords": [
     "quiz",
@@ -28,5 +29,7 @@
     "jsonwebtoken": "^9.0.2",
     "socket.io": "^4.7.5"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "socket.io-client": "^4.8.3"
+  }
 }

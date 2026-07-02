@@ -25,6 +25,7 @@ const config       = require('./config');
 const db           = require('./quiz-manager');
 const hostRouter   = require('./routes/host');
 const playerRouter = require('./routes/player');
+const { attachGameHandlers } = require('./game-socket');
 
 // ─── App Express ─────────────────────────────────────────────────────────────
 
@@ -125,9 +126,13 @@ io.on('connection', (socket) => {
       console.log(`[Socket.io] Client disconnesso : ${socket.id} (${reason})`);
     }
   });
-
-  // TODO (Step 6): agganciare qui gli handler di gioco tramite game.js
 });
+
+// ─── Handler di gioco (Step 6) ───────────────────────────────────────────────
+// Secondo listener 'connection' sullo stesso io: Socket.io li esegue entrambi.
+// Il bootstrap (log, ping/pong) resta qui sopra; la logica di gioco vive in
+// game-socket.js.
+attachGameHandlers(io);
 
 // ─── Inizializzazione DB ──────────────────────────────────────────────────────
 // Va chiamata prima di listen() così le route trovano il DB già pronto

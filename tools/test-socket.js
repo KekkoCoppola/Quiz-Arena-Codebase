@@ -1,0 +1,258 @@
+'use strict';
+
+/**
+ * tools/test-socket.js
+ *
+ * Test di integrazione per server/game-socket.js (Step 6).
+ * Avvia il server reale come processo figlio su un DB temporaneo,
+ * connette host + player via socket.io-client e gioca una partita
+ * completa: lobby, domande, risultati, classifica finale, riavvio.
+ *
+ * Utilizzo: node tools/test-socket.js   (oppure: npm run test:socket)
+ */
+
+const os     = require('node:os');
+const fs     = require('node:fs');
+const path   = require('node:path');
+const { spawn } = require('node:child_process');
+const jwt    = require('jsonwebtoken');
+const { io: ioc } = require('socket.io-client');
+
+const config = require('../server/config');
+const db     = require('../server/quiz-manager');
+
+const PORT = 3123;
+const URL  = `http://localhost:${PORT}`;
+
+// ─── Report ──────────────────────────────────────────────────────────────────────
+
+let passed = 0;
+let failed = 0;
+
+function assert(condition, label) {
+  if (condition) { console.log(`  ✅  ${label}`); passed++; }
+  else           { console.error(`  ❌  ${label}`); failed++; }
+}
+
+// ─── Helpers async ───────────────────────────────────────────────────────────────
+
+/** Attende un singolo evento su un socket, con timeout. */
+function once(socket, event, timeoutMs = 5000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`Timeout in attesa di "${event}"`)), timeoutMs);
+    socket.once(event, (payload) => { clearTimeout(timer); resolve(payload); });
+  });
+}
+
+/** Emit con ack promisificato. */
+function emitAck(socket, event, payload, timeoutMs = 5000) {
+  return socket.timeout(timeoutMs).emitWithAck(event, payload);
+}
+
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+// ─── Setup DB temporaneo ─────────────────────────────────────────────────────────
+
+const QUIZ_QUESTIONS = [
+  { text: 'Capitale d\'Italia?', options: ['Roma', 'Milano', 'Napoli', 'Torino'], correct_index: 0, time_limit_s: 2 },
+  { text: '2 + 2?',             options: ['3', '4', '5', '6'],                   correct_index: 1, time_limit_s: 2 },
+];
+
+const dbPath = path.join(os.tmpdir(), `quizzata-test-socket-${Date.now()}.sqlite`);
+
+function seedTempDb() {
+  db.initDb(dbPath);
+  const stmt = db.getDb().prepare(
+    'INSERT INTO preloaded_quizzes (title, category, questions) VALUES (?, ?, ?)'
+  );
+  const result = stmt.run('Quiz Test Socket', 'Test', JSON.stringify(QUIZ_QUESTIONS));
+  const quizId = Number(result.lastInsertRowid);
+  db.closeDb();
+  return quizId;
+}
+
+// ─── Avvio server figlio ─────────────────────────────────────────────────────────
+
+function startServer() {
+  return spawn(
+    process.execPath,
+    [path.join(__dirname, '..', 'server', 'index.js')],
+    { env: { ...process.env, PORT: String(PORT), DB_PATH: dbPath }, stdio: 'ignore' }
+  );
+}
+
+async function waitForHealth() {
+  for (let i = 0; i < 50; i++) {
+    try {
+      const res = await fetch(`${URL}/api/health`);
+      if (res.ok) return;
+    } catch { /* server non ancora pronto */ }
+    await sleep(100);
+  }
+  throw new Error('Il server non ha risposto al health check entro 5 secondi.');
+}
+
+// ─── Test ────────────────────────────────────────────────────────────────────────
+
+async function run() {
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('  🧪  Quiz-Zata! — Test Integrazione: game-socket.js');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+  const quizId = seedTempDb();
+  const server = startServer();
+  const sockets = [];
+
+  try {
+    await waitForHealth();
+    console.log('  🎬  Server avviato su porta', PORT, '\n');
+
+    const hostToken = jwt.sign(
+      { userId: 9999, username: 'test-host' }, config.jwtSecret, { expiresIn: '1h' });
+
+    const host     = ioc(URL, { auth: { token: hostToken } });
+    const p1       = ioc(URL);
+    const p2       = ioc(URL);
+    const impostor = ioc(URL);
+    sockets.push(host, p1, p2, impostor);
+
+    await Promise.all([once(host, 'connect'), once(p1, 'connect'),
+                       once(p2, 'connect'), once(impostor, 'connect')]);
+
+    // 1. Autorizzazione
+    console.log('  🔐  Fase 1: Autorizzazione');
+    const denied = await emitAck(impostor, 'host:create-game', { quizId, quizType: 'preloaded' });
+    assert(denied.ok === false, 'socket senza token: host:create-game rifiutato');
+
+    const noGame = await emitAck(p1, 'player:join', { nickname: 'Alice' });
+    assert(noGame.ok === false, 'player:join senza partita attiva rifiutato');
+
+    // 2. Creazione partita e lobby
+    console.log('\n  🎮  Fase 2: Creazione partita e lobby');
+    const created = await emitAck(host, 'host:create-game', { quizId, quizType: 'preloaded' });
+    assert(created.ok === true, 'host:create-game accettato con JWT valido');
+
+    const badQuiz = await emitAck(host, 'host:create-game', { quizId: 99999, quizType: 'preloaded' });
+    assert(badQuiz.ok === false, 'host:create-game con quiz inesistente rifiutato');
+
+    // Ricrea la partita (il tentativo fallito non deve aver lasciato stato sporco)
+    await emitAck(host, 'host:create-game', { quizId, quizType: 'preloaded' });
+
+    const joined1 = await emitAck(p1, 'player:join', { nickname: 'Alice' });
+    assert(joined1.ok === true && typeof joined1.playerId === 'string', 'Alice entra in lobby');
+
+    const dup = await emitAck(p2, 'player:join', { nickname: 'alice' });
+    assert(dup.ok === false, 'nickname duplicato (case-insensitive) rifiutato');
+
+    // Attende che il lobby-update di Alice sia stato consegnato all'host,
+    // così la promise successiva cattura solo l'update di Bob (2 giocatori).
+    await sleep(200);
+    const lobbyPromise = once(host, 'game:lobby-update');
+    const joined2 = await emitAck(p2, 'player:join', { nickname: 'Bob' });
+    assert(joined2.ok === true, 'Bob entra in lobby');
+    const lobby = await lobbyPromise;
+    assert(lobby.players.length === 2, 'lobby-update: 2 giocatori');
+
+    // 3. Domanda 1: chiusura anticipata (tutti rispondono)
+    console.log('\n  ⏱️  Fase 3: Domanda 1 — chiusura anticipata');
+    const q1Promise = once(p1, 'game:question');
+    const startAck = await emitAck(host, 'host:start-game', null);
+    assert(startAck.ok === true, 'host:start-game accettato');
+    const q1 = await q1Promise;
+    assert(q1.text === QUIZ_QUESTIONS[0].text, 'game:question: testo domanda 1');
+    assert(q1.correct_index === undefined, 'game:question: correct_index MAI inviato');
+    assert(typeof q1.endsAt === 'number' && q1.endsAt > Date.now(), 'game:question: endsAt futuro');
+
+    const a1 = await emitAck(p1, 'player:answer', { optionIndex: 0 });
+    assert(a1.ok === true && a1.correct === true && a1.pointsAwarded > 0, 'Alice: risposta corretta con punti');
+
+    const again = await emitAck(p1, 'player:answer', { optionIndex: 1 });
+    assert(again.ok === false, 'doppia risposta rifiutata');
+
+    const resultsPromise = once(host, 'game:results');
+    const closeStart = Date.now();
+    const a2 = await emitAck(p2, 'player:answer', { optionIndex: 2 });
+    assert(a2.ok === true && a2.correct === false && a2.pointsAwarded === 0, 'Bob: risposta sbagliata, 0 punti');
+
+    const r1 = await resultsPromise;
+    assert(Date.now() - closeStart < 1000, 'chiusura anticipata: results subito dopo ultima risposta');
+    assert(r1.correctIndex === 0, 'results: correctIndex rivelato');
+    assert(r1.distribution[0] === 1 && r1.distribution[2] === 1, 'results: distribuzione corretta');
+    assert(r1.leaderboard[0].nickname === 'Alice', 'results: Alice in testa');
+
+    // 4. Domanda 2: chiusura per timeout
+    console.log('\n  ⏲️  Fase 4: Domanda 2 — chiusura per timeout');
+    const q2Promise = once(p1, 'game:question');
+    await emitAck(host, 'host:next-question', null);
+    const q2 = await q2Promise;
+    assert(q2.index === 1, 'game:question: indice domanda 2');
+
+    await emitAck(p1, 'player:answer', { optionIndex: 1 }); // solo Alice risponde
+    const r2 = await once(p2, 'game:results', 4000);        // Bob non risponde → timeout 2s
+    assert(r2.correctIndex === 1, 'results dopo timeout: correctIndex domanda 2');
+    assert(r2.distribution[1] === 1, 'results dopo timeout: solo 1 risposta registrata');
+
+    // 5. Classifica finale
+    console.log('\n  🏆  Fase 5: Classifica finale');
+    const finalPromise = once(p1, 'game:final');
+    await emitAck(host, 'host:next-question', null);
+    const final = await finalPromise;
+    assert(final.leaderboard.length === 2, 'game:final: classifica con 2 giocatori');
+    assert(final.leaderboard[0].nickname === 'Alice', 'game:final: Alice vince');
+    assert(final.leaderboard[0].score > final.leaderboard[1].score, 'game:final: punteggi ordinati');
+
+    // 6. Riavvio partita
+    console.log('\n  🔄  Fase 6: Riavvio partita');
+    const resetPromise = once(p1, 'game:reset');
+    const lobbyAfterResetPromise = once(host, 'game:lobby-update');
+    const restartAck = await emitAck(host, 'host:restart-game', null);
+    assert(restartAck.ok === true, 'host:restart-game accettato da FINAL_LEADERBOARD');
+
+    const reset = await resetPromise;
+    assert(typeof reset.playerId === 'string' && reset.playerId !== joined1.playerId,
+      'game:reset: nuovo playerId per Alice');
+
+    const lobbyAfterReset = await lobbyAfterResetPromise;
+    assert(lobbyAfterReset.players.length === 2, 'dopo riavvio: 2 giocatori in lobby');
+    assert(lobbyAfterReset.players.every((p) => p.score === 0), 'dopo riavvio: punteggi azzerati');
+
+    const restartAgain = await emitAck(host, 'host:restart-game', null);
+    assert(restartAgain.ok === false, 'host:restart-game fuori da FINAL_LEADERBOARD rifiutato');
+
+    // 7. Fine partita
+    console.log('\n  🛑  Fase 7: Fine partita');
+
+    // 7a. Una nuova host:create-game con sessione attiva e player connessi
+    // deve notificare e disconnettere i vecchi player (non lasciarli orfani).
+    const endedByCreatePromise = once(p1, 'game:ended');
+    const createAgainAck = await emitAck(host, 'host:create-game', { quizId, quizType: 'preloaded' });
+    assert(createAgainAck.ok === true, 'host:create-game con sessione attiva accettato');
+    await endedByCreatePromise;
+    assert(true, 'game:ended ricevuto da p1 dopo host:create-game su sessione con giocatori');
+
+    // 7b. host:end-game per pulizia finale (nessun player connesso rimasto).
+    const endGameAck = await emitAck(host, 'host:end-game', null);
+    assert(endGameAck.ok === true, 'host:end-game accettato');
+
+  } finally {
+    for (const s of sockets) s.disconnect();
+    server.kill();
+    await sleep(300);
+    try {
+      fs.rmSync(dbPath, { force: true });
+      fs.rmSync(`${dbPath}-wal`, { force: true });
+      fs.rmSync(`${dbPath}-shm`, { force: true });
+    } catch { /* best effort */ }
+  }
+
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log(`  Risultato: ${passed} superati, ${failed} falliti`);
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+  process.exit(failed > 0 ? 1 : 0);
+}
+
+run().catch((err) => {
+  console.error('\n  💥  Test interrotto:', err.message);
+  process.exit(1);
+});

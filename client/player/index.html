@@ -6,30 +6,58 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="description" content="Quiz-Zata! — Unisciti alla partita dal tuo smartphone.">
   <title>Quiz-Zata! — Gioca</title>
+  <!--
+    Step 6: client MINIMALE per il test E2E. Zero design di proposito:
+    l'interfaccia mobile definitiva arriva in Step 7 sopra questa stessa logica.
+  -->
   <style>
-    body {
-      font-family: system-ui, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      margin: 0;
-      background: #0f0f1a;
-      color: #e0e0ff;
-      -webkit-tap-highlight-color: transparent;
-    }
-    h1 { font-size: 1.8rem; margin-bottom: 0.5rem; text-align: center; }
-    p  { color: #888; text-align: center; }
-    .icon-lg { font-size: 2.5rem; }
+    body { font-family: system-ui, sans-serif; margin: 1rem; background: #0f0f1a; color: #e0e0ff; }
+    button { display: block; width: 100%; padding: 1rem; margin: 0.5rem 0; font-size: 1.1rem; }
+    input { width: 100%; padding: 0.8rem; font-size: 1.1rem; box-sizing: border-box; }
+    .error { color: #ff6b6b; }
+    [hidden] { display: none !important; }
   </style>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/js/all.min.js"
-    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 </head>
 <body>
-  <span class="icon-lg"><i class="fas fa-mobile-screen-button"></i></span>
   <h1>Quiz-Zata!</h1>
-  <p><i class="fas fa-person-digging"></i> In costruzione — Step 7</p>
+
+  <section id="screen-join">
+    <p>Inserisci il tuo nickname per entrare:</p>
+    <input id="nickname-input" maxlength="20" placeholder="Nickname" autocomplete="off">
+    <button id="join-btn">Entra</button>
+    <p id="join-error" class="error" hidden></p>
+  </section>
+
+  <section id="screen-lobby" hidden>
+    <p>Sei dentro! In attesa che l'host avvii la partita…</p>
+    <ul id="lobby-players"></ul>
+  </section>
+
+  <section id="screen-question" hidden>
+    <p id="question-progress"></p>
+    <p id="question-text"></p>
+    <p>Tempo: <span id="question-countdown"></span>s</p>
+    <div id="answer-buttons"></div>
+    <p id="answer-sent" hidden>Risposta inviata. Attendi i risultati…</p>
+  </section>
+
+  <section id="screen-feedback" hidden>
+    <p id="feedback-text"></p>
+    <p>Il tuo punteggio: <span id="feedback-score"></span></p>
+    <p>In attesa della prossima domanda…</p>
+  </section>
+
+  <section id="screen-final" hidden>
+    <h2>Classifica finale</h2>
+    <ol id="final-leaderboard"></ol>
+    <p>Grazie per aver giocato!</p>
+  </section>
+
+  <section id="screen-message" hidden>
+    <p id="message-text"></p>
+  </section>
+
+  <script src="/socket.io/socket.io.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
