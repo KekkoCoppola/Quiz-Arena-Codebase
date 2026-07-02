@@ -74,7 +74,8 @@ server/game.js         IMMUTATO — state machine pura
 | `game:question` | `{ index, total, text, options, time_limit_s, endsAt }` | Inizio round. Domanda sanitizzata via `getCurrentQuestion()` — **mai** `correct_index`. `endsAt` = timestamp assoluto fine round per countdown client. |
 | `game:results` | Output di `endQuestion()` (correctIndex, distribution, answers, leaderboard) | Chiusura round. |
 | `game:final` | `{ leaderboard }` | Ultima domanda chiusa. |
-| `game:reset` | `{ players }` (con i nuovi playerId) | Dopo `host:restart-game`. |
+| `game:reset` | `{ playerId }` (per-socket: ogni giocatore riceve il proprio nuovo id; segue `game:lobby-update` broadcast) | Dopo `host:restart-game`. |
+| `game:answer-count` | `{ answered, total }` (solo room host) | Dopo ogni risposta valida. |
 | `game:ended` | — | Host ha terminato la partita. |
 | `game:snapshot` | Output di `getSnapshot()` | Al connect di un client se esiste una sessione (riallineamento/riconnessione). |
 

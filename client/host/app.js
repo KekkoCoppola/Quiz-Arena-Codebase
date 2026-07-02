@@ -12,11 +12,13 @@
  *   6. Router (View Manager)
  *   7. Dashboard Module
  *   8. Editor Quiz Module (con Drag & Drop nativo HTML5)
- *   9. Game Placeholder Module
+ *   9. Game Module
  *  10. Init
  */
 
 'use strict';
+
+/* global io */
 
 /* ═══════════════════════════════════════════════════════════════════════════
    1. CONFIG & STATE
@@ -899,15 +901,66 @@ function goBackToDashboard() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   9. GAME PLACEHOLDER MODULE
+   9. GAME MODULE (Step 6 — cablaggio minimo, design in Step 7)
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const gameQuizTitle     = document.getElementById('game-quiz-title');
 const gameQuestionCount = document.getElementById('game-question-count');
 const gameTypeBadge     = document.getElementById('game-type-badge');
+const gameStatusText    = document.getElementById('game-status-text');
+const gameTimerBadge    = document.getElementById('game-timer-badge');
+
+const gameLobbyBox         = document.getElementById('game-lobby-box');
+const gamePlayerCount      = document.getElementById('game-player-count');
+const gamePlayersList      = document.getElementById('game-players-list');
+const gameQuestionBox      = document.getElementById('game-question-box');
+const gameQuestionText     = document.getElementById('game-question-text');
+const gameOptionsList      = document.getElementById('game-options-list');
+const gameAnswerCount      = document.getElementById('game-answer-count');
+const gameResultsBox       = document.getElementById('game-results-box');
+const gameCorrectAnswer    = document.getElementById('game-correct-answer');
+const gameDistribution     = document.getElementById('game-distribution');
+const gameFinalBox         = document.getElementById('game-final-box');
+const gameFinalLeaderboard = document.getElementById('game-final-leaderboard');
+
+const gameStartBtn   = document.getElementById('game-start-btn');
+const gameNextBtn    = document.getElementById('game-next-btn');
+const gameRestartBtn = document.getElementById('game-restart-btn');
+
+let gameSocket = null;
+let gameCountdownInterval = null;
+let currentQuestionOptions = [];
+
+/** Mostra un solo box dell'area live alla volta. */
+function showGameBox(box) {
+  for (const el of [gameLobbyBox, gameQuestionBox, gameResultsBox, gameFinalBox]) {
+    el.hidden = el !== box;
+  }
+}
+
+function stopGameCountdown() {
+  if (gameCountdownInterval) {
+    clearInterval(gameCountdownInterval);
+    gameCountdownInterval = null;
+  }
+  gameTimerBadge.textContent = '00:00';
+}
+
+function startGameCountdown(endsAt) {
+  stopGameCountdown();
+  const tick = () => {
+    const remaining = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+    const m = String(Math.floor(remaining / 60)).padStart(2, '0');
+    const s = String(remaining % 60).padStart(2, '0');
+    gameTimerBadge.textContent = `${m}:${s}`;
+    if (remaining === 0) stopGameCountdown();
+  };
+  tick();
+  gameCountdownInterval = setInterval(tick, 250);
+}
 
 /**
- * Apre la schermata di conduzione partita (placeholder).
+ * Apre la schermata di conduzione partita e crea la sessione sul server.
  * @param {object} quiz
  * @param {'personal'|'preloaded'} type
  */
@@ -922,10 +975,132 @@ function openGame(quiz, type) {
     ? `<span aria-hidden="true"><i class="fas fa-star"></i></span> <span>Sistema${quiz.category ? ` · ${escapeHtml(quiz.category)}` : ''}</span>`
     : `<span aria-hidden="true"><i class="fas fa-wand-magic-sparkles"></i></span> <span>Personale</span>`;
 
-
+  connectGameSocket(quiz, type);
   showView('game');
 }
 
+function connectGameSocket(quiz, type) {
+  disconnectGameSocket();
+
+  gameSocket = io('/', { auth: { token: state.token } });
+
+  gameSocket.on('connect', () => {
+    gameSocket.emit('host:create-game', { quizId: quiz.id, quizType: type }, (res) => {
+      if (!res.ok) {
+        showToast(res.error, 'error');
+        gameStatusText.textContent = `Errore: ${res.error}`;
+        return;
+      }
+      gameStatusText.textContent = 'Lobby aperta: i giocatori possono entrare dal telefono.';
+      renderGameLobby([]);
+    });
+  });
+
+  gameSocket.on('game:lobby-update', ({ players }) => renderGameLobby(players));
+
+  gameSocket.on('game:question', (q) => {
+    currentQuestionOptions = q.options;
+    gameStatusText.textContent = `Domanda ${q.index + 1} di ${q.total} in corso…`;
+    gameQuestionText.textContent = q.text;
+    // Opzioni a solo scopo visualizzativo: l'host non risponde.
+    gameOptionsList.innerHTML = '';
+    q.options.forEach((option, i) => {
+      const li = document.createElement('li');
+      li.textContent = `${i + 1}. ${option}`;
+      gameOptionsList.appendChild(li);
+    });
+    gameAnswerCount.textContent = 'Risposte: 0 / ?';
+    startGameCountdown(q.endsAt);
+    showGameBox(gameQuestionBox);
+    gameStartBtn.disabled = true;
+    gameNextBtn.disabled = true;
+    gameRestartBtn.disabled = true;
+  });
+
+  gameSocket.on('game:answer-count', ({ answered, total }) => {
+    gameAnswerCount.textContent = `Risposte: ${answered} / ${total}`;
+  });
+
+  gameSocket.on('game:results', (results) => {
+    stopGameCountdown();
+    gameStatusText.textContent = 'Round chiuso: risultati sul tabellone.';
+    gameCorrectAnswer.textContent =
+      `Risposta corretta: ${currentQuestionOptions[results.correctIndex] ?? '—'}`;
+
+    gameDistribution.innerHTML = '';
+    results.distribution.forEach((n, i) => {
+      const li = document.createElement('li');
+      li.textContent = `${currentQuestionOptions[i] ?? `Opzione ${i + 1}`}: ${n} rispost${n === 1 ? 'a' : 'e'}`;
+      gameDistribution.appendChild(li);
+    });
+
+    showGameBox(gameResultsBox);
+    gameNextBtn.disabled = false;
+  });
+
+  gameSocket.on('game:final', ({ leaderboard }) => {
+    stopGameCountdown();
+    gameStatusText.textContent = 'Partita conclusa!';
+    gameFinalLeaderboard.innerHTML = '';
+    for (const p of leaderboard) {
+      const li = document.createElement('li');
+      li.textContent = `${p.nickname} — ${p.score} punti`;
+      gameFinalLeaderboard.appendChild(li);
+    }
+    showGameBox(gameFinalBox);
+    gameNextBtn.disabled = true;
+    gameRestartBtn.disabled = false;
+  });
+
+  gameSocket.on('connect_error', () => {
+    gameStatusText.textContent = 'Connessione al server di gioco fallita.';
+    showToast('Connessione al server di gioco fallita.', 'error');
+  });
+}
+
+function disconnectGameSocket() {
+  stopGameCountdown();
+  if (gameSocket) {
+    gameSocket.disconnect();
+    gameSocket = null;
+  }
+}
+
+function renderGameLobby(players) {
+  gamePlayerCount.textContent = players.length;
+  gamePlayersList.innerHTML = '';
+  for (const p of players) {
+    const li = document.createElement('li');
+    li.textContent = p.nickname;
+    gamePlayersList.appendChild(li);
+  }
+  showGameBox(gameLobbyBox);
+  gameStartBtn.disabled = players.length === 0;
+}
+
+// ─── Controlli host ──────────────────────────────────────────────────────────
+
+// NB: payload sempre presente (null) prima dell'ack — firma server (_payload, cb).
+gameStartBtn.addEventListener('click', () => {
+  gameSocket?.emit('host:start-game', null, (res) => {
+    if (!res.ok) showToast(res.error, 'error');
+  });
+});
+
+gameNextBtn.addEventListener('click', () => {
+  gameSocket?.emit('host:next-question', null, (res) => {
+    if (!res.ok) showToast(res.error, 'error');
+  });
+});
+
+gameRestartBtn.addEventListener('click', () => {
+  gameSocket?.emit('host:restart-game', null, (res) => {
+    if (!res.ok) { showToast(res.error, 'error'); return; }
+    gameStatusText.textContent = 'Partita riavviata: giocatori di nuovo in lobby.';
+    gameStartBtn.disabled = false;
+    gameRestartBtn.disabled = true;
+  });
+});
 
 document.getElementById('game-back-btn-2').addEventListener('click', () => {
   showModal({
@@ -933,7 +1108,11 @@ document.getElementById('game-back-btn-2').addEventListener('click', () => {
     message: 'Vuoi davvero terminare la partita e tornare alla dashboard? I giocatori collegati verranno disconnessi.',
     icon: '<i class="fas fa-triangle-exclamation"></i>',
     confirmLabel: 'Termina partita',
-    onConfirm: () => showView('dashboard'),
+    onConfirm: () => {
+      gameSocket?.emit('host:end-game', null, () => {});
+      disconnectGameSocket();
+      showView('dashboard');
+    },
   });
 });
 
