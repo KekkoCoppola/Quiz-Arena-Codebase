@@ -109,7 +109,6 @@ LOBBY → QUESTION → RESULTS → (loop) → FINAL_LEADERBOARD
 ## Funzionalità Principali
 - Account host locali salvati su SQLite (password hashate con **bcryptjs**, implementazione JS pura) per accedere in sicurezza al pannello di controllo
 - L'host sceglie tra **quiz precaricati** o **quiz personalizzati** (creati dal pannello host, max 3 quiz salvabili per utente)
-- Import quiz da CSV/Excel
 - QR code generato automaticamente per il join rapido dei giocatori (con IP grezzo come fallback garantito)
 - Punteggio basato su velocità di risposta (come Kahoot)
 - Max 30 giocatori simultanei

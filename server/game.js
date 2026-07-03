@@ -29,6 +29,15 @@ const POINTS_MIN = 100;
 /** Lunghezza massima consentita per un nickname giocatore. */
 const MAX_NICKNAME_LENGTH = 20;
 
+/**
+ * Avatar precaricati (Fase 7). Il server conosce solo gli id stabili;
+ * la resa visiva (oggi emoji, domani SVG) è responsabilità dei client.
+ */
+const AVATAR_IDS = Object.freeze([
+  'volpe', 'panda', 'rana', 'polpo', 'leone', 'pinguino',
+  'koala', 'tigre', 'unicorno', 'gufo', 'granchio', 'balena',
+]);
+
 // ─── Stati ────────────────────────────────────────────────────────────────────────
 
 const STATES = Object.freeze({
@@ -82,6 +91,13 @@ class InvalidNicknameError extends Error {
   }
 }
 
+class InvalidAvatarError extends Error {
+  constructor(message = 'Avatar non valido.') {
+    super(message);
+    this.name = 'InvalidAvatarError';
+  }
+}
+
 class EmptyQuizError extends Error {
   constructor(message = 'Impossibile avviare una partita con un quiz privo di domande.') {
     super(message);
@@ -112,7 +128,7 @@ class GameSession {
     this.currentQuestionIndex = -1;
     this.questionStartedAt = null;
 
-    /** @type {Map<string, { id: string, nickname: string, score: number }>} */
+    /** @type {Map<string, { id: string, nickname: string, avatar: string, score: number, connected: boolean }>} */
     this.players = new Map();
 
     /**
@@ -149,9 +165,10 @@ class GameSession {
   /**
    * Aggiunge un giocatore alla lobby. Consentito solo in stato LOBBY.
    * @param {string} nickname
-   * @returns {{ id: string, nickname: string, score: number }}
+   * @param {string | null} [avatarId] id da AVATAR_IDS; se assente ne viene assegnato uno casuale
+   * @returns {{ id: string, nickname: string, avatar: string, score: number, connected: boolean }}
    */
-  addPlayer(nickname) {
+  addPlayer(nickname, avatarId = null) {
     this._assertState(STATES.LOBBY, 'addPlayer');
 
     const trimmed = String(nickname ?? '').trim();
@@ -169,7 +186,14 @@ class GameSession {
       }
     }
 
-    const player = { id: randomUUID(), nickname: trimmed, score: 0 };
+    let avatar = avatarId;
+    if (avatar === null || avatar === undefined) {
+      avatar = AVATAR_IDS[Math.floor(Math.random() * AVATAR_IDS.length)];
+    } else if (!AVATAR_IDS.includes(avatar)) {
+      throw new InvalidAvatarError();
+    }
+
+    const player = { id: randomUUID(), nickname: trimmed, avatar, score: 0, connected: true };
     this.players.set(player.id, player);
     return player;
   }
@@ -182,6 +206,17 @@ class GameSession {
     this._getPlayerOrThrow(playerId);
     this.players.delete(playerId);
     this.currentAnswers.delete(playerId);
+  }
+
+  /**
+   * Marca lo stato di connessione di un giocatore (Fase 7 — riconnessione).
+   * Non rimuove il giocatore: punteggio e identità restano.
+   * @param {string} playerId
+   * @param {boolean} connected
+   */
+  setPlayerConnected(playerId, connected) {
+    const player = this._getPlayerOrThrow(playerId);
+    player.connected = Boolean(connected);
   }
 
   getPlayers() {
@@ -341,7 +376,7 @@ class GameSession {
     return this.getPlayers()
       .slice()
       .sort((a, b) => b.score - a.score)
-      .map((p, i) => ({ rank: i + 1, id: p.id, nickname: p.nickname, score: p.score }));
+      .map((p, i) => ({ rank: i + 1, id: p.id, nickname: p.nickname, avatar: p.avatar, score: p.score }));
   }
 
   /**
@@ -366,12 +401,14 @@ module.exports = {
   POINTS_MAX,
   POINTS_MIN,
   MAX_NICKNAME_LENGTH,
+  AVATAR_IDS,
   InvalidStateError,
   DuplicateNicknameError,
   PlayerNotFoundError,
   AlreadyAnsweredError,
   InvalidAnswerIndexError,
   InvalidNicknameError,
+  InvalidAvatarError,
   EmptyQuizError,
   NotEnoughPlayersError,
 };

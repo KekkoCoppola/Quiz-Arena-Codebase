@@ -139,8 +139,10 @@ async function run() {
     // Ricrea la partita (il tentativo fallito non deve aver lasciato stato sporco)
     await emitAck(host, 'host:create-game', { quizId, quizType: 'preloaded' });
 
-    const joined1 = await emitAck(p1, 'player:join', { nickname: 'Alice' });
-    assert(joined1.ok === true && typeof joined1.playerId === 'string', 'Alice entra in lobby');
+    const joined1 = await emitAck(p1, 'player:join', { nickname: 'Alice', avatarId: 'volpe' });
+    assert(joined1.ok === true && typeof joined1.playerId === 'string'
+      && typeof joined1.token === 'string' && joined1.avatar === 'volpe',
+      'Alice entra in lobby (con token e avatar)');
 
     const dup = await emitAck(p2, 'player:join', { nickname: 'alice' });
     assert(dup.ok === false, 'nickname duplicato (case-insensitive) rifiutato');
@@ -205,6 +207,7 @@ async function run() {
     // 6. Riavvio partita
     console.log('\n  🔄  Fase 6: Riavvio partita');
     const resetPromise = once(p1, 'game:reset');
+    const resetBobPromise = once(p2, 'game:reset');
     const lobbyAfterResetPromise = once(host, 'game:lobby-update');
     const restartAck = await emitAck(host, 'host:restart-game', null);
     assert(restartAck.ok === true, 'host:restart-game accettato da FINAL_LEADERBOARD');
@@ -212,6 +215,10 @@ async function run() {
     const reset = await resetPromise;
     assert(typeof reset.playerId === 'string' && reset.playerId !== joined1.playerId,
       'game:reset: nuovo playerId per Alice');
+    const resetBob = await resetBobPromise;
+    const bobToken = resetBob.token;
+    assert(typeof reset.token === 'string' && reset.token.length > 0,
+      'game:reset: contiene il nuovo token');
 
     const lobbyAfterReset = await lobbyAfterResetPromise;
     assert(lobbyAfterReset.players.length === 2, 'dopo riavvio: 2 giocatori in lobby');
@@ -219,6 +226,41 @@ async function run() {
 
     const restartAgain = await emitAck(host, 'host:restart-game', null);
     assert(restartAgain.ok === false, 'host:restart-game fuori da FINAL_LEADERBOARD rifiutato');
+
+    // 6bis. Riconnessione con token (Fase 7)
+    console.log('\n  🔌  Fase 6bis: Riconnessione con token');
+
+    // Siamo in LOBBY dopo il riavvio. Avvia la partita.
+    const q6Promise = once(p1, 'game:question');
+    await emitAck(host, 'host:start-game', null);
+    await q6Promise;
+
+    // Bob (p2) si disconnette a domanda aperta: NON deve essere rimosso.
+    const lobbyAfterDropPromise = once(host, 'game:lobby-update');
+    p2.disconnect();
+    const lobbyAfterDrop = await lobbyAfterDropPromise;
+    assert(lobbyAfterDrop.players.length === 2, 'drop in partita: giocatore NON rimosso');
+    assert(lobbyAfterDrop.players.some((p) => p.connected === false),
+      'drop in partita: marcato disconnesso');
+
+    // Alice risponde: il round si chiude subito perché è l'unica connessa.
+    const r6Promise = once(host, 'game:results');
+    await emitAck(p1, 'player:answer', { optionIndex: 0 });
+    const r6 = await r6Promise;
+    assert(r6.correctIndex === 0, 'chiusura anticipata conta solo i connessi');
+
+    // Bob si riconnette da un socket nuovo con il token del suo game:reset.
+    const p2bis = ioc(URL);
+    sockets.push(p2bis);
+    await once(p2bis, 'connect');
+    const rejoined = await emitAck(p2bis, 'player:rejoin', { token: bobToken });
+    assert(rejoined.ok === true, 'player:rejoin: accettato con token valido');
+    assert(rejoined.nickname === 'Bob', 'player:rejoin: identità conservata');
+    assert(rejoined.state === 'RESULTS', 'player:rejoin: stato corrente restituito');
+    assert(Array.isArray(rejoined.leaderboard), 'player:rejoin in RESULTS: leaderboard presente');
+
+    const badRejoin = await emitAck(p2bis, 'player:rejoin', { token: 'token-farlocco' });
+    assert(badRejoin.ok === false, 'player:rejoin: token invalido rifiutato');
 
     // 7. Fine partita
     console.log('\n  🛑  Fase 7: Fine partita');

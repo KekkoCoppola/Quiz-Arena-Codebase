@@ -22,6 +22,7 @@
 const router   = require('express').Router();
 const bcryptjs = require('bcryptjs');
 const jwt      = require('jsonwebtoken');
+const os       = require('node:os');
 
 const config                                          = require('../config');
 const { verifyToken }                                 = require('../middleware/auth');
@@ -348,6 +349,24 @@ router.get('/preloaded-quizzes/:id', verifyToken, (req, res) => {
     console.error('[host/preloaded-quizzes/:id GET]', err);
     return sendError(res, 500, 'Errore interno del server.');
   }
+});
+
+// ─── GET /game/join-info ──────────────────────────────────────────────────────────
+
+/**
+ * GET /api/host/game/join-info
+ * Restituisce l'URL LAN a cui i giocatori si collegano (per QR code in lobby).
+ * Prende il primo indirizzo IPv4 non-loopback; fallback localhost se assente.
+ */
+router.get('/game/join-info', verifyToken, (_req, res) => {
+  let ip = null;
+  for (const addresses of Object.values(os.networkInterfaces())) {
+    for (const net of addresses ?? []) {
+      if (net.family === 'IPv4' && !net.internal) { ip = net.address; break; }
+    }
+    if (ip) break;
+  }
+  res.json({ success: true, data: { url: `http://${ip ?? 'localhost'}:${config.port}` } });
 });
 
 module.exports = router;

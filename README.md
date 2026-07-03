@@ -32,7 +32,7 @@ I giocatori possono connettersi istantaneamente dal proprio smartphone inquadran
 - **⚡ Real-Time WebSockets:** Interazioni istantanee a bassissima latenza tra host e giocatori grazie a **Socket.io**.
 - **📱 Zero Barriere d'Ingresso:** I giocatori scansionano il QR Code generato a schermo e partecipano direttamente dal proprio browser mobile preferito.
 - **🎯 Gamification in Stile Kahoot:** Assegnazione dei punteggi dinamica basata sulla velocità e correttezza della risposta.
-- **🛠️ Gestione Quiz Flessibile:** Creazione dei quiz da interfaccia amministrativa (con account host e limite di 3 quiz personalizzati salvabili) o importazione massiva da file **CSV/Excel**.
+- **🛠️ Gestione Quiz Flessibile:** Creazione dei quiz da interfaccia amministrativa (con account host e limite di 3 quiz personalizzati salvabili), oltre a un set di quiz precaricati pronti all'uso.
 - **🔒 Hardware Lock & Licenza SaaS:** Sistema di protezione e attivazione SaaS a tempo, vincolato al seriale hardware della CPU del Raspberry Pi (fonte preferita: `/proc/device-tree/serial-number`) verificato periodicamente tramite le API private di GitHub con PAT fine-grained in sola lettura.
 - **📦 Distribuzione Singolo Binario:** Backend compilato in un unico file eseguibile per architettura ARM tramite le [Node.js Single Executable Applications (SEA)](https://nodejs.org/api/single-executable-applications.html), la via ufficialmente supportata dal runtime Node.js.
 
@@ -104,7 +104,7 @@ quiz-zata/
 │   ├── config.js             # Configurazione centralizzata: legge .env, valida, ri-esporta
 │   ├── license.js            # (Fase Futura) Modulo licenza: controlli GitHub API + gestione cache locale
 │   ├── game.js               # Macchina a stati di gioco e logica WebSocket
-│   ├── quiz-manager.js       # Gestore database SQLite (node:sqlite) per CRUD quiz e importazioni
+│   ├── quiz-manager.js       # Gestore database SQLite (node:sqlite) per CRUD dei quiz
 │   ├── routes/
 │   │   ├── host.js           # Endpoint API per pannello amministratore
 │   │   └── player.js         # Endpoint API per interfacce giocatori
@@ -162,7 +162,7 @@ Il progetto viene sviluppato seguendo un approccio **Game-First**: prima si cost
 ### Fase Attiva — Sviluppo su PC (senza hardware Pi)
 
 1. **Step 1:** Setup progetto Node.js — Struttura cartelle, dipendenze, `.env` e `.gitignore`. Database via `node:sqlite` (stabile in Node.js v24, integrato nel runtime, zero dipendenze native).
-2. **Step 2:** `server/quiz-manager.js` + SQLite Schema — Tabelle `users` (host, password hashate con **bcryptjs**, implementazione JS pura) e `quizzes` (max 3 per utente), import CSV/Excel.
+2. **Step 2:** `server/quiz-manager.js` + SQLite Schema — Tabelle `users` (host, password hashate con **bcryptjs**, implementazione JS pura) e `quizzes` (max 3 per utente).
 3. **Step 3:** `server/index.js` — Bootstrap del server Express, configurazione Socket.io.
 4. **Step 4 (Completato Parzialmente):** Frontend Host (UI-First) — UI della dashboard amministrativa e grafica premium (sospeso in attesa dell'engine di gioco).
 5. **Step 5 (Completato):** `server/game.js` — Motore di gioco e macchina a stati in-memory (LOBBY → QUESTION → RESULTS → FINAL_LEADERBOARD). Timer via timestamp iniettati, punteggio stile Kahoot. Smoke test: `tools/test-game.js`.

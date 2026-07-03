@@ -20,12 +20,12 @@ Questa roadmap delinea gli step per sviluppare l'intero gioco sul PC locale (Win
 - [x] Installare dipendenze core: `express`, `socket.io`, `bcryptjs`, `dotenv`, `jsonwebtoken`. Il database SQLite viene gestito da `node:sqlite` (integrato nel runtime Node.js v24+, nessuna installazione necessaria).
 - [x] Configurare il file `.env` (porta del server, URL pannello host, segreto sessione).
 
-### Fase 2: Database SQLite & Autenticazione Host - *Completata (Parziale)*
+### Fase 2: Database SQLite & Autenticazione Host - *Completata*
 - [x] Creare lo schema SQL per le tabelle `users` (host, password hashate con **bcryptjs**) e `quizzes` (quiz salvati). *(Aggiunta anche `preloaded_quizzes`.)*
 - [x] Implementare `server/quiz-manager.js` per inizializzare il DB locale.
 - [x] Creare API in `server/routes/host.js` per gestire login e CRUD dei quiz.
 - [x] Implementare il controllo lato server: limite di **3 quiz personalizzati** per utente host.
-- [ ] **Import massivo quiz da CSV/Excel** (non ancora implementato — presente nello scope README, assente nel codice).
+- ~~Import massivo quiz da CSV/Excel~~ *(rimosso dallo scope per decisione di prodotto, luglio 2026: i quiz si creano dall'editor della dashboard o si usano i precaricati).*
 
 ### Fase 3: Core del Web Server - *Completata*
 - [x] Configurare Express in `server/index.js`.
@@ -53,12 +53,13 @@ Questa roadmap delinea gli step per sviluppare l'intero gioco sul PC locale (Win
 - [x] **Riavvio partita da FINAL_LEADERBOARD** (previsto in Istructions.md, non ancora in `game.js`): valutare se aggiungere `resetGame()` a `GameSession` o istanziare una nuova sessione lato Socket.io. Da decidere qui perché la scelta dipende da come Fase 6 gestisce il ciclo di vita delle sessioni in memoria.
   *(Implementato in `server/game-socket.js` (una partita globale, timer server con chiusura anticipata, auth host JWT su handshake). Riavvio da FINAL_LEADERBOARD: nuova `GameSession` lato socket, `game.js` immutato. Test integrazione: `npm run test:socket`. Design spec: `docs/superpowers/specs/2026-07-02-fase6-socketio-design.md`.)*
 
-### Fase 7: Rifinitura UI e Playtesting Locale
-- [ ] Cablare il vero engine di gioco alla UI dell'Host (attivare controlli "disabilitati").
-- [ ] Sviluppare il Frontend Player finale ("mobile first", dinamico e reattivo).
-- [ ] Connettere il PC e alcuni smartphone alla stessa rete Wi-Fi.
+### Fase 7: Rifinitura UI e Playtesting Locale - *Completata (playtest Wi-Fi a carico dell'utente)*
+- [x] Cablare il vero engine di gioco alla UI dell'Host (attivare controlli "disabilitati").
+- [x] Sviluppare il Frontend Player finale ("mobile first", dinamico e reattivo).
+- [ ] Connettere il PC e alcuni smartphone alla stessa rete Wi-Fi. *(Checklist: `docs/playtest-checklist.md`.)*
 - [ ] Giocare una partita completa per testare latenza, socket, disconnessioni.
-- [ ] Bugfixing per arrivare alla versione Beta.
+- [x] Bugfixing per arrivare alla versione Beta.
+  *(Aggiunte Fase 7: avatar precaricati (emoji temporanee dietro `avatarId` stabile), riconnessione player con token e punteggio conservato, QR code in lobby host via `GET /api/host/game/join-info` + `qrcode-generator` vendored. Design spec: `docs/superpowers/specs/2026-07-02-fase7-ui-beta-design.md`.)*
 
 ---
 
