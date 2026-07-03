@@ -25,11 +25,11 @@ Gioco a quiz multiplayer locale (tipo Kahoot) che funziona **completamente offli
 
 ## Architettura di Rete
 ```
-Raspberry Pi (Access Point "QuizArena")
+Raspberry Pi (Access Point "QuizZata")
   └── IP fisso: 192.168.4.1 (mappato su DNS locale via dnsmasq)
-        ├── Host si connette → apre http://quizarena.gioca/admin-console (custom in .env)
+        ├── Host si connette → apre http://quizzata.gioca/admin-console (custom in .env)
         │   Fallback: http://192.168.4.1/admin-console
-        └── Giocatori si connettono → aprono http://quizarena.gioca (o via QR code)
+        └── Giocatori si connettono → aprono http://quizzata.gioca (o via QR code)
             Fallback: http://192.168.4.1 (⚠️ DNS-over-HTTPS può ignorare il DNS locale)
 ```
 Nessun router esterno necessario. Il Pi crea la propria rete Wi-Fi isolata.
@@ -109,7 +109,6 @@ LOBBY → QUESTION → RESULTS → (loop) → FINAL_LEADERBOARD
 ## Funzionalità Principali
 - Account host locali salvati su SQLite (password hashate con **bcryptjs**, implementazione JS pura) per accedere in sicurezza al pannello di controllo
 - L'host sceglie tra **quiz precaricati** o **quiz personalizzati** (creati dal pannello host, max 3 quiz salvabili per utente)
-- Import quiz da CSV/Excel
 - QR code generato automaticamente per il join rapido dei giocatori (con IP grezzo come fallback garantito)
 - Punteggio basato su velocità di risposta (come Kahoot)
 - Max 30 giocatori simultanei

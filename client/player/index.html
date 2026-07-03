@@ -1,32 +1,88 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/resources/img/Logo.svg">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="description" content="Quiz Arena — Unisciti alla partita dal tuo smartphone.">
-  <title>Quiz Arena — Gioca</title>
-  <style>
-    body {
-      font-family: system-ui, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      margin: 0;
-      background: #0f0f1a;
-      color: #e0e0ff;
-      -webkit-tap-highlight-color: transparent;
-    }
-    h1 { font-size: 1.8rem; margin-bottom: 0.5rem; text-align: center; }
-    p  { color: #888; text-align: center; }
-    span { font-size: 2.5rem; }
-  </style>
+  <meta name="description" content="Quiz-Zata! — Unisciti alla partita dal tuo smartphone.">
+  <meta name="theme-color" content="#fff8f1">
+  <title>Quiz-Zata! — Gioca</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <span>📱</span>
-  <h1>Quiz Arena</h1>
-  <p>🚧 In costruzione — Step 7</p>
+  <header class="player-header">
+    <img class="player-logo" src="/resources/img/Logo.svg" alt="Quiz-Zata!">
+  </header>
+
+  <!-- JOIN -->
+  <section id="screen-join" class="screen">
+    <h1 class="screen-title">Entra in partita</h1>
+    <label class="field-label" for="nickname-input">Il tuo nickname</label>
+    <input id="nickname-input" class="field-input" maxlength="20"
+           placeholder="Es. CapitanQuiz" autocomplete="off" enterkeyhint="go">
+    <p class="field-label" id="avatar-label">Scegli il tuo avatar</p>
+    <div id="avatar-grid" class="avatar-grid" role="radiogroup" aria-labelledby="avatar-label"></div>
+    <button id="join-btn" class="btn btn-primary btn-block">Entra</button>
+    <p id="join-error" class="form-error" role="alert" hidden></p>
+  </section>
+
+  <!-- LOBBY -->
+  <section id="screen-lobby" class="screen" hidden>
+    <div class="sticker sticker-teal">Sei dentro!</div>
+    <div id="lobby-me" class="me-badge"></div>
+    <p class="waiting-text">In attesa che l'host avvii la partita…</p>
+    <h2 class="section-label">In lobby</h2>
+    <ul id="lobby-players" class="player-badges"></ul>
+  </section>
+
+  <!-- QUESTION -->
+  <section id="screen-question" class="screen" hidden>
+    <div class="question-top">
+      <span id="question-progress" class="badge badge-yellow"></span>
+      <span id="question-countdown" class="countdown-num" aria-live="polite"></span>
+    </div>
+    <div class="countdown-track" aria-hidden="true"><div id="countdown-bar" class="countdown-bar"></div></div>
+    <h1 id="question-text" class="question-text"></h1>
+    <div id="answer-buttons" class="answer-stack"></div>
+    <div id="answer-sent" class="sticker sticker-teal" hidden>Risposta inviata!</div>
+  </section>
+
+  <!-- FEEDBACK -->
+  <section id="screen-feedback" class="screen" hidden>
+    <div id="feedback-sticker" class="feedback-sticker">
+      <span id="feedback-text"></span>
+      <span id="feedback-points" class="feedback-points"></span>
+    </div>
+    <div class="scoreboard-card">
+      <p class="score-line">Punteggio: <strong id="feedback-score">0</strong></p>
+      <p class="rank-line" id="feedback-rank"></p>
+    </div>
+    <p class="waiting-text">In attesa della prossima domanda…</p>
+  </section>
+
+  <!-- FINAL -->
+  <section id="screen-final" class="screen" hidden>
+    <h1 class="screen-title">Classifica finale</h1>
+    <div id="final-podium" class="podium"></div>
+    <div id="final-me" class="me-rank" hidden></div>
+    <ol id="final-rest" class="final-list"></ol>
+    <p class="waiting-text">Grazie per aver giocato!</p>
+  </section>
+
+  <!-- MESSAGE -->
+  <section id="screen-message" class="screen" hidden>
+    <div class="sticker sticker-red" id="message-text"></div>
+  </section>
+
+  <!-- Overlay riconnessione (sopra qualunque schermata) -->
+  <div id="reconnect-overlay" class="reconnect-overlay" hidden>
+    <div class="reconnect-card">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Connessione persa, riconnessione…</p>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

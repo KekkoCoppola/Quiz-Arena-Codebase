@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="resources/img/QuizArenaLogo.png" alt="Quiz Arena Logo" width="300" style="border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
+  <img src="resources/img/Logo.svg" alt="Quiz-Zata! Logo" width="300" style="border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
 </p>
 
-<h1 align="center">Quiz Arena</h1>
+<h1 align="center">Quiz-Zata!</h1>
 
 <p align="center">
   <strong>Il motore di gioco a quiz multiplayer locale e in tempo reale per Raspberry Pi.</strong><br>
@@ -18,9 +18,9 @@
 
 ---
 
-## 📌 Cos'è Quiz Arena?
+## 📌 Cos'è Quiz-Zata!?
 
-**Quiz Arena** è una piattaforma di quiz interattivi multiplayer in tempo reale che funziona **completamente offline**. Viene eseguita a bordo di un **Raspberry Pi** configurato come Access Point Wi-Fi isolato. 
+**Quiz-Zata!** è una piattaforma di quiz interattivi multiplayer in tempo reale che funziona **completamente offline**. Viene eseguita a bordo di un **Raspberry Pi** configurato come Access Point Wi-Fi isolato. 
 
 I giocatori possono connettersi istantaneamente dal proprio smartphone inquadrando un **QR Code** o navigando all'indirizzo IP locale, senza installare alcuna applicazione o aver bisogno di una connessione internet attiva. L'host controlla la partita, le domande e la classifica in tempo reale tramite una dashboard dedicata.
 
@@ -32,7 +32,7 @@ I giocatori possono connettersi istantaneamente dal proprio smartphone inquadran
 - **⚡ Real-Time WebSockets:** Interazioni istantanee a bassissima latenza tra host e giocatori grazie a **Socket.io**.
 - **📱 Zero Barriere d'Ingresso:** I giocatori scansionano il QR Code generato a schermo e partecipano direttamente dal proprio browser mobile preferito.
 - **🎯 Gamification in Stile Kahoot:** Assegnazione dei punteggi dinamica basata sulla velocità e correttezza della risposta.
-- **🛠️ Gestione Quiz Flessibile:** Creazione dei quiz da interfaccia amministrativa (con account host e limite di 3 quiz personalizzati salvabili) o importazione massiva da file **CSV/Excel**.
+- **🛠️ Gestione Quiz Flessibile:** Creazione dei quiz da interfaccia amministrativa (con account host e limite di 3 quiz personalizzati salvabili), oltre a un set di quiz precaricati pronti all'uso.
 - **🔒 Hardware Lock & Licenza SaaS:** Sistema di protezione e attivazione SaaS a tempo, vincolato al seriale hardware della CPU del Raspberry Pi (fonte preferita: `/proc/device-tree/serial-number`) verificato periodicamente tramite le API private di GitHub con PAT fine-grained in sola lettura.
 - **📦 Distribuzione Singolo Binario:** Backend compilato in un unico file eseguibile per architettura ARM tramite le [Node.js Single Executable Applications (SEA)](https://nodejs.org/api/single-executable-applications.html), la via ufficialmente supportata dal runtime Node.js.
 
@@ -46,17 +46,17 @@ I giocatori possono connettersi istantaneamente dal proprio smartphone inquadran
 - **Sicurezza:** Hashing delle password host tramite `bcryptjs` (pura implementazione JavaScript, per evitare le problematiche di packaging SEA associate a moduli nativi come `bcrypt` standard).
 - **Frontend:** HTML5, CSS3 Custom (Vanilla CSS con design responsive moderno), JavaScript Vanilla (SPA leggera)
 - **Compilazione & Packaging:** [Node.js Single Executable Applications (SEA)](https://nodejs.org/api/single-executable-applications.html) — funzionalità integrata nel runtime, sostituto ufficiale di `pkg` (archiviato e non più mantenuto dal dicembre 2024). Grazie all'adozione di `node:sqlite`, il backend non ha moduli nativi esterni da gestire come asset SEA.
-- **Sistema Host:** Linux (Debian/Raspbian OS) configurato con `hostapd` per l'Access Point Wi-Fi e `dnsmasq` per il routing DNS locale (dominio `quizarena.gioca`)
+- **Sistema Host:** Linux (Debian/Raspbian OS) configurato con `hostapd` per l'Access Point Wi-Fi e `dnsmasq` per il routing DNS locale (dominio `quizzata.gioca`)
 
 ---
 
 ## 🌐 Architettura di Rete
 
-Quiz Arena non richiede infrastruttura esterna. Il Raspberry Pi funge da server e da router Wi-Fi contemporaneamente:
+Quiz-Zata! non richiede infrastruttura esterna. Il Raspberry Pi funge da server e da router Wi-Fi contemporaneamente:
 
 ```text
                +----------------------------------------+
-               |  Raspberry Pi (Hotspot "QuizArena")    |
+               |  Raspberry Pi (Hotspot "QuizZata")    |
                |             IP: 192.168.4.1            |
                +----------------------------------------+
                                    |
@@ -64,7 +64,7 @@ Quiz Arena non richiede infrastruttura esterna. Il Raspberry Pi funge da server 
          |                                                   |
          v                                                   v
 🌐 Dispositivo Host                               📱 Smartphone Giocatori
-   Apre: http://quizarena.gioca/admin-console        Aprono: http://quizarena.gioca (o QR Code)
+   Apre: http://quizzata.gioca/admin-console        Aprono: http://quizzata.gioca (o QR Code)
    Fallback: http://192.168.4.1/admin-console        Fallback: http://192.168.4.1
    (URL host oscurato e personalizzabile da .env)    (⚠️ DNS-over-HTTPS può ignorare il DNS locale)
    - Avvia e controlla i quiz                        - Inseriscono il nickname
@@ -98,13 +98,13 @@ Il flusso di una partita segue una macchina a stati solida e sincronizzata in te
 Il codice è organizzato in modo modulare per separare nettamente le responsabilità di backend, frontend e strumenti interni:
 
 ```text
-quiz-arena/
+quiz-zata/
 ├── server/
 │   ├── index.js              # Entrypoint: avvia il server Express/Socket.io (+ hook licenza in produzione)
 │   ├── config.js             # Configurazione centralizzata: legge .env, valida, ri-esporta
 │   ├── license.js            # (Fase Futura) Modulo licenza: controlli GitHub API + gestione cache locale
 │   ├── game.js               # Macchina a stati di gioco e logica WebSocket
-│   ├── quiz-manager.js       # Gestore database SQLite (node:sqlite) per CRUD quiz e importazioni
+│   ├── quiz-manager.js       # Gestore database SQLite (node:sqlite) per CRUD dei quiz
 │   ├── routes/
 │   │   ├── host.js           # Endpoint API per pannello amministratore
 │   │   └── player.js         # Endpoint API per interfacce giocatori
@@ -144,7 +144,7 @@ Il software integra un meccanismo di licenza a tempo vincolato all'hardware per 
                                                             │
                                          ┌──────────────────┴──────────────────┐
                                          ▼ OK                                  ▼ FALLITO / SCADUTO
-                                  [ Avvia Quiz Arena ]                  [ Blocca Esecuzione ]
+                                  [ Avvia Quiz-Zata! ]                  [ Blocca Esecuzione ]
 ```
 
 1. **GitHub come Backend:** Le licenze sono memorizzate come file JSON nella cartella `licenze/<serial_pi>.json` di un repository privato GitHub (utilizzando il piano gratuito di GitHub).
@@ -162,12 +162,12 @@ Il progetto viene sviluppato seguendo un approccio **Game-First**: prima si cost
 ### Fase Attiva — Sviluppo su PC (senza hardware Pi)
 
 1. **Step 1:** Setup progetto Node.js — Struttura cartelle, dipendenze, `.env` e `.gitignore`. Database via `node:sqlite` (stabile in Node.js v24, integrato nel runtime, zero dipendenze native).
-2. **Step 2:** `server/quiz-manager.js` + SQLite Schema — Tabelle `users` (host, password hashate con **bcryptjs**, implementazione JS pura) e `quizzes` (max 3 per utente), import CSV/Excel.
+2. **Step 2:** `server/quiz-manager.js` + SQLite Schema — Tabelle `users` (host, password hashate con **bcryptjs**, implementazione JS pura) e `quizzes` (max 3 per utente).
 3. **Step 3:** `server/index.js` — Bootstrap del server Express, configurazione Socket.io.
-4. **Step 4:** `server/game.js` — Logica centrale e macchina a stati del gioco (LOBBY → QUESTION → RESULTS → FINAL_LEADERBOARD).
-5. **Step 5:** Socket.io Integration — Configurazione ed eventi real-time tra Host e Player.
-6. **Step 6:** Frontend Host — UI della dashboard amministrativa (login, gestione quiz, conduzione partita).
-7. **Step 7:** Frontend Player — Interfaccia mobile responsive, pulsanti di risposta e feedback.
+4. **Step 4 (Completato Parzialmente):** Frontend Host (UI-First) — UI della dashboard amministrativa e grafica premium (sospeso in attesa dell'engine di gioco).
+5. **Step 5 (Completato):** `server/game.js` — Motore di gioco e macchina a stati in-memory (LOBBY → QUESTION → RESULTS → FINAL_LEADERBOARD). Timer via timestamp iniettati, punteggio stile Kahoot. Smoke test: `tools/test-game.js`.
+6. **Step 6:** Socket.io Integration + Player E2E Minimale — Configurazione eventi real-time tra Host e client giocatore "base" per test end-to-end senza UI definitiva.
+7. **Step 7:** Rifinitura UI e Beta — Completamento dell'interfaccia Host (cablaggi logici) e sviluppo UI mobile-first per il Player. Playtesting locale e bugfixing.
 
 ### Fase Futura — Richiede l'Hardware Raspberry Pi
 
