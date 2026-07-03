@@ -15,6 +15,7 @@
  * NON contiene logica di gioco (→ game.js) né bootstrap (→ index.js).
  */
 
+const { randomUUID } = require('node:crypto');
 const jwt    = require('jsonwebtoken');
 const config = require('./config');
 const db     = require('./quiz-manager');
@@ -35,6 +36,10 @@ let currentQuiz = null;
 let questionTimer = null;
 /** @type {Map<string, string>} socket.id -> playerId */
 const socketPlayers = new Map();
+/** @type {Map<string, string>} token segreto -> playerId (riconnessione Fase 7) */
+const playerTokens = new Map();
+/** Scadenza assoluta (ms epoch) della domanda corrente, per il rejoin. */
+let currentQuestionEndsAt = null;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────────
 
@@ -50,6 +55,8 @@ function destroySession() {
   currentSession = null;
   currentQuiz = null;
   socketPlayers.clear();
+  playerTokens.clear();
+  currentQuestionEndsAt = null;
 }
 
 /** Notifica e disconnette i giocatori della sessione corrente, poi la distrugge. */
@@ -82,6 +89,7 @@ function broadcastLobby(io) {
 function emitQuestion(io) {
   const q = currentSession.getCurrentQuestion();
   const endsAt = Date.now() + q.time_limit_s * 1000;
+  currentQuestionEndsAt = endsAt;
   io.emit('game:question', { ...q, endsAt });
 
   clearQuestionTimer();
@@ -96,12 +104,32 @@ function closeQuestion(io) {
   io.emit('game:results', results);
 }
 
+/** Conta i giocatori attualmente connessi. */
+function countConnected() {
+  let n = 0;
+  for (const p of currentSession.players.values()) {
+    if (p.connected) n++;
+  }
+  return n;
+}
+
+/** True se ogni giocatore CONNESSO ha risposto (i disconnessi non bloccano il round). */
+function allConnectedAnswered() {
+  let connected = 0;
+  for (const p of currentSession.players.values()) {
+    if (!p.connected) continue;
+    connected++;
+    if (!currentSession.currentAnswers.has(p.id)) return false;
+  }
+  return connected > 0;
+}
+
 /** Chiusura anticipata: tutti i giocatori connessi hanno risposto. */
 function maybeCloseEarly(io) {
   if (
     currentSession &&
     currentSession.state === STATES.QUESTION &&
-    currentSession.currentAnswers.size >= currentSession.players.size
+    allConnectedAnswered()
   ) {
     closeQuestion(io);
   }
@@ -148,14 +176,57 @@ function attachGameHandlers(io) {
     socket.on('player:join', (payload, cb) => {
       if (!currentSession) return fail(cb, 'Nessuna partita attiva.');
       try {
-        const player = currentSession.addPlayer(payload?.nickname);
+        const player = currentSession.addPlayer(payload?.nickname, payload?.avatarId ?? null);
+        const token = randomUUID();
+        playerTokens.set(token, player.id);
         socketPlayers.set(socket.id, player.id);
         socket.join(ROOM_PLAYERS);
-        ok(cb, { playerId: player.id });
+        ok(cb, { playerId: player.id, token, avatar: player.avatar });
         broadcastLobby(io);
       } catch (err) {
         fail(cb, err.message);
       }
+    });
+
+    // Riconnessione: il client presenta il token ricevuto al join/reset e
+    // riottiene identità, punteggio e stato corrente della partita.
+    socket.on('player:rejoin', (payload, cb) => {
+      const token = payload?.token;
+      const playerId = token ? playerTokens.get(token) : undefined;
+      if (!currentSession || !playerId || !currentSession.players.has(playerId)) {
+        return fail(cb, 'Sessione non valida o scaduta.');
+      }
+
+      socketPlayers.set(socket.id, playerId);
+      socket.join(ROOM_PLAYERS);
+      currentSession.setPlayerConnected(playerId, true);
+      const player = currentSession.players.get(playerId);
+
+      const data = {
+        playerId,
+        token,
+        nickname: player.nickname,
+        avatar: player.avatar,
+        score: player.score,
+        state: currentSession.state,
+        question: null,
+        leaderboard: null,
+      };
+      if (currentSession.state === STATES.QUESTION) {
+        data.question = {
+          ...currentSession.getCurrentQuestion(),
+          endsAt: currentQuestionEndsAt,
+          alreadyAnswered: currentSession.currentAnswers.has(playerId),
+        };
+      } else if (
+        currentSession.state === STATES.RESULTS ||
+        currentSession.state === STATES.FINAL_LEADERBOARD
+      ) {
+        data.leaderboard = currentSession.getLeaderboard();
+      }
+
+      ok(cb, data);
+      broadcastLobby(io);
     });
 
     socket.on('player:answer', (payload, cb) => {
@@ -167,7 +238,7 @@ function attachGameHandlers(io) {
         ok(cb, result);
         io.to(ROOM_HOST).emit('game:answer-count', {
           answered: currentSession.currentAnswers.size,
-          total: currentSession.players.size,
+          total: countConnected(),
         });
         maybeCloseEarly(io);
       } catch (err) {
@@ -240,23 +311,26 @@ function attachGameHandlers(io) {
 
       clearQuestionTimer();
 
-      // Nickname dei giocatori ancora connessi, dalla sessione uscente.
-      const oldNicknames = new Map(); // socket.id -> nickname
+      // Identità dei giocatori ancora connessi, dalla sessione uscente.
+      const oldIdentities = new Map(); // socket.id -> { nickname, avatar }
       for (const [sockId, playerId] of socketPlayers) {
         const player = currentSession.players.get(playerId);
-        if (player) oldNicknames.set(sockId, player.nickname);
+        if (player) oldIdentities.set(sockId, { nickname: player.nickname, avatar: player.avatar });
       }
 
       currentSession = new GameSession(currentQuiz);
       socketPlayers.clear();
+      playerTokens.clear();
 
-      // Re-registra i giocatori connessi con nuovi id e li notifica singolarmente.
-      for (const [sockId, nickname] of oldNicknames) {
+      // Re-registra i giocatori connessi con nuovi id/token e li notifica singolarmente.
+      for (const [sockId, identity] of oldIdentities) {
         const playerSocket = io.sockets.sockets.get(sockId);
         if (!playerSocket) continue; // disconnesso nel frattempo
-        const player = currentSession.addPlayer(nickname);
+        const player = currentSession.addPlayer(identity.nickname, identity.avatar);
+        const token = randomUUID();
+        playerTokens.set(token, player.id);
         socketPlayers.set(sockId, player.id);
-        playerSocket.emit('game:reset', { playerId: player.id });
+        playerSocket.emit('game:reset', { playerId: player.id, token });
       }
 
       ok(cb);
@@ -276,10 +350,23 @@ function attachGameHandlers(io) {
       socketPlayers.delete(socket.id);
       if (!playerId || !currentSession) return;
 
-      try {
-        currentSession.removePlayer(playerId);
-      } catch {
-        // Giocatore già rimosso (es. sessione appena riavviata): nessuna azione.
+      if (currentSession.state === STATES.LOBBY) {
+        // In lobby la rimozione è definitiva: token invalidato.
+        for (const [token, pid] of playerTokens) {
+          if (pid === playerId) playerTokens.delete(token);
+        }
+        try {
+          currentSession.removePlayer(playerId);
+        } catch {
+          // Giocatore già rimosso (es. sessione appena riavviata): nessuna azione.
+        }
+      } else {
+        // In partita il giocatore resta (punteggio conservato) in attesa di rejoin.
+        try {
+          currentSession.setPlayerConnected(playerId, false);
+        } catch {
+          // Giocatore già rimosso: nessuna azione.
+        }
       }
       broadcastLobby(io);
       // Se era l'ultimo che mancava per rispondere, chiudi il round.

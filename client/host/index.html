@@ -10,8 +10,8 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Quiz-Zata! Admin</title>
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/js/all.min.js"
-    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <!-- Font Awesome Free 6.5.2 vendored (offline-first, licenza MIT/OFL/CC BY 4.0 nel banner del file) -->
+  <script src="vendor/fontawesome-all.min.js"></script>
 </head>
 
 <body>
@@ -318,25 +318,36 @@
               <span id="game-status-text">Connessione al server di gioco…</span>
             </div>
 
-            <!-- Area live (Step 6, markup minimale — design in Step 7) -->
+            <!-- Area live (Step 7 — design Retro Street: lobby QR, opzioni, risultati, podio) -->
             <div id="game-live-area">
               <div id="game-lobby-box" hidden>
-                <h3>Giocatori in lobby (<span id="game-player-count">0</span>)</h3>
-                <ul id="game-players-list"></ul>
+                <div class="game-join-card">
+                  <div id="game-qr" class="game-qr" role="img" aria-label="QR code per entrare in partita"></div>
+                  <p id="game-join-url" class="game-join-url"></p>
+                  <p class="game-join-hint">Inquadra il QR o digita l'indirizzo sul telefono</p>
+                </div>
+                <div class="game-lobby-players">
+                  <h3 class="game-live-title">In lobby
+                    <span id="game-player-count" class="game-count-bubble">0</span>
+                  </h3>
+                  <ul id="game-players-list" class="game-player-badges"></ul>
+                </div>
               </div>
               <div id="game-question-box" hidden>
-                <h3 id="game-question-text"></h3>
-                <ul id="game-options-list"></ul>
-                <p id="game-answer-count">Risposte: 0 / 0</p>
+                <h3 id="game-question-text" class="game-live-question"></h3>
+                <ul id="game-options-list" class="game-option-cards"></ul>
+                <p id="game-answer-count" class="game-answer-counter">Risposte: 0 / 0</p>
               </div>
               <div id="game-results-box" hidden>
-                <h3>Risultati</h3>
-                <p id="game-correct-answer"></p>
-                <ul id="game-distribution"></ul>
+                <h3 class="game-live-title">Risultati</h3>
+                <p id="game-correct-answer" class="game-correct-answer"></p>
+                <ul id="game-distribution" class="game-distribution"></ul>
+                <ol id="game-partial-leaderboard" class="game-partial-leaderboard"></ol>
               </div>
               <div id="game-final-box" hidden>
-                <h3>Classifica finale</h3>
-                <ol id="game-final-leaderboard"></ol>
+                <h3 class="game-live-title">Classifica finale</h3>
+                <div id="game-final-podium" class="game-final-podium"></div>
+                <ol id="game-final-leaderboard" class="game-final-list"></ol>
               </div>
             </div>
 
@@ -364,6 +375,7 @@
   </div><!-- /#app -->
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="vendor/qrcode.js"></script>
   <script src="app.js"></script>
 </body>
 

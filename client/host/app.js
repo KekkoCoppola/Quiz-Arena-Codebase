@@ -923,6 +923,11 @@ const gameDistribution     = document.getElementById('game-distribution');
 const gameFinalBox         = document.getElementById('game-final-box');
 const gameFinalLeaderboard = document.getElementById('game-final-leaderboard');
 
+const gameJoinUrl            = document.getElementById('game-join-url');
+const gameQr                 = document.getElementById('game-qr');
+const gamePartialLeaderboard = document.getElementById('game-partial-leaderboard');
+const gameFinalPodium        = document.getElementById('game-final-podium');
+
 const gameStartBtn   = document.getElementById('game-start-btn');
 const gameNextBtn    = document.getElementById('game-next-btn');
 const gameRestartBtn = document.getElementById('game-restart-btn');
@@ -930,6 +935,34 @@ const gameRestartBtn = document.getElementById('game-restart-btn');
 let gameSocket = null;
 let gameCountdownInterval = null;
 let currentQuestionOptions = [];
+
+// Mappa avatar: id stabile → emoji TEMPORANEA (identica al client player).
+const GAME_AVATARS = {
+  volpe: '🦊', panda: '🐼', rana: '🐸', polpo: '🐙',
+  leone: '🦁', pinguino: '🐧', koala: '🐨', tigre: '🐯',
+  unicorno: '🦄', gufo: '🦉', granchio: '🦀', balena: '🐳',
+};
+const gameAvatarOf = (id) => GAME_AVATARS[id] ?? '❓';
+
+/* global qrcode */
+
+/** Carica l'URL LAN e disegna il QR nella lobby (una volta per partita). */
+async function loadJoinInfo() {
+  gameQr.innerHTML = '';
+  gameJoinUrl.textContent = '';
+  try {
+    const res = await apiFetch('/game/join-info');
+    const url = res.data.url;
+    gameJoinUrl.textContent = url;
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    gameQr.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+  } catch {
+    // Fallback: solo testo, il QR non è indispensabile.
+    gameJoinUrl.textContent = `http://${location.hostname}:${location.port || 80}`;
+  }
+}
 
 /** Mostra un solo box dell'area live alla volta. */
 function showGameBox(box) {
@@ -975,6 +1008,7 @@ function openGame(quiz, type) {
     ? `<span aria-hidden="true"><i class="fas fa-star"></i></span> <span>Sistema${quiz.category ? ` · ${escapeHtml(quiz.category)}` : ''}</span>`
     : `<span aria-hidden="true"><i class="fas fa-wand-magic-sparkles"></i></span> <span>Personale</span>`;
 
+  loadJoinInfo();
   connectGameSocket(quiz, type);
   showView('game');
 }
@@ -1004,9 +1038,16 @@ function connectGameSocket(quiz, type) {
     gameQuestionText.textContent = q.text;
     // Opzioni a solo scopo visualizzativo: l'host non risponde.
     gameOptionsList.innerHTML = '';
+    const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
     q.options.forEach((option, i) => {
       const li = document.createElement('li');
-      li.textContent = `${i + 1}. ${option}`;
+      li.className = 'game-option-card';
+      const letter = document.createElement('span');
+      letter.className = 'game-option-letter';
+      letter.textContent = LETTERS[i] ?? String(i + 1);
+      const label = document.createElement('span');
+      label.textContent = option;
+      li.append(letter, label);
       gameOptionsList.appendChild(li);
     });
     gameAnswerCount.textContent = 'Risposte: 0 / ?';
@@ -1027,12 +1068,34 @@ function connectGameSocket(quiz, type) {
     gameCorrectAnswer.textContent =
       `Risposta corretta: ${currentQuestionOptions[results.correctIndex] ?? '—'}`;
 
+    const totalAnswers = results.distribution.reduce((a, b) => a + b, 0);
     gameDistribution.innerHTML = '';
     results.distribution.forEach((n, i) => {
       const li = document.createElement('li');
-      li.textContent = `${currentQuestionOptions[i] ?? `Opzione ${i + 1}`}: ${n} rispost${n === 1 ? 'a' : 'e'}`;
+      li.className = 'game-dist-row' + (i === results.correctIndex ? ' is-correct' : '');
+      const pct = totalAnswers > 0 ? Math.round((n / totalAnswers) * 100) : 0;
+      const label = document.createElement('span');
+      label.className = 'game-dist-label';
+      label.textContent = currentQuestionOptions[i] ?? `Opzione ${i + 1}`;
+      const track = document.createElement('div');
+      track.className = 'game-dist-track';
+      const bar = document.createElement('div');
+      bar.className = 'game-dist-bar';
+      bar.style.width = `${Math.max(pct, n > 0 ? 8 : 0)}%`;
+      track.appendChild(bar);
+      const count = document.createElement('span');
+      count.className = 'game-dist-count';
+      count.textContent = i === results.correctIndex ? `✔ ${n}` : String(n);
+      li.append(label, track, count);
       gameDistribution.appendChild(li);
     });
+
+    gamePartialLeaderboard.innerHTML = '';
+    for (const p of results.leaderboard.slice(0, 5)) {
+      const li = document.createElement('li');
+      li.textContent = `${gameAvatarOf(p.avatar)} ${p.nickname} — ${p.score}`;
+      gamePartialLeaderboard.appendChild(li);
+    }
 
     showGameBox(gameResultsBox);
     gameNextBtn.disabled = false;
@@ -1041,10 +1104,31 @@ function connectGameSocket(quiz, type) {
   gameSocket.on('game:final', ({ leaderboard }) => {
     stopGameCountdown();
     gameStatusText.textContent = 'Partita conclusa!';
+    gameFinalPodium.innerHTML = '';
+    const MEDALS = ['🥇', '🥈', '🥉'];
+    leaderboard.slice(0, 3).forEach((p, i) => {
+      const step = document.createElement('div');
+      step.className = `game-podium-step rank-${i + 1}`;
+      const medal = document.createElement('span');
+      medal.className = 'medal';
+      medal.textContent = MEDALS[i];
+      const av = document.createElement('span');
+      av.className = 'avatar';
+      av.textContent = gameAvatarOf(p.avatar);
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = p.nickname;
+      const points = document.createElement('span');
+      points.className = 'points';
+      points.textContent = `${p.score} punti`;
+      step.append(medal, av, name, points);
+      gameFinalPodium.appendChild(step);
+    });
+
     gameFinalLeaderboard.innerHTML = '';
-    for (const p of leaderboard) {
+    for (const p of leaderboard.slice(3)) {
       const li = document.createElement('li');
-      li.textContent = `${p.nickname} — ${p.score} punti`;
+      li.textContent = `${p.rank}. ${gameAvatarOf(p.avatar)} ${p.nickname} — ${p.score} punti`;
       gameFinalLeaderboard.appendChild(li);
     }
     showGameBox(gameFinalBox);
@@ -1071,10 +1155,27 @@ function renderGameLobby(players) {
   gamePlayersList.innerHTML = '';
   for (const p of players) {
     const li = document.createElement('li');
-    li.textContent = p.nickname;
+    li.className = 'game-player-badge' + (p.connected === false ? ' is-disconnected' : '');
+    const av = document.createElement('span');
+    av.textContent = gameAvatarOf(p.avatar);
+    const name = document.createElement('span');
+    name.textContent = p.nickname;
+    li.append(av, name);
+    if (p.connected === false) {
+      const off = document.createElement('span');
+      off.className = 'material-symbols-outlined';
+      off.textContent = 'wifi_off';
+      off.setAttribute('aria-label', 'disconnesso');
+      li.appendChild(off);
+    }
     gamePlayersList.appendChild(li);
   }
-  showGameBox(gameLobbyBox);
+  // Cambia vista solo se non c'è una fase di gioco a schermo: il lobby-update
+  // arriva anche in partita (es. disconnessioni) e non deve coprire
+  // domanda, risultati o podio.
+  if (gameQuestionBox.hidden && gameResultsBox.hidden && gameFinalBox.hidden) {
+    showGameBox(gameLobbyBox);
+  }
   gameStartBtn.disabled = players.length === 0;
 }
 
@@ -1097,6 +1198,7 @@ gameRestartBtn.addEventListener('click', () => {
   gameSocket?.emit('host:restart-game', null, (res) => {
     if (!res.ok) { showToast(res.error, 'error'); return; }
     gameStatusText.textContent = 'Partita riavviata: giocatori di nuovo in lobby.';
+    showGameBox(gameLobbyBox);
     gameStartBtn.disabled = false;
     gameRestartBtn.disabled = true;
   });

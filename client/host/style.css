@@ -6,8 +6,58 @@
    Palette: Giallo primario · Teal secondario · Rosso terziario · Crema sfondo
    ═══════════════════════════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700;800;900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+/* ─── Font vendored (resources/fonts/, SIL OFL) ──────────────────────────────
+   Il prodotto è offline-first: nessuna richiesta a CDN esterni.
+   Quicksand: pesi reali 400/500/700; il file 700 copre anche 800/900
+   (il CDN serviva comunque solo fino al 700, il resto era grassetto sintetico).
+   Material Symbols Outlined: font variabile (wght 100-700, FILL 0-1). */
+
+@font-face {
+  font-family: 'Quicksand';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/resources/fonts/quicksand-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Quicksand';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/resources/fonts/quicksand-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Quicksand';
+  font-style: normal;
+  font-weight: 700 900;
+  font-display: swap;
+  src: url('/resources/fonts/quicksand-700.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: block;
+  src: url('/resources/fonts/material-symbols-outlined.woff2') format('woff2');
+}
+
+/* Classe base delle icone: prima arrivava dal CSS del CDN Google Fonts. */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
 
 /* ─── Custom Properties — Neo-Brutalist Warm ─────────────────────────────── */
 
@@ -2349,3 +2399,100 @@ body.sidebar-collapsed .sidebar-toggle-arrow .material-symbols-outlined {
   .game-controls { flex-direction: column; }
   h1 { font-size: var(--text-display-lg-mobile); line-height: var(--text-display-lg-mobile-lh); }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Fase 7 — Area live conduzione partita (lobby QR, opzioni, barre, podio)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#game-lobby-box { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+
+.game-join-card {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  background: var(--surface-container-lowest);
+  border: 4px solid var(--on-background); border-radius: var(--radius-lg);
+  padding: 24px; box-shadow: var(--retro-shadow);
+}
+.game-qr svg { width: 220px; height: 220px; display: block; }
+.game-join-url {
+  font-size: var(--text-headline-md); font-weight: 900;
+  color: var(--on-background); word-break: break-all; text-align: center;
+}
+.game-join-hint { color: var(--on-surface-variant); font-weight: 700; }
+
+.game-lobby-players { flex: 1; min-width: 260px; }
+.game-live-title { font-size: var(--text-headline-md); font-weight: 900; margin-bottom: 12px; }
+.game-count-bubble {
+  display: inline-grid; place-items: center; min-width: 40px; height: 40px;
+  margin-left: 8px; padding: 0 10px;
+  background: var(--primary-container); color: var(--on-primary-container);
+  border: 3px solid var(--on-background); border-radius: var(--radius-full);
+  font-weight: 900;
+}
+.game-player-badges { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 0; }
+.game-player-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 14px; font-weight: 700;
+  background: var(--surface-container-lowest);
+  border: 2px solid var(--on-background); border-radius: var(--radius-full);
+}
+.game-player-badge:nth-child(odd)  { transform: rotate(-2deg); }
+.game-player-badge:nth-child(even) { transform: rotate(2deg); }
+.game-player-badge.is-disconnected { opacity: 0.5; }
+.game-player-badge .material-symbols-outlined { font-size: 18px; }
+
+.game-live-question { font-size: var(--text-headline-md); font-weight: 900; margin-bottom: 16px; }
+.game-option-cards {
+  list-style: none; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;
+}
+.game-option-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; font-weight: 700;
+  background: var(--surface-container-lowest);
+  border: 3px solid var(--on-background); border-radius: var(--radius-base);
+}
+.game-option-letter {
+  flex: none; display: grid; place-items: center;
+  width: 36px; height: 36px; font-weight: 900;
+  background: var(--primary-container); color: var(--on-primary-container);
+  border: 3px solid var(--on-background); border-radius: var(--radius-full);
+}
+.game-answer-counter { font-size: var(--text-headline-md); font-weight: 900; margin-top: 16px; }
+
+.game-correct-answer { font-weight: 900; margin-bottom: 12px; }
+.game-distribution { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.game-dist-row {
+  display: grid; grid-template-columns: minmax(120px, 1fr) 2fr 3.5rem;
+  align-items: center; gap: 12px; font-weight: 700;
+}
+.game-dist-track {
+  height: 24px; background: var(--surface-container-lowest);
+  border: 3px solid var(--on-background); border-radius: var(--radius-full);
+  overflow: hidden;
+}
+.game-dist-bar { height: 100%; background: var(--retro-ochre); }
+.game-dist-row.is-correct .game-dist-bar { background: var(--success); }
+.game-dist-row.is-correct .game-dist-count { color: var(--success); font-weight: 900; }
+.game-dist-count { text-align: right; font-weight: 900; }
+
+.game-partial-leaderboard { margin-top: 16px; padding-left: 24px; font-weight: 700; }
+
+.game-final-podium {
+  display: flex; align-items: flex-end; justify-content: center;
+  gap: 12px; margin-bottom: 16px;
+}
+.game-podium-step {
+  flex: 1; max-width: 160px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  border: 4px solid var(--on-background);
+  border-radius: var(--radius-base) var(--radius-base) 0 0;
+  padding: 16px 8px; text-align: center; font-weight: 700;
+}
+.game-podium-step .avatar { font-size: 40px; }
+.game-podium-step .name   { font-weight: 900; overflow-wrap: anywhere; }
+.game-podium-step .medal  { font-size: 24px; }
+.game-podium-step .points { color: var(--on-surface-variant); }
+.game-podium-step.rank-1 { background: var(--primary-container);   min-height: 170px; order: 2; }
+.game-podium-step.rank-2 { background: var(--secondary-container); min-height: 135px; order: 1; }
+.game-podium-step.rank-3 { background: var(--retro-ochre);         min-height: 110px; order: 3; }
+.game-final-list { padding-left: 24px; font-weight: 700; }
