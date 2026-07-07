@@ -1660,6 +1660,31 @@ body.sidebar-collapsed .sidebar-toggle-arrow .material-symbols-outlined {
   gap: 2rem;
 }
 
+/* Fase Minigiochi: toggle per pianificare un minigioco subito dopo questa
+   domanda. Stessa grammatica visiva di un input (bordo Ink, radius base),
+   accento Ochre quando attivo — nessun pattern nuovo, solo variante colore. */
+.minigame-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--surface-container);
+  border: 3px solid var(--on-background);
+  border-radius: var(--radius-base);
+  font-weight: 700;
+  cursor: pointer;
+}
+.minigame-toggle-row:has(input:checked) {
+  background: var(--retro-ochre);
+  color: var(--retro-dark);
+}
+.minigame-toggle-row input[type="checkbox"] {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--retro-dark);
+  cursor: pointer;
+}
+
 .form-label-brutal {
   display: block;
   font-weight: 700;
@@ -2047,6 +2072,7 @@ body.sidebar-collapsed .sidebar-toggle-arrow .material-symbols-outlined {
 .btn-game-primary { background: var(--retro-terracotta); color: var(--on-primary); }
 .btn-game-secondary { background: var(--retro-teal); color: var(--on-primary); }
 .btn-game-tertiary { background: var(--primary-container); color: var(--retro-dark); }
+.btn-game-minigame { background: var(--retro-ochre); color: var(--retro-dark); }
 .btn-game-danger { background: var(--error); color: var(--on-error); }
 
 /* Azione primaria: visivamente dominante rispetto alle secondarie (gerarchia per fase). */
@@ -2441,6 +2467,12 @@ body.sidebar-collapsed .sidebar-toggle-arrow .material-symbols-outlined {
 .game-player-badge .material-symbols-outlined { font-size: 18px; }
 
 .game-live-question { font-size: var(--text-headline-md); font-weight: 900; margin-bottom: 16px; }
+
+/* Round minigioco: stessa struttura di una domanda, accento Ochre invece del
+   verde/teal standard, per segnalare a colpo d'occhio che non è una domanda
+   del quiz (Retro Street: nessun sistema visivo nuovo, solo variante colore). */
+.game-question-box.is-minigame .game-live-question { color: var(--retro-ochre); }
+.game-question-box.is-minigame .game-option-card { border-color: var(--retro-ochre); }
 .game-option-cards {
   list-style: none; padding: 0;
   display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;

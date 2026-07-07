@@ -133,6 +133,7 @@ body {
   font-weight: 700; letter-spacing: 0.03em;
 }
 .badge-yellow { background: var(--insert-coin-yellow); color: var(--primary-ink); }
+.badge-ochre  { background: var(--ticket-ochre); color: var(--ink); }
 
 .sticker {
   align-self: center;
@@ -178,6 +179,11 @@ body {
 }
 
 .question-text { font-size: 24px; font-weight: 900; line-height: 32px; }
+
+/* Round minigioco: stessa struttura della domanda, accento Ochre invece del
+   giallo standard, per segnalare a colpo d'occhio che è un round diverso. */
+#screen-question.is-minigame .question-text { color: var(--ticket-ochre); }
+#screen-question.is-minigame .countdown-bar { background: var(--ticket-ochre); }
 
 .answer-stack { display: flex; flex-direction: column; gap: 12px; }
 

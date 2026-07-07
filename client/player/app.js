@@ -18,6 +18,10 @@ const AVATARS = {
 };
 const avatarOf = (id) => AVATARS[id] ?? '❓';
 
+// Emoji delle mosse di Morra Cinese (indici allineati al server:
+// 0 = Sasso, 1 = Carta, 2 = Forbice).
+const MORRA_EMOJI = ['🪨', '📄', '✂️'];
+
 const SESSION_KEY = 'quizzata-player';
 
 const socket = io();
@@ -25,6 +29,10 @@ const socket = io();
 let playerId = null;
 let selectedAvatar = null;
 let countdownInterval = null;
+// Round corrente, per il reveal del feedback (il payload game:results non
+// ripete le opzioni): tipo di round + opzioni mostrate.
+let currentRoundKind = 'question';
+let currentRoundOptions = [];
 
 // ─── Riferimenti DOM ─────────────────────────────────────────────────────────
 
@@ -195,7 +203,13 @@ nicknameInput.addEventListener('keydown', (e) => {
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
 function renderQuestion(q, alreadyAnswered = false) {
-  questionProgress.textContent = `${q.index + 1}/${q.total}`;
+  const isMinigame = q.kind === 'minigame';
+  currentRoundKind = q.kind;
+  currentRoundOptions = q.options;
+  screens.question.classList.toggle('is-minigame', isMinigame);
+  questionProgress.textContent = isMinigame ? '🎲 Morra Cinese!' : `${q.index + 1}/${q.total}`;
+  questionProgress.classList.toggle('badge-yellow', !isMinigame);
+  questionProgress.classList.toggle('badge-ochre', isMinigame);
   questionText.textContent = q.text;
   answerSent.hidden = !alreadyAnswered;
   answerButtons.classList.toggle('answer-locked', alreadyAnswered);
@@ -207,7 +221,8 @@ function renderQuestion(q, alreadyAnswered = false) {
     btn.className = 'answer-btn';
     const letter = document.createElement('span');
     letter.className = 'letter';
-    letter.textContent = LETTERS[i] ?? String(i + 1);
+    // Minigioco: al posto della lettera A/B/C, l'emoji della mossa.
+    letter.textContent = isMinigame ? (MORRA_EMOJI[i] ?? '❓') : (LETTERS[i] ?? String(i + 1));
     const label = document.createElement('span');
     label.textContent = option;
     btn.append(letter, label);
@@ -236,9 +251,12 @@ function submitAnswer(optionIndex, btn) {
 
 function ordinale(n) { return `${n}°`; }
 
-function renderFeedback({ mine, leaderboard }) {
+function renderFeedback({ mine, leaderboard, kind = 'question', machineChoice = null }) {
   feedbackSticker.classList.remove('is-correct', 'is-wrong', 'is-neutral');
-  if (!mine) {
+
+  if (kind === 'minigame') {
+    renderMinigameFeedback(mine, machineChoice);
+  } else if (!mine) {
     feedbackSticker.classList.add('is-neutral');
     feedbackText.textContent = 'Tempo scaduto!';
     feedbackPoints.textContent = '+0 punti';
@@ -258,6 +276,37 @@ function renderFeedback({ mine, leaderboard }) {
     ? `Sei ${ordinale(me.rank)} su ${leaderboard.length}`
     : '';
   show('feedback');
+}
+
+/**
+ * Reveal Morra Cinese: mostra la mossa del PC, il confronto con la mia e l'esito.
+ * Riusa le classi sticker esistenti: vittoria=is-correct, sconfitta=is-wrong,
+ * pareggio/nessuna risposta=is-neutral.
+ */
+function renderMinigameFeedback(mine, machineChoice) {
+  const pcEmoji = MORRA_EMOJI[machineChoice] ?? '❓';
+
+  if (!mine) {
+    feedbackSticker.classList.add('is-neutral');
+    feedbackText.textContent = 'Tempo scaduto!';
+    feedbackPoints.textContent = `Il PC ha scelto ${pcEmoji} · +0 punti`;
+    return;
+  }
+
+  const myEmoji = MORRA_EMOJI[mine.optionIndex] ?? '❓';
+  const matchup = `${myEmoji} vs ${pcEmoji}`;
+
+  if (mine.outcome === 'win') {
+    feedbackSticker.classList.add('is-correct');
+    feedbackText.textContent = 'HAI VINTO!';
+  } else if (mine.outcome === 'lose') {
+    feedbackSticker.classList.add('is-wrong');
+    feedbackText.textContent = 'HAI PERSO';
+  } else {
+    feedbackSticker.classList.add('is-neutral');
+    feedbackText.textContent = 'PAREGGIO';
+  }
+  feedbackPoints.textContent = `${matchup} · +${mine.pointsAwarded} punti`;
 }
 
 function renderFinal(leaderboard) {
@@ -330,7 +379,12 @@ socket.on('game:results', (results) => {
   if (!playerId) return;
   stopCountdown();
   const mine = results.answers.find((a) => a.playerId === playerId) ?? null;
-  renderFeedback({ mine, leaderboard: results.leaderboard });
+  renderFeedback({
+    mine,
+    leaderboard: results.leaderboard,
+    kind: results.kind,
+    machineChoice: results.machineChoice,
+  });
 });
 
 socket.on('game:final', ({ leaderboard }) => {

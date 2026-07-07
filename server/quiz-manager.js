@@ -120,6 +120,31 @@ function initDb(dbPath) {
   const schemaPath = path.join(__dirname, 'db', 'schema.sql');
   const schema = fs.readFileSync(schemaPath, 'utf8');
   _db.exec(schema);
+
+  // Migrazione Fase Minigiochi: CREATE TABLE IF NOT EXISTS non altera tabelle
+  // già esistenti, quindi i DB creati prima dell'introduzione della colonna
+  // `minigames` vanno migrati esplicitamente. La build di SQLite usata da
+  // node:sqlite non supporta la sintassi "ADD COLUMN IF NOT EXISTS" (verificato
+  // empiricamente: syntax error nonostante SQLite >= 3.35), quindi l'idempotenza
+  // si ottiene ignorando l'errore "duplicate column name" su una seconda esecuzione.
+  addColumnIfMissing('quizzes', "minigames TEXT NOT NULL DEFAULT '[]'");
+  addColumnIfMissing('preloaded_quizzes', "minigames TEXT NOT NULL DEFAULT '[]'");
+}
+
+/**
+ * Aggiunge una colonna a una tabella esistente, ignorando l'errore se la
+ * colonna è già presente (migrazione idempotente eseguita ad ogni avvio).
+ * @param {string} table
+ * @param {string} columnDef - es. "minigames TEXT NOT NULL DEFAULT '[]'"
+ */
+function addColumnIfMissing(table, columnDef) {
+  try {
+    _db.exec(`ALTER TABLE ${table} ADD COLUMN ${columnDef};`);
+  } catch (err) {
+    if (!/duplicate column name/i.test(err.message)) {
+      throw err;
+    }
+  }
 }
 
 // ─── Users ───────────────────────────────────────────────────────────────────────
@@ -181,13 +206,17 @@ function getUserById(id) {
 // ─── Quizzes ─────────────────────────────────────────────────────────────────────
 
 /**
- * Deserializza il campo `questions` da stringa JSON ad array JS.
+ * Deserializza i campi `questions`/`minigames` da stringa JSON ad array JS.
  * @param {object | undefined} row
  * @returns {object | null}
  */
 function parseQuizRow(row) {
   if (!row) return null;
-  return { ...row, questions: JSON.parse(row.questions) };
+  return {
+    ...row,
+    questions: JSON.parse(row.questions),
+    minigames: JSON.parse(row.minigames ?? '[]'),
+  };
 }
 
 /**
@@ -199,7 +228,7 @@ function parseQuizRow(row) {
 function getQuizzesByUser(userId) {
   const database = getDb();
   const stmt = database.prepare(
-    'SELECT id, user_id, title, questions, created_at, updated_at FROM quizzes WHERE user_id = ? ORDER BY updated_at DESC'
+    'SELECT id, user_id, title, questions, minigames, created_at, updated_at FROM quizzes WHERE user_id = ? ORDER BY updated_at DESC'
   );
   return stmt.all(userId).map(parseQuizRow);
 }
@@ -214,7 +243,7 @@ function getQuizzesByUser(userId) {
 function getQuizById(quizId, userId) {
   const database = getDb();
   const stmt = database.prepare(
-    'SELECT id, user_id, title, questions, created_at, updated_at FROM quizzes WHERE id = ? AND user_id = ?'
+    'SELECT id, user_id, title, questions, minigames, created_at, updated_at FROM quizzes WHERE id = ? AND user_id = ?'
   );
   return parseQuizRow(stmt.get(quizId, userId));
 }
@@ -227,10 +256,11 @@ function getQuizById(quizId, userId) {
  * @param {number} userId
  * @param {string} title
  * @param {Array<object>} questions - Array JS (serializzato internamente in JSON)
+ * @param {Array<object>} [minigames] - Slot minigioco pianificati (default [])
  * @returns {object} Il quiz creato
  * @throws {QuizLimitError}
  */
-function createQuiz(userId, title, questions) {
+function createQuiz(userId, title, questions, minigames = []) {
   const database = getDb();
 
   const countStmt = database.prepare('SELECT COUNT(*) AS count FROM quizzes WHERE user_id = ?');
@@ -240,38 +270,40 @@ function createQuiz(userId, title, questions) {
   }
 
   const insertStmt = database.prepare(
-    'INSERT INTO quizzes (user_id, title, questions) VALUES (?, ?, ?)'
+    'INSERT INTO quizzes (user_id, title, questions, minigames) VALUES (?, ?, ?, ?)'
   );
-  const result = insertStmt.run(userId, title, JSON.stringify(questions));
+  const result = insertStmt.run(userId, title, JSON.stringify(questions), JSON.stringify(minigames));
 
   const fetchStmt = database.prepare(
-    'SELECT id, user_id, title, questions, created_at, updated_at FROM quizzes WHERE id = ?'
+    'SELECT id, user_id, title, questions, minigames, created_at, updated_at FROM quizzes WHERE id = ?'
   );
   return parseQuizRow(fetchStmt.get(Number(result.lastInsertRowid)));
 }
 
 /**
- * Aggiorna titolo e/o domande di un quiz esistente.
+ * Aggiorna titolo, domande e/o minigiochi pianificati di un quiz esistente.
  * Verifica l'ownership prima di procedere.
  *
  * @param {number} quizId
  * @param {number} userId
  * @param {string} title
  * @param {Array<object>} questions
+ * @param {Array<object>} [minigames] - Slot minigioco pianificati (default [])
  * @returns {object} Il quiz aggiornato
  * @throws {NotFoundError}
  */
-function updateQuiz(quizId, userId, title, questions) {
+function updateQuiz(quizId, userId, title, questions, minigames = []) {
   const database = getDb();
 
   const updateStmt = database.prepare(`
     UPDATE quizzes
        SET title      = ?,
            questions  = ?,
+           minigames  = ?,
            updated_at = datetime('now')
      WHERE id = ? AND user_id = ?
   `);
-  const result = updateStmt.run(title, JSON.stringify(questions), quizId, userId);
+  const result = updateStmt.run(title, JSON.stringify(questions), JSON.stringify(minigames), quizId, userId);
 
   if (result.changes === 0) {
     throw new NotFoundError('Quiz non trovato o non di tua proprietà.');
@@ -308,7 +340,7 @@ function deleteQuiz(quizId, userId) {
 function getPreloadedQuizzes() {
   const database = getDb();
   const stmt = database.prepare(
-    'SELECT id, title, category, questions, created_at FROM preloaded_quizzes ORDER BY category ASC, title ASC'
+    'SELECT id, title, category, questions, minigames, created_at FROM preloaded_quizzes ORDER BY category ASC, title ASC'
   );
   return stmt.all().map(parseQuizRow);
 }
@@ -322,7 +354,7 @@ function getPreloadedQuizzes() {
 function getPreloadedQuizById(quizId) {
   const database = getDb();
   const stmt = database.prepare(
-    'SELECT id, title, category, questions, created_at FROM preloaded_quizzes WHERE id = ?'
+    'SELECT id, title, category, questions, minigames, created_at FROM preloaded_quizzes WHERE id = ?'
   );
   return parseQuizRow(stmt.get(quizId));
 }

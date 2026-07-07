@@ -26,6 +26,7 @@ const os       = require('node:os');
 
 const config                                          = require('../config');
 const { verifyToken }                                 = require('../middleware/auth');
+const { MINIGAME_TYPE_KEYS }                          = require('../game');
 const {
   getUserByUsername,
   getUserById,
@@ -58,10 +59,10 @@ function sendError(res, status, message) {
 
 /**
  * Valida il body di una richiesta di creazione/aggiornamento quiz.
- * @param {{ title: any, questions: any }} input
+ * @param {{ title: any, questions: any, minigames?: any }} input
  * @returns {string | null} Messaggio di errore, o null se tutto è valido
  */
-function validateQuizInput({ title, questions }) {
+function validateQuizInput({ title, questions, minigames }) {
   if (typeof title !== 'string' || title.trim().length === 0 || title.length > 100) {
     return 'Il titolo deve essere una stringa tra 1 e 100 caratteri.';
   }
@@ -101,6 +102,29 @@ function validateQuizInput({ title, questions }) {
       return `Domanda ${num}: "time_limit_s" deve essere un intero tra 5 e 120 secondi.`;
     }
   }
+
+  if (minigames !== undefined) {
+    if (!Array.isArray(minigames)) {
+      return '"minigames" deve essere un array.';
+    }
+    for (let i = 0; i < minigames.length; i++) {
+      const m = minigames[i];
+      const num = i + 1;
+      if (
+        !m ||
+        typeof m.afterQuestionIndex !== 'number' ||
+        !Number.isInteger(m.afterQuestionIndex) ||
+        m.afterQuestionIndex < 0 ||
+        m.afterQuestionIndex >= questions.length
+      ) {
+        return `Minigioco ${num}: "afterQuestionIndex" deve essere un intero valido (0-${questions.length - 1}).`;
+      }
+      if (typeof m.type !== 'string' || !MINIGAME_TYPE_KEYS.includes(m.type)) {
+        return `Minigioco ${num}: "type" non riconosciuto.`;
+      }
+    }
+  }
+
   return null;
 }
 
@@ -196,19 +220,19 @@ router.get('/quizzes', verifyToken, (req, res) => {
 
 /**
  * Crea un nuovo quiz per l'host autenticato (max MAX_QUIZZES_PER_USER).
- * Body: { title: string, questions: Question[] }
+ * Body: { title: string, questions: Question[], minigames?: MinigameSlot[] }
  * Risposta: { success: true, data: { quiz } }
  */
 router.post('/quizzes', verifyToken, (req, res) => {
   try {
-    const { title, questions } = req.body ?? {};
+    const { title, questions, minigames } = req.body ?? {};
 
-    const validationError = validateQuizInput({ title, questions });
+    const validationError = validateQuizInput({ title, questions, minigames });
     if (validationError) {
       return sendError(res, 400, validationError);
     }
 
-    const quiz = createQuiz(req.user.userId, title.trim(), questions);
+    const quiz = createQuiz(req.user.userId, title.trim(), questions, minigames ?? []);
     return res.status(201).json({ success: true, data: { quiz } });
   } catch (err) {
     if (err instanceof QuizLimitError) {
@@ -248,8 +272,8 @@ router.get('/quizzes/:id', verifyToken, (req, res) => {
 // ─── PUT /quizzes/:id ─────────────────────────────────────────────────────────────
 
 /**
- * Aggiorna un quiz esistente (partial update supportato: title e/o questions).
- * Body: { title?: string, questions?: Question[] }
+ * Aggiorna un quiz esistente (partial update supportato: title, questions e/o minigames).
+ * Body: { title?: string, questions?: Question[], minigames?: MinigameSlot[] }
  * Risposta: { success: true, data: { quiz } }
  */
 router.put('/quizzes/:id', verifyToken, (req, res) => {
@@ -268,13 +292,14 @@ router.put('/quizzes/:id', verifyToken, (req, res) => {
     // Merge: usa il valore del body se fornito, altrimenti mantieni quello esistente
     const title     = req.body?.title     !== undefined ? req.body.title     : existing.title;
     const questions = req.body?.questions !== undefined ? req.body.questions : existing.questions;
+    const minigames = req.body?.minigames !== undefined ? req.body.minigames : existing.minigames;
 
-    const validationError = validateQuizInput({ title, questions });
+    const validationError = validateQuizInput({ title, questions, minigames });
     if (validationError) {
       return sendError(res, 400, validationError);
     }
 
-    const updated = updateQuiz(quizId, req.user.userId, title.trim(), questions);
+    const updated = updateQuiz(quizId, req.user.userId, title.trim(), questions, minigames);
     return res.status(200).json({ success: true, data: { quiz: updated } });
   } catch (err) {
     if (err instanceof NotFoundError) {

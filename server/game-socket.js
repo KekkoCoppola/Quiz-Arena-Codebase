@@ -87,7 +87,7 @@ function broadcastLobby(io) {
  * così la latenza di rete non desincronizza i timer.
  */
 function emitQuestion(io) {
-  const q = currentSession.getCurrentQuestion();
+  const q = currentSession.getCurrentRound();
   const endsAt = Date.now() + q.time_limit_s * 1000;
   currentQuestionEndsAt = endsAt;
   io.emit('game:question', { ...q, endsAt });
@@ -214,7 +214,7 @@ function attachGameHandlers(io) {
       };
       if (currentSession.state === STATES.QUESTION) {
         data.question = {
-          ...currentSession.getCurrentQuestion(),
+          ...currentSession.getCurrentRound(),
           endsAt: currentQuestionEndsAt,
           alreadyAnswered: currentSession.currentAnswers.has(playerId),
         };
@@ -298,6 +298,21 @@ function attachGameHandlers(io) {
         } else {
           emitQuestion(io);
         }
+      } catch (err) {
+        fail(cb, err.message);
+      }
+    });
+
+    // Inserimento manuale di un minigioco ad-hoc (non pianificato in editor),
+    // consentito solo mentre l'host guarda i risultati dell'ultimo round.
+    socket.on('host:insert-minigame', (payload, cb) => {
+      if (!requireHost(cb)) return;
+      if (!currentSession) return fail(cb, 'Nessuna partita attiva.');
+      try {
+        const result = currentSession.insertMinigame(payload?.type);
+        ok(cb);
+        // insertMinigame ha appena aggiunto un round: non può mai risultare "finished".
+        if (!result.finished) emitQuestion(io);
       } catch (err) {
         fail(cb, err.message);
       }

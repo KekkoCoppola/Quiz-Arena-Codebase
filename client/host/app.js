@@ -35,7 +35,12 @@ const state = {
   preloaded:     [],     // quiz di sistema
   currentQuiz:   null,   // quiz aperto in game view
   editingId:     null,   // id del quiz in modifica (null = nuovo)
-  questions:     [],     // domande nell'editor
+  // Domande nell'editor. Ogni domanda può avere `_minigameAfter: string|null`,
+  // campo client-only (non fa parte dello schema quiz) che marca "inserisci un
+  // minigioco di questo tipo subito dopo questa domanda": viaggia con l'oggetto
+  // durante drag&drop/rimozione, quindi non serve ricalcolare indici a mano.
+  // In saveQuiz() viene derivato l'array `minigames` e rimosso dal payload questions.
+  questions:     [],
   dragSrcIndex:  null,   // indice item draggato
   editorSnapshot: null,  // JSON di titolo+domande all'apertura editor, per rilevare modifiche non salvate
 };
@@ -564,6 +569,12 @@ async function openEditor(quizId) {
       const quiz = res.data.quiz;
       quizTitleInput.value = quiz.title;
       state.questions      = quiz.questions.map((q) => ({ ...q }));
+      // Riporta gli slot minigioco pianificati (server) sulla domanda che li precede.
+      for (const slot of quiz.minigames ?? []) {
+        if (state.questions[slot.afterQuestionIndex]) {
+          state.questions[slot.afterQuestionIndex]._minigameAfter = slot.type;
+        }
+      }
       editorTitle.textContent = 'Modifica Quiz';
     } catch {
       showToast('Errore di rete. Riprova.', 'error');
@@ -591,10 +602,11 @@ function hasUnsavedEditorChanges() {
 
 function createEmptyQuestion() {
   return {
-    text:          '',
-    options:       ['', '', '', ''],
-    correct_index: 0,
-    time_limit_s:  20,
+    text:            '',
+    options:         ['', '', '', ''],
+    correct_index:   0,
+    time_limit_s:    20,
+    _minigameAfter:  null,
   };
 }
 
@@ -701,6 +713,17 @@ function buildQuestionItem(q, idx) {
           aria-label="Tempo limite domanda ${idx + 1}"
         >${timeOpts}</select>
       </div>
+      <label class="minigame-toggle-row" for="q-minigame-${idx}">
+        <input
+          type="checkbox"
+          id="q-minigame-${idx}"
+          data-role="q-minigame-after"
+          data-q="${idx}"
+          ${q._minigameAfter ? 'checked' : ''}
+        >
+        <span class="material-symbols-outlined" aria-hidden="true">casino</span>
+        <span>Inserisci un minigioco (Morra Cinese) subito dopo questa domanda</span>
+      </label>
     </div>
   `;
 
@@ -748,6 +771,12 @@ function attachQuestionEvents(item, idx) {
   const timeSelect = item.querySelector('[data-role="q-time"]');
   timeSelect.addEventListener('change', () => {
     state.questions[idx].time_limit_s = parseInt(timeSelect.value, 10);
+  });
+
+  // Minigioco pianificato dopo questa domanda (unico tipo disponibile: pari_dispari)
+  const minigameToggle = item.querySelector('[data-role="q-minigame-after"]');
+  minigameToggle.addEventListener('change', () => {
+    state.questions[idx]._minigameAfter = minigameToggle.checked ? 'morra_cinese' : null;
   });
 
   // Rimuovi domanda
@@ -859,9 +888,17 @@ async function saveQuiz() {
     }
   }
 
+  // Deriva gli slot minigioco pianificati dal flag client-only `_minigameAfter`
+  // e ripulisce le domande prima di inviarle (non fa parte dello schema quiz).
+  const minigames = [];
+  const questionsPayload = questions.map(({ _minigameAfter, ...rest }, idx) => {
+    if (_minigameAfter) minigames.push({ afterQuestionIndex: idx, type: _minigameAfter });
+    return rest;
+  });
+
   setSaveLoading(true);
   try {
-    const body = { title, questions };
+    const body = { title, questions: questionsPayload, minigames };
     const res  = state.editingId !== null
       ? await apiPut(`/quizzes/${state.editingId}`, body)
       : await apiPost('/quizzes', body);
@@ -928,13 +965,19 @@ const gameQr                 = document.getElementById('game-qr');
 const gamePartialLeaderboard = document.getElementById('game-partial-leaderboard');
 const gameFinalPodium        = document.getElementById('game-final-podium');
 
-const gameStartBtn   = document.getElementById('game-start-btn');
-const gameNextBtn    = document.getElementById('game-next-btn');
-const gameRestartBtn = document.getElementById('game-restart-btn');
+const gameStartBtn    = document.getElementById('game-start-btn');
+const gameNextBtn     = document.getElementById('game-next-btn');
+const gameMinigameBtn = document.getElementById('game-minigame-btn');
+const gameRestartBtn  = document.getElementById('game-restart-btn');
 
 let gameSocket = null;
 let gameCountdownInterval = null;
 let currentQuestionOptions = [];
+let minigameSuspenseInterval = null;
+
+// Emoji per le opzioni di Morra Cinese (indicizzate come server:
+// 0 = Sasso, 1 = Carta, 2 = Forbice).
+const MORRA_EMOJI = ['🪨', '📄', '✂️'];
 
 // Mappa avatar: id stabile → emoji TEMPORANEA (identica al client player).
 const GAME_AVATARS = {
@@ -993,6 +1036,26 @@ function startGameCountdown(endsAt) {
 }
 
 /**
+ * Suspense minigioco: fa ciclare rapidamente l'emoji della mossa nel titolo,
+ * finché il reveal (game:results) non la ferma sulla scelta del PC.
+ */
+function startMinigameSuspense() {
+  stopMinigameSuspense();
+  let i = 0;
+  minigameSuspenseInterval = setInterval(() => {
+    gameQuestionText.textContent = MORRA_EMOJI[i % MORRA_EMOJI.length];
+    i++;
+  }, 150);
+}
+
+function stopMinigameSuspense() {
+  if (minigameSuspenseInterval) {
+    clearInterval(minigameSuspenseInterval);
+    minigameSuspenseInterval = null;
+  }
+}
+
+/**
  * Apre la schermata di conduzione partita e crea la sessione sul server.
  * @param {object} quiz
  * @param {'personal'|'preloaded'} type
@@ -1034,9 +1097,21 @@ function connectGameSocket(quiz, type) {
 
   gameSocket.on('game:question', (q) => {
     currentQuestionOptions = q.options;
-    gameStatusText.textContent = `Domanda ${q.index + 1} di ${q.total} in corso…`;
-    gameQuestionText.textContent = q.text;
-    // Opzioni a solo scopo visualizzativo: l'host non risponde.
+    stopMinigameSuspense();
+    const isMinigame = q.kind === 'minigame';
+    gameQuestionBox.classList.toggle('is-minigame', isMinigame);
+    gameStatusText.textContent = isMinigame
+      ? '🎲 Minigioco: Morra Cinese in corso…'
+      : `Domanda ${q.index + 1} di ${q.total} in corso…`;
+    // Minigioco: il titolo mostra l'emoji ciclica di suspense; la domanda vera
+    // mostra il proprio testo.
+    if (isMinigame) {
+      startMinigameSuspense();
+    } else {
+      gameQuestionText.textContent = q.text;
+    }
+    // Opzioni a solo scopo visualizzativo: l'host non risponde. Per il minigioco
+    // le opzioni sono le mosse (🪨 Sasso, 📄 Carta, ✂️ Forbice).
     gameOptionsList.innerHTML = '';
     const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
     q.options.forEach((option, i) => {
@@ -1044,7 +1119,7 @@ function connectGameSocket(quiz, type) {
       li.className = 'game-option-card';
       const letter = document.createElement('span');
       letter.className = 'game-option-letter';
-      letter.textContent = LETTERS[i] ?? String(i + 1);
+      letter.textContent = isMinigame ? (MORRA_EMOJI[i] ?? '❓') : (LETTERS[i] ?? String(i + 1));
       const label = document.createElement('span');
       label.textContent = option;
       li.append(letter, label);
@@ -1055,6 +1130,7 @@ function connectGameSocket(quiz, type) {
     showGameBox(gameQuestionBox);
     gameStartBtn.disabled = true;
     gameNextBtn.disabled = true;
+    gameMinigameBtn.disabled = true;
     gameRestartBtn.disabled = true;
   });
 
@@ -1064,19 +1140,34 @@ function connectGameSocket(quiz, type) {
 
   gameSocket.on('game:results', (results) => {
     stopGameCountdown();
+    stopMinigameSuspense();
+    const isMinigame = results.kind === 'minigame';
     gameStatusText.textContent = 'Round chiuso: risultati sul tabellone.';
-    gameCorrectAnswer.textContent =
-      `Risposta corretta: ${currentQuestionOptions[results.correctIndex] ?? '—'}`;
+
+    // Reveal: la domanda mostra la risposta corretta; il minigioco ferma la
+    // suspense sulla mossa del PC. Per un minigioco non esiste una riga "corretta"
+    // (l'esito è relativo alla scelta di ciascuno), quindi nessun highlight.
+    const machineIndex = isMinigame ? results.machineChoice : results.correctIndex;
+    if (isMinigame) {
+      gameQuestionText.textContent = MORRA_EMOJI[results.machineChoice] ?? '❓';
+      gameCorrectAnswer.textContent =
+        `Il computer ha scelto: ${MORRA_EMOJI[results.machineChoice] ?? ''} ${currentQuestionOptions[results.machineChoice] ?? '—'}`;
+    } else {
+      gameCorrectAnswer.textContent =
+        `Risposta corretta: ${currentQuestionOptions[results.correctIndex] ?? '—'}`;
+    }
 
     const totalAnswers = results.distribution.reduce((a, b) => a + b, 0);
     gameDistribution.innerHTML = '';
     results.distribution.forEach((n, i) => {
       const li = document.createElement('li');
-      li.className = 'game-dist-row' + (i === results.correctIndex ? ' is-correct' : '');
+      // Domanda: evidenzia la riga corretta. Minigioco: evidenzia la mossa del PC.
+      li.className = 'game-dist-row' + (i === machineIndex ? ' is-correct' : '');
       const pct = totalAnswers > 0 ? Math.round((n / totalAnswers) * 100) : 0;
       const label = document.createElement('span');
       label.className = 'game-dist-label';
-      label.textContent = currentQuestionOptions[i] ?? `Opzione ${i + 1}`;
+      const optionLabel = currentQuestionOptions[i] ?? `Opzione ${i + 1}`;
+      label.textContent = isMinigame ? `${MORRA_EMOJI[i] ?? ''} ${optionLabel}` : optionLabel;
       const track = document.createElement('div');
       track.className = 'game-dist-track';
       const bar = document.createElement('div');
@@ -1085,7 +1176,7 @@ function connectGameSocket(quiz, type) {
       track.appendChild(bar);
       const count = document.createElement('span');
       count.className = 'game-dist-count';
-      count.textContent = i === results.correctIndex ? `✔ ${n}` : String(n);
+      count.textContent = i === machineIndex ? `✔ ${n}` : String(n);
       li.append(label, track, count);
       gameDistribution.appendChild(li);
     });
@@ -1099,10 +1190,12 @@ function connectGameSocket(quiz, type) {
 
     showGameBox(gameResultsBox);
     gameNextBtn.disabled = false;
+    gameMinigameBtn.disabled = false;
   });
 
   gameSocket.on('game:final', ({ leaderboard }) => {
     stopGameCountdown();
+    stopMinigameSuspense();
     gameStatusText.textContent = 'Partita conclusa!';
     gameFinalPodium.innerHTML = '';
     const MEDALS = ['🥇', '🥈', '🥉'];
@@ -1133,6 +1226,7 @@ function connectGameSocket(quiz, type) {
     }
     showGameBox(gameFinalBox);
     gameNextBtn.disabled = true;
+    gameMinigameBtn.disabled = true;
     gameRestartBtn.disabled = false;
   });
 
@@ -1144,6 +1238,7 @@ function connectGameSocket(quiz, type) {
 
 function disconnectGameSocket() {
   stopGameCountdown();
+  stopMinigameSuspense();
   if (gameSocket) {
     gameSocket.disconnect();
     gameSocket = null;
@@ -1190,6 +1285,12 @@ gameStartBtn.addEventListener('click', () => {
 
 gameNextBtn.addEventListener('click', () => {
   gameSocket?.emit('host:next-question', null, (res) => {
+    if (!res.ok) showToast(res.error, 'error');
+  });
+});
+
+gameMinigameBtn.addEventListener('click', () => {
+  gameSocket?.emit('host:insert-minigame', { type: 'morra_cinese' }, (res) => {
     if (!res.ok) showToast(res.error, 'error');
   });
 });
