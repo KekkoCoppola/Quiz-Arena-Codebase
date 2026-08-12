@@ -2473,6 +2473,12 @@ body.sidebar-collapsed .sidebar-toggle-arrow .material-symbols-outlined {
    del quiz (Retro Street: nessun sistema visivo nuovo, solo variante colore). */
 .game-question-box.is-minigame .game-live-question { color: var(--retro-ochre); }
 .game-question-box.is-minigame .game-option-card { border-color: var(--retro-ochre); }
+
+/* Icone mosse Morra Cinese (asset SVG al posto delle emoji). */
+.morra-move { object-fit: contain; vertical-align: middle; }
+.game-option-letter .morra-move { width: 26px; height: 26px; }
+.morra-move-inline { width: 1.3em; height: 1.3em; }
+.morra-move-hero { display: block; width: 96px; height: 96px; margin: 8px auto; }
 .game-option-cards {
   list-style: none; padding: 0;
   display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;

@@ -975,9 +975,23 @@ let gameCountdownInterval = null;
 let currentQuestionOptions = [];
 let minigameSuspenseInterval = null;
 
-// Emoji per le opzioni di Morra Cinese (indicizzate come server:
-// 0 = Sasso, 1 = Carta, 2 = Forbice).
-const MORRA_EMOJI = ['🪨', '📄', '✂️'];
+// Icone SVG delle mosse di Morra Cinese (indici allineati al server:
+// 0 = Sasso, 1 = Carta, 2 = Forbice). Servite come statici da /resources.
+const MORRA_LABELS = ['Sasso', 'Carta', 'Forbice'];
+const MORRA_ASSETS = [
+  '/resources/img/morra-sasso.svg',
+  '/resources/img/morra-carta.svg',
+  '/resources/img/morra-forbice.svg',
+];
+
+/** Crea un <img> per la mossa `i` (Sasso/Carta/Forbice). */
+function morraImg(i, cls = 'morra-move') {
+  const img = document.createElement('img');
+  img.src = MORRA_ASSETS[i] ?? '';
+  img.alt = MORRA_LABELS[i] ?? '';
+  img.className = cls;
+  return img;
+}
 
 // Mappa avatar: id stabile → emoji TEMPORANEA (identica al client player).
 const GAME_AVATARS = {
@@ -1043,7 +1057,8 @@ function startMinigameSuspense() {
   stopMinigameSuspense();
   let i = 0;
   minigameSuspenseInterval = setInterval(() => {
-    gameQuestionText.textContent = MORRA_EMOJI[i % MORRA_EMOJI.length];
+    gameQuestionText.innerHTML = '';
+    gameQuestionText.appendChild(morraImg(i % MORRA_ASSETS.length, 'morra-move morra-move-hero'));
     i++;
   }, 150);
 }
@@ -1119,7 +1134,11 @@ function connectGameSocket(quiz, type) {
       li.className = 'game-option-card';
       const letter = document.createElement('span');
       letter.className = 'game-option-letter';
-      letter.textContent = isMinigame ? (MORRA_EMOJI[i] ?? '❓') : (LETTERS[i] ?? String(i + 1));
+      if (isMinigame) {
+        letter.appendChild(morraImg(i, 'morra-move'));
+      } else {
+        letter.textContent = LETTERS[i] ?? String(i + 1);
+      }
       const label = document.createElement('span');
       label.textContent = option;
       li.append(letter, label);
@@ -1149,9 +1168,14 @@ function connectGameSocket(quiz, type) {
     // (l'esito è relativo alla scelta di ciascuno), quindi nessun highlight.
     const machineIndex = isMinigame ? results.machineChoice : results.correctIndex;
     if (isMinigame) {
-      gameQuestionText.textContent = MORRA_EMOJI[results.machineChoice] ?? '❓';
-      gameCorrectAnswer.textContent =
-        `Il computer ha scelto: ${MORRA_EMOJI[results.machineChoice] ?? ''} ${currentQuestionOptions[results.machineChoice] ?? '—'}`;
+      gameQuestionText.innerHTML = '';
+      gameQuestionText.appendChild(morraImg(results.machineChoice, 'morra-move morra-move-hero'));
+      gameCorrectAnswer.innerHTML = '';
+      gameCorrectAnswer.append(
+        document.createTextNode('Il computer ha scelto: '),
+        morraImg(results.machineChoice, 'morra-move morra-move-inline'),
+        document.createTextNode(` ${currentQuestionOptions[results.machineChoice] ?? '—'}`)
+      );
     } else {
       gameCorrectAnswer.textContent =
         `Risposta corretta: ${currentQuestionOptions[results.correctIndex] ?? '—'}`;
@@ -1167,7 +1191,11 @@ function connectGameSocket(quiz, type) {
       const label = document.createElement('span');
       label.className = 'game-dist-label';
       const optionLabel = currentQuestionOptions[i] ?? `Opzione ${i + 1}`;
-      label.textContent = isMinigame ? `${MORRA_EMOJI[i] ?? ''} ${optionLabel}` : optionLabel;
+      if (isMinigame) {
+        label.append(morraImg(i, 'morra-move morra-move-inline'), document.createTextNode(` ${optionLabel}`));
+      } else {
+        label.textContent = optionLabel;
+      }
       const track = document.createElement('div');
       track.className = 'game-dist-track';
       const bar = document.createElement('div');

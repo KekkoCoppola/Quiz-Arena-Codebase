@@ -18,9 +18,23 @@ const AVATARS = {
 };
 const avatarOf = (id) => AVATARS[id] ?? '❓';
 
-// Emoji delle mosse di Morra Cinese (indici allineati al server:
-// 0 = Sasso, 1 = Carta, 2 = Forbice).
-const MORRA_EMOJI = ['🪨', '📄', '✂️'];
+// Icone SVG delle mosse di Morra Cinese (indici allineati al server:
+// 0 = Sasso, 1 = Carta, 2 = Forbice). Servite come statici da /resources.
+const MORRA_LABELS = ['Sasso', 'Carta', 'Forbice'];
+const MORRA_ASSETS = [
+  '/resources/img/morra-sasso.svg',
+  '/resources/img/morra-carta.svg',
+  '/resources/img/morra-forbice.svg',
+];
+
+/** Crea un <img> per la mossa `i` (Sasso/Carta/Forbice). */
+function morraImg(i, cls = 'morra-move') {
+  const img = document.createElement('img');
+  img.src = MORRA_ASSETS[i] ?? '';
+  img.alt = MORRA_LABELS[i] ?? '';
+  img.className = cls;
+  return img;
+}
 
 const SESSION_KEY = 'quizzata-player';
 
@@ -213,20 +227,30 @@ function renderQuestion(q, alreadyAnswered = false) {
   questionText.textContent = q.text;
   answerSent.hidden = !alreadyAnswered;
   answerButtons.classList.toggle('answer-locked', alreadyAnswered);
+  answerButtons.classList.toggle('is-morra', isMinigame);
   answerButtons.innerHTML = '';
 
   q.options.forEach((option, i) => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'answer-btn';
-    const letter = document.createElement('span');
-    letter.className = 'letter';
-    // Minigioco: al posto della lettera A/B/C, l'emoji della mossa.
-    letter.textContent = isMinigame ? (MORRA_EMOJI[i] ?? '❓') : (LETTERS[i] ?? String(i + 1));
-    const label = document.createElement('span');
-    label.textContent = option;
-    btn.append(letter, label);
     btn.addEventListener('click', () => submitAnswer(i, btn));
+
+    if (isMinigame) {
+      // Minigioco: grande pulsante rotondo con la sola icona della mossa,
+      // nessuna etichetta di testo (l'accessibilità resta via aria-label).
+      btn.className = 'answer-btn morra-choice';
+      btn.setAttribute('aria-label', option);
+      btn.appendChild(morraImg(i, 'morra-move-choice'));
+    } else {
+      btn.className = 'answer-btn';
+      const letter = document.createElement('span');
+      letter.className = 'letter';
+      letter.textContent = LETTERS[i] ?? String(i + 1);
+      const label = document.createElement('span');
+      label.textContent = option;
+      btn.append(letter, label);
+    }
+
     answerButtons.appendChild(btn);
   });
 
@@ -284,17 +308,17 @@ function renderFeedback({ mine, leaderboard, kind = 'question', machineChoice = 
  * pareggio/nessuna risposta=is-neutral.
  */
 function renderMinigameFeedback(mine, machineChoice) {
-  const pcEmoji = MORRA_EMOJI[machineChoice] ?? '❓';
-
   if (!mine) {
     feedbackSticker.classList.add('is-neutral');
     feedbackText.textContent = 'Tempo scaduto!';
-    feedbackPoints.textContent = `Il PC ha scelto ${pcEmoji} · +0 punti`;
+    feedbackPoints.innerHTML = '';
+    feedbackPoints.append(
+      document.createTextNode('Il PC ha scelto '),
+      morraImg(machineChoice, 'morra-move morra-move-inline'),
+      document.createTextNode(' · +0 punti')
+    );
     return;
   }
-
-  const myEmoji = MORRA_EMOJI[mine.optionIndex] ?? '❓';
-  const matchup = `${myEmoji} vs ${pcEmoji}`;
 
   if (mine.outcome === 'win') {
     feedbackSticker.classList.add('is-correct');
@@ -306,7 +330,14 @@ function renderMinigameFeedback(mine, machineChoice) {
     feedbackSticker.classList.add('is-neutral');
     feedbackText.textContent = 'PAREGGIO';
   }
-  feedbackPoints.textContent = `${matchup} · +${mine.pointsAwarded} punti`;
+  // Confronto mossa mia vs mossa del PC + punti.
+  feedbackPoints.innerHTML = '';
+  feedbackPoints.append(
+    morraImg(mine.optionIndex, 'morra-move morra-move-inline'),
+    document.createTextNode(' vs '),
+    morraImg(machineChoice, 'morra-move morra-move-inline'),
+    document.createTextNode(` · +${mine.pointsAwarded} punti`)
+  );
 }
 
 function renderFinal(leaderboard) {
