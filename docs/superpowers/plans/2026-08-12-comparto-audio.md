@@ -10,7 +10,8 @@
 
 ## Global Constraints
 
-- **MAI creare commit.** Regola esplicita dell'utente su questo progetto: i checkpoint si fanno **solo con `git add`**. Ogni step di staging in questo piano usa `git add` e nient'altro. I commit li decide l'utente.
+- **Commit autorizzati, nessun push.** La regola di default del progetto è "solo `git add`, i commit li decide l'utente"; il 2026-08-12 l'utente ha derogato esplicitamente per questo piano ("committa tutto a nome mio"). Ogni task si chiude con un commit sul branch `Minigames`. L'identità git del repo è già la sua: non aggiungere trailer di co-autore, non modificare la configurazione git, **non fare push**.
+- **`CLAUDE.md` è in `.gitignore`** (riga 43), come `.claude/` e `.superpowers/`. Le modifiche a quel file restano locali e non vanno mai aggiunte all'indice, nemmeno con `-f`. Lo sono anche `tools/test-db.js` e `tools/test-game.js`, ma **non** `tools/test-audio.js`, che va committato normalmente.
 - **Node non è nel PATH.** Eseguibile: `D:\ISTALLAZION_PROGRAMMI\node.exe` (v24.11.1, con underscore nel nome cartella). Da Bash: `export PATH="/d/ISTALLAZION_PROGRAMMI:$PATH"`.
 - **Nessuna modifica a `server/`, allo schema DB o alle API REST.** Il comparto audio è interamente client-side sul pannello host. Gli asset sono serviti dal mount statico `/resources` già esistente.
 - **Nessun audio lato player.** Non toccare `client/player/`.
@@ -113,6 +114,16 @@ section('pickVariant — rotazione varianti');
 assert(pickVariant(0, -1, () => 0) === -1, 'nessuna variante → -1');
 assert(pickVariant(1, 0, () => 0) === 0, 'una sola variante → sempre 0, anche se già usata');
 assert(pickVariant(3, -1, () => 0) === 0, 'prima estrazione senza precedente');
+
+{
+  // Senza precedente l'estrazione copre l'intero intervallo: se si estraesse
+  // sempre fra count-1 posizioni, l'ultima variante non uscirebbe mai al
+  // primo giro.
+  assert(pickVariant(4, -1, () => 0.99) === 3, 'senza precedente: l’ultima variante è raggiungibile');
+  const reached = new Set();
+  for (let i = 0; i < 400; i++) reached.add(pickVariant(4, -1, Math.random));
+  assert(reached.size === 4, 'senza precedente: tutte e 4 le varianti sono raggiungibili');
+}
 
 {
   // Con 3 varianti e lastIndex=1, lo spazio di scelta è [0, 2].
@@ -324,10 +335,15 @@ Creare `client/host/audio-logic.js`:
   function pickVariant(count, lastIndex, rnd) {
     if (!count || count <= 0) return -1;
     if (count === 1) return 0;
-    // Si estrae fra count-1 posizioni e si "salta" quella esclusa: così ogni
-    // variante ammessa ha la stessa probabilità, senza cicli di ritentativo.
-    const pick = Math.floor(rnd() * (count - 1));
-    return pick >= lastIndex && lastIndex >= 0 ? pick + 1 : pick;
+    // Con un precedente da escludere si estrae fra count-1 posizioni e si
+    // "salta" quella esclusa: ogni variante ammessa ha la stessa probabilità,
+    // senza cicli di ritentativo. Senza precedente (lastIndex < 0) si estrae
+    // sull'intero intervallo, altrimenti l'ultima variante sarebbe
+    // irraggiungibile alla prima estrazione.
+    const pick = lastIndex >= 0
+      ? Math.floor(rnd() * (count - 1))
+      : Math.floor(rnd() * count);
+    return lastIndex >= 0 && pick >= lastIndex ? pick + 1 : pick;
   }
 
   /**
@@ -460,13 +476,14 @@ Sostituire con:
 `client/host/app.js` e `client/player/app.js` sono JS vanilla (niente framework, niente build step) serviti come file statici. Il player è single-file; l'host affianca ad `app.js` il comparto audio, diviso fra `client/host/audio-logic.js` (decisioni pure, senza DOM, testabile in Node con `tools/test-audio.js`) e `client/host/audio.js` (motore di riproduzione). La separazione ricalca quella fra `server/game.js` e `server/game-socket.js`.
 ```
 
-- [ ] **Step 6: Staging**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add client/host/audio-logic.js tools/test-audio.js CLAUDE.md
+git add client/host/audio-logic.js tools/test-audio.js
+git commit -m "feat: add pure audio decision layer (audio-logic.js) with smoke test"
 ```
 
-**NON creare commit.** Regola dell'utente su questo progetto.
+`CLAUDE.md` **non** va aggiunto: è in `.gitignore` (riga 43, "config locale, non committare"). La modifica dello Step 5 resta solo su disco, ed è corretto così. Nessun push.
 
 ---
 
@@ -667,13 +684,13 @@ Atteso inoltre: nessun errore in console, e la dashboard host funziona esattamen
 
 Rinominare temporaneamente `resources/audio/manifest.json` in `manifest.json.bak`, ricaricare, `GameAudio.arm()`. Atteso: un `console.warn` (non un errore), `_state.manifest` con catalogo vuoto, dashboard invariata. Ripristinare il nome.
 
-- [ ] **Step 6: Staging**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add resources/audio/manifest.json client/host/audio.js client/host/index.html
 ```
 
-**NON creare commit.**
+Poi committare sul branch `Minigames`. **Nessun push.**
 
 ---
 
@@ -923,13 +940,13 @@ Atteso, cronometro alla mano: con `+20000` il passaggio da loop a crescendo avvi
 
 Rimuovere `tension-final` dal manifest e ripetere `startQuestionMusic(Date.now() + 20000)`. Atteso: il loop suona, il crescendo non arriva, **nessun errore in console**, nessun blocco.
 
-- [ ] **Step 7: Staging**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add client/host/audio.js resources/audio/manifest.json resources/audio/music/
 ```
 
-**NON creare commit.**
+Poi committare sul branch `Minigames`. **Nessun push.**
 
 ---
 
@@ -1080,13 +1097,13 @@ Atteso: la battuta in corso si interrompe, **quella in coda non suona mai**. La 
 
 Verificare infine che ripetendo `GameAudio.say('test')` una decina di volte non esca mai la stessa variante due volte di fila.
 
-- [ ] **Step 5: Staging**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add client/host/audio.js resources/audio/manifest.json resources/audio/vo/
 ```
 
-**NON creare commit.**
+Poi committare sul branch `Minigames`. **Nessun push.**
 
 ---
 
@@ -1228,13 +1245,13 @@ Atteso: la **prima** riproduzione è istantanea quanto le successive — è il m
 
 Aggiungere al manifest un effetto che punta a un file inesistente, ricaricare. Atteso: un `console.warn` in fase di precaricamento, `GameAudio.sfx('chiave-rotta')` silenzioso, tutti gli altri effetti funzionanti.
 
-- [ ] **Step 6: Staging**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add client/host/audio.js resources/audio/manifest.json resources/audio/sfx/
 ```
 
-**NON creare commit.**
+Poi committare sul branch `Minigames`. **Nessun push.**
 
 ---
 
@@ -1327,13 +1344,13 @@ Aprire una partita nel pannello host. Atteso: il pulsante compare a sinistra del
 
 Verificare il contrasto del testo sull'icona in entrambi gli stati (WCAG AA, ≥4.5:1) con lo strumento di ispezione del browser.
 
-- [ ] **Step 4: Staging**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add client/host/index.html client/host/style.css
 ```
 
-**NON creare commit.**
+Poi committare sul branch `Minigames`. **Nessun push.**
 
 ---
 
@@ -1534,13 +1551,13 @@ Riportare `resources/audio/manifest.json` a `{ "music": {}, "vo": {}, "sfx": {} 
 
 Atteso: **zero errori in console**, nessun blocco, tutti i tempi di gioco invariati tranne la sospensione di 1,5s prima del reveal, che resta anche senza asset. Questo è lo stato in cui il progetto vive finché l'utente non produce il materiale, quindi deve essere impeccabile.
 
-- [ ] **Step 11: Staging**
+- [ ] **Step 11: Commit**
 
 ```bash
 git add client/host/app.js
 ```
 
-**NON creare commit.**
+Poi committare sul branch `Minigames`. **Nessun push.**
 
 ---
 
@@ -1681,13 +1698,13 @@ Atteso: una riga per file con RMS, picco e guadagno; il file più silenzioso ha 
 
 Prendere due file volutamente sbilanciati (uno molto più forte dell'altro), leggere i guadagni suggeriti, scriverli nel manifest e riascoltare nel pannello host. Atteso: i due suonano ora a volume percepito simile.
 
-- [ ] **Step 4: Staging**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add tools/audio-calibration.html
 ```
 
-**NON creare commit.**
+Poi committare sul branch `Minigames`. **Nessun push.**
 
 ---
 
