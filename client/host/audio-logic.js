@@ -42,10 +42,13 @@
   function pickVariant(count, lastIndex, rnd) {
     if (!count || count <= 0) return -1;
     if (count === 1) return 0;
-    // Si estrae fra count-1 posizioni e si "salta" quella esclusa: così ogni
+    // Senza una precedente da escludere si estrae sull'intero range: altrimenti
+    // si estrae fra count-1 posizioni e si "salta" quella esclusa. Così ogni
     // variante ammessa ha la stessa probabilità, senza cicli di ritentativo.
-    const pick = Math.floor(rnd() * (count - 1));
-    return pick >= lastIndex && lastIndex >= 0 ? pick + 1 : pick;
+    const pick = lastIndex >= 0
+      ? Math.floor(rnd() * (count - 1))
+      : Math.floor(rnd() * count);
+    return lastIndex >= 0 && pick >= lastIndex ? pick + 1 : pick;
   }
 
   /**

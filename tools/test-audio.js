@@ -66,6 +66,24 @@ assert(pickVariant(3, -1, () => 0) === 0, 'prima estrazione senza precedente');
   assert(!everRepeated, 'su 200 estrazioni non ripete mai la precedente');
 }
 
+{
+  // Senza precedente (lastIndex=-1) l'ultimo indice deve restare raggiungibile:
+  // un rnd vicino al top del range deve poter restituire count-1.
+  const last = pickVariant(4, -1, () => 0.99);
+  assert(last === 3, 'nessuna precedente: rnd=0.99 raggiunge l’ultimo indice');
+}
+
+{
+  // Copertura completa: senza precedente, l'intero range [0, count-1] deve
+  // essere raggiungibile facendo scorrere rnd sull'intero intervallo.
+  const count = 4;
+  const reached = new Set();
+  for (let i = 0; i < count; i++) {
+    reached.add(pickVariant(count, -1, () => i / count));
+  }
+  assert(reached.size === count, 'nessuna precedente: tutti gli indici sono raggiungibili');
+}
+
 // ─── isStale ─────────────────────────────────────────────────────────────────────
 
 section('isStale — scadenza battute vocali');
