@@ -8,7 +8,7 @@
  * feedback con posizione, podio finale, riavvio, riconnessione con token.
  */
 
-/* global io */
+/* global io, Minigames */
 
 // Mappa avatar: id stabile → emoji TEMPORANEA (futuri SVG: cambiare solo qui).
 const AVATARS = {
@@ -17,24 +17,6 @@ const AVATARS = {
   unicorno: '🦄', gufo: '🦉', granchio: '🦀', balena: '🐳',
 };
 const avatarOf = (id) => AVATARS[id] ?? '❓';
-
-// Icone SVG delle mosse di Morra Cinese (indici allineati al server:
-// 0 = Sasso, 1 = Carta, 2 = Forbice). Servite come statici da /resources.
-const MORRA_LABELS = ['Sasso', 'Carta', 'Forbice'];
-const MORRA_ASSETS = [
-  '/resources/img/morra-sasso.svg',
-  '/resources/img/morra-carta.svg',
-  '/resources/img/morra-forbice.svg',
-];
-
-/** Crea un <img> per la mossa `i` (Sasso/Carta/Forbice). */
-function morraImg(i, cls = 'morra-move') {
-  const img = document.createElement('img');
-  img.src = MORRA_ASSETS[i] ?? '';
-  img.alt = MORRA_LABELS[i] ?? '';
-  img.className = cls;
-  return img;
-}
 
 const SESSION_KEY = 'quizzata-player';
 
@@ -47,6 +29,10 @@ let countdownInterval = null;
 // ripete le opzioni): tipo di round + opzioni mostrate.
 let currentRoundKind = 'question';
 let currentRoundOptions = [];
+// Presentazione del minigioco in corso, dal registry condiviso
+// (/shared/minigames/). Null durante una domanda normale. Questo file non sa
+// quali minigiochi esistano: chiede al registry e delega.
+let currentMinigame = null;
 
 // ─── Riferimenti DOM ─────────────────────────────────────────────────────────
 
@@ -220,14 +206,24 @@ function renderQuestion(q, alreadyAnswered = false) {
   const isMinigame = q.kind === 'minigame';
   currentRoundKind = q.kind;
   currentRoundOptions = q.options;
+
+  // La classe di layout del minigioco precedente va rimossa prima di applicare
+  // quella nuova: due minigiochi possono chiedere disposizioni diverse.
+  if (currentMinigame?.playerLayoutClass) {
+    answerButtons.classList.remove(currentMinigame.playerLayoutClass);
+  }
+  currentMinigame = isMinigame ? Minigames.get(q.minigameType) : null;
+
   screens.question.classList.toggle('is-minigame', isMinigame);
-  questionProgress.textContent = isMinigame ? '🎲 Morra Cinese!' : `${q.index + 1}/${q.total}`;
+  questionProgress.textContent = isMinigame ? currentMinigame.playerBadge : `${q.index + 1}/${q.total}`;
   questionProgress.classList.toggle('badge-yellow', !isMinigame);
   questionProgress.classList.toggle('badge-ochre', isMinigame);
   questionText.textContent = q.text;
   answerSent.hidden = !alreadyAnswered;
   answerButtons.classList.toggle('answer-locked', alreadyAnswered);
-  answerButtons.classList.toggle('is-morra', isMinigame);
+  if (currentMinigame?.playerLayoutClass) {
+    answerButtons.classList.add(currentMinigame.playerLayoutClass);
+  }
   answerButtons.innerHTML = '';
 
   q.options.forEach((option, i) => {
@@ -236,11 +232,8 @@ function renderQuestion(q, alreadyAnswered = false) {
     btn.addEventListener('click', () => submitAnswer(i, btn));
 
     if (isMinigame) {
-      // Minigioco: grande pulsante rotondo con la sola icona della mossa,
-      // nessuna etichetta di testo (l'accessibilità resta via aria-label).
-      btn.className = 'answer-btn morra-choice';
-      btn.setAttribute('aria-label', option);
-      btn.appendChild(morraImg(i, 'morra-move-choice'));
+      // Il minigioco decide che aspetto ha la sua scelta (icona, forma, testo).
+      currentMinigame.player.renderChoice(btn, i, option);
     } else {
       btn.className = 'answer-btn';
       const letter = document.createElement('span');
@@ -275,11 +268,28 @@ function submitAnswer(optionIndex, btn) {
 
 function ordinale(n) { return `${n}°`; }
 
-function renderFeedback({ mine, leaderboard, kind = 'question', machineChoice = null }) {
+/**
+ * @param {object} p
+ * @param {object|null} p.mine la mia risposta, null se non ho risposto in tempo
+ * @param {Array} p.leaderboard classifica dal payload game:results
+ * @param {string} [p.kind] 'question' | 'minigame'
+ * @param {object|null} [p.results] payload game:results completo, passato tale
+ *   e quale al minigioco: è lui a sapere quali campi gli servono
+ */
+function renderFeedback({ mine, leaderboard, kind = 'question', results = null }) {
   feedbackSticker.classList.remove('is-correct', 'is-wrong', 'is-neutral');
 
   if (kind === 'minigame') {
-    renderMinigameFeedback(mine, machineChoice);
+    // Il minigioco disegna il proprio esito: sa lui cosa significa "vinto" e
+    // come mostrarlo. Qui si passano solo gli elementi su cui può scrivere.
+    // Se il round è arrivato senza che sia passato da renderQuestion (es. un
+    // rientro a metà partita), si ricade sulla presentazione generica.
+    const presentation = currentMinigame ?? Minigames.get(results?.minigameType);
+    presentation.player.reveal(
+      { sticker: feedbackSticker, text: feedbackText, points: feedbackPoints },
+      mine,
+      results ?? {}
+    );
   } else if (!mine) {
     feedbackSticker.classList.add('is-neutral');
     feedbackText.textContent = 'Tempo scaduto!';
@@ -300,44 +310,6 @@ function renderFeedback({ mine, leaderboard, kind = 'question', machineChoice = 
     ? `Sei ${ordinale(me.rank)} su ${leaderboard.length}`
     : '';
   show('feedback');
-}
-
-/**
- * Reveal Morra Cinese: mostra la mossa del PC, il confronto con la mia e l'esito.
- * Riusa le classi sticker esistenti: vittoria=is-correct, sconfitta=is-wrong,
- * pareggio/nessuna risposta=is-neutral.
- */
-function renderMinigameFeedback(mine, machineChoice) {
-  if (!mine) {
-    feedbackSticker.classList.add('is-neutral');
-    feedbackText.textContent = 'Tempo scaduto!';
-    feedbackPoints.innerHTML = '';
-    feedbackPoints.append(
-      document.createTextNode('Il PC ha scelto '),
-      morraImg(machineChoice, 'morra-move morra-move-inline'),
-      document.createTextNode(' · +0 punti')
-    );
-    return;
-  }
-
-  if (mine.outcome === 'win') {
-    feedbackSticker.classList.add('is-correct');
-    feedbackText.textContent = 'HAI VINTO!';
-  } else if (mine.outcome === 'lose') {
-    feedbackSticker.classList.add('is-wrong');
-    feedbackText.textContent = 'HAI PERSO';
-  } else {
-    feedbackSticker.classList.add('is-neutral');
-    feedbackText.textContent = 'PAREGGIO';
-  }
-  // Confronto mossa mia vs mossa del PC + punti.
-  feedbackPoints.innerHTML = '';
-  feedbackPoints.append(
-    morraImg(mine.optionIndex, 'morra-move morra-move-inline'),
-    document.createTextNode(' vs '),
-    morraImg(machineChoice, 'morra-move morra-move-inline'),
-    document.createTextNode(` · +${mine.pointsAwarded} punti`)
-  );
 }
 
 function renderFinal(leaderboard) {
@@ -414,7 +386,7 @@ socket.on('game:results', (results) => {
     mine,
     leaderboard: results.leaderboard,
     kind: results.kind,
-    machineChoice: results.machineChoice,
+    results,
   });
 });
 

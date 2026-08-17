@@ -8,6 +8,7 @@
   <meta name="theme-color" content="#fff8f1">
   <title>Quiz-Zata! — Gioca</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="/shared/minigames/minigames.css">
 </head>
 <body>
   <header class="player-header">
@@ -83,6 +84,13 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
+
+  <!-- Minigiochi: il registry, poi un modulo per gioco (si autoregistrano).
+       Aggiungere un minigioco = aggiungere una riga qui e in client/host/index.html.
+       Vedi client/shared/minigames/_TEMPLATE.js. -->
+  <script src="/shared/minigames/index.js"></script>
+  <script src="/shared/minigames/morra-cinese.js"></script>
+
   <script src="app.js"></script>
 </body>
 </html>

@@ -26,7 +26,7 @@ const os       = require('node:os');
 
 const config                                          = require('../config');
 const { verifyToken }                                 = require('../middleware/auth');
-const { MINIGAME_TYPE_KEYS }                          = require('../game');
+const { isValidSlotType, listForUi: listMinigamesForUi } = require('../minigames');
 const {
   getUserByUsername,
   getUserById,
@@ -119,7 +119,9 @@ function validateQuizInput({ title, questions, minigames }) {
       ) {
         return `Minigioco ${num}: "afterQuestionIndex" deve essere un intero valido (0-${questions.length - 1}).`;
       }
-      if (typeof m.type !== 'string' || !MINIGAME_TYPE_KEYS.includes(m.type)) {
+      // `isValidSlotType` accetta i tipi registrati e il segnaposto "random":
+      // così aggiungere un minigioco non richiede di toccare questa validazione.
+      if (typeof m.type !== 'string' || !isValidSlotType(m.type)) {
         return `Minigioco ${num}: "type" non riconosciuto.`;
       }
     }
@@ -335,6 +337,19 @@ router.delete('/quizzes/:id', verifyToken, (req, res) => {
     console.error('[host/quizzes DELETE]', err);
     return sendError(res, 500, 'Errore interno del server.');
   }
+});
+
+// ─── GET /minigames ───────────────────────────────────────────────────────────────
+
+/**
+ * Elenco dei minigiochi disponibili, con in testa la voce "casuale".
+ * Generato dal registry `server/minigames/`: è l'unica fonte di verità per la
+ * UI, così l'editor non deve mai elencare i tipi a mano e un minigioco appena
+ * aggiunto compare da solo nel menù.
+ * Risposta: { success: true, data: { minigames: [{ type, label, description }] } }
+ */
+router.get('/minigames', verifyToken, (_req, res) => {
+  return res.status(200).json({ success: true, data: { minigames: listMinigamesForUi() } });
 });
 
 // ─── GET /preloaded-quizzes ─────────────────────────────────────────────────────────────────────

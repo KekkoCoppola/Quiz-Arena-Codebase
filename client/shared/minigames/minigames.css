@@ -1,0 +1,88 @@
+/**
+ * client/shared/minigames/minigames.css
+ *
+ * Stili dei minigiochi, condivisi fra la SPA host e la SPA player.
+ *
+ * ═══ REGOLE DI QUESTO FILE ══════════════════════════════════════════════════
+ *
+ *  1. Una sezione per minigioco, delimitata da un'intestazione come quelle qui
+ *     sotto. Nessuna regola di un minigioco fuori dalla sua sezione.
+ *
+ *  2. Ogni classe è prefissata `.mg-<tipo>-` (con i trattini, non gli
+ *     underscore del tipo: `morra_cinese` → `.mg-morra-cinese-`). È ciò che
+ *     garantisce che due minigiochi non possano mai pestarsi i piedi.
+ *
+ *  3. Qui dentro vanno solo forma e dimensione. Il colore e la cornice del
+ *     round minigioco (`.is-minigame`) restano nei fogli di stile delle due
+ *     SPA, perché usano i loro token: `--retro-ochre` sull'host,
+ *     `--ticket-ochre` sul player. Non duplicare quei token qui.
+ *
+ *  4. Nessun colore nuovo: valgono i token e i divieti di DESIGN.md
+ *     (bordi Ink 4px, ombre offset piatte senza blur).
+ * ════════════════════════════════════════════════════════════════════════════
+ */
+
+/* ─── morra_cinese ──────────────────────────────────────────────────────────
+   Icone SVG delle mosse (sasso/carta/forbice), in tre taglie:
+   - base    → dentro la casella opzione dell'host
+   - inline  → in mezzo a una frase ("il PC ha scelto ✂")
+   - hero    → il grande reveal proiettato in sala
+   - choice  → il pulsante rotondo sul telefono del giocatore
+   ------------------------------------------------------------------------- */
+
+.mg-morra-cinese-move {
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+/* Host: icona dentro la casella della lettera opzione. */
+.game-option-letter .mg-morra-cinese-move { width: 26px; height: 26px; }
+
+/* Host: icona accanto all'etichetta nella distribuzione delle risposte. */
+.game-dist-label .mg-morra-cinese-move { width: 1.3em; height: 1.3em; }
+
+/* Player: icona dentro la casella della lettera opzione. */
+.answer-btn .letter .mg-morra-cinese-move { width: 28px; height: 28px; }
+
+.mg-morra-cinese-move-inline { width: 1.3em; height: 1.3em; }
+
+.mg-morra-cinese-move-hero {
+  display: block;
+  width: 96px;
+  height: 96px;
+  margin: 8px auto;
+}
+
+/* Player: le tre scelte diventano grandi pulsanti rotondi con la sola icona,
+   disposti in riga — si gioca d'istinto, non si legge.
+   Il selettore include `.answer-stack` di proposito: serve una specificità
+   maggiore della disposizione a colonna di default, senza dipendere
+   dall'ordine con cui i due fogli di stile vengono caricati. */
+.answer-stack.mg-morra-cinese-choices {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+}
+
+.answer-btn.mg-morra-cinese-choice {
+  flex: 1 1 0;
+  min-width: 96px;
+  max-width: 150px;
+  min-height: 0;
+  aspect-ratio: 1 / 1;
+  padding: 14px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.answer-btn.mg-morra-cinese-choice .mg-morra-cinese-move-choice {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* ─── prossimo minigioco ────────────────────────────────────────────────────
+   Aggiungi qui sotto la sua sezione, con lo stesso schema di intestazione.
+   ------------------------------------------------------------------------- */

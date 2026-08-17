@@ -185,34 +185,10 @@ body {
 #screen-question.is-minigame .question-text { color: var(--ticket-ochre); }
 #screen-question.is-minigame .countdown-bar { background: var(--ticket-ochre); }
 
-/* Icone mosse Morra Cinese (asset SVG al posto delle emoji). */
-.morra-move { object-fit: contain; vertical-align: middle; }
-.answer-btn .letter .morra-move { width: 28px; height: 28px; }
-.morra-move-inline { width: 1.3em; height: 1.3em; }
-
-/* Minigioco: le scelte diventano grandi pulsanti rotondi con la sola icona. */
-.answer-stack.is-morra {
-  flex-direction: row;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 16px;
-}
-.answer-btn.morra-choice {
-  flex: 1 1 0;
-  min-width: 96px;
-  max-width: 150px;
-  min-height: 0;
-  aspect-ratio: 1 / 1;
-  padding: 14px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-}
-.answer-btn.morra-choice .morra-move-choice {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
+/* Gli stili specifici di ogni minigioco (icone, forme, disposizione delle
+   scelte) NON stanno qui: vivono in client/shared/minigames/minigames.css,
+   condiviso con la SPA host e prefissato .mg-<tipo>-. Qui resta solo l'accento
+   del round. */
 
 .answer-stack { display: flex; flex-direction: column; gap: 12px; }
 

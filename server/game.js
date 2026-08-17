@@ -19,14 +19,22 @@
  * Fase Minigiochi: la sequenza di gioco non è più direttamente `quiz.questions`
  * ma `this.rounds`, costruita una volta in costruttore da `buildRounds()`.
  * Un round può essere una domanda vera (`kind: 'question'`, autorata dall'host)
- * o un minigioco (`kind: 'minigame'`, generato a runtime dal registry
- * `MINIGAME_TYPES` — stessa forma di una domanda, ma con `correct_index`
- * deciso casualmente invece che scritto in editor). Questa uniformità di forma
- * è ciò che permette a `submitAnswer`/`_computeScore`/`endQuestion` di restare
- * identici per entrambi i tipi di round.
+ * o un minigioco (`kind: 'minigame'`, generato a runtime dal registry in
+ * `server/minigames/` — stessa forma di una domanda, ma senza `correct_index`
+ * perché l'esito si decide alla chiusura). Questa uniformità di forma è ciò che
+ * permette a `submitAnswer`/`_computeScore`/`endQuestion` di restare identici
+ * per entrambi i tipi di round.
+ *
+ * Le REGOLE dei singoli minigiochi non stanno qui: ognuno è un modulo isolato in
+ * `server/minigames/<nome>.js`, caricato e validato dal registry. Questo file
+ * sa solo *orchestrare* un minigioco, non come funziona nessuno di essi.
  */
 
 const { randomUUID } = require('node:crypto');
+
+const minigames = require('./minigames');
+
+const { MINIGAME_TYPES, MINIGAME_TYPE_KEYS, RANDOM_TYPE } = minigames;
 
 // ─── Costanti di Punteggio ───────────────────────────────────────────────────────
 // Stile Kahoot: punteggio massimo per risposta istantanea, minimo per risposta
@@ -129,72 +137,55 @@ class InvalidMinigameTypeError extends Error {
 }
 
 // ─── Minigiochi ──────────────────────────────────────────────────────────────────
-// Registry dei tipi di minigioco disponibili. A differenza di una domanda, un
-// minigioco NON ha una risposta corretta prefissata: ha una meccanica propria che
-// si risolve alla CHIUSURA del round (`resolve()`), confrontando la scelta di ogni
-// giocatore con uno stato della macchina generato in quel momento (es. la mossa
-// del PC a Morra Cinese). Questo modello "gioca contro il PC + reveal" è ciò che
-// distingue un minigioco da una domanda camuffata:
-//   - `build()`    → descrittore del round inviato ai client (senza correct_index)
-//   - `resolve()`  → estrae lo stato macchina e sa dire l'esito di ogni scelta
-//   - `points`     → punti per esito (vittoria/pareggio/sconfitta)
-// Il punteggio confluisce nella stessa classifica delle domande. Aggiungere un
-// minigioco significa registrare qui una nuova voce, senza toccare il resto.
+// Le regole dei minigiochi vivono in `server/minigames/`, un modulo per gioco,
+// caricati e validati dal registry all'avvio. Qui resta solo l'orchestrazione.
+//
+// A differenza di una domanda, un minigioco NON ha una risposta corretta
+// prefissata: ha una meccanica propria che si risolve alla CHIUSURA del round
+// (`resolve()`), confrontando la scelta di ogni giocatore con uno stato della
+// macchina generato in quel momento (es. la mossa del PC a Morra Cinese).
+// Questo modello "gioca contro il PC + reveal" è ciò che distingue un minigioco
+// da una domanda camuffata. Il punteggio confluisce nella stessa classifica.
+//
+// Per aggiungere un minigioco si crea un file in `server/minigames/`: nulla in
+// questo file va toccato. Vedi `server/minigames/_TEMPLATE.js`.
 
-const MINIGAME_TYPES = Object.freeze({
-  morra_cinese: {
-    label: 'Morra Cinese',
-    defaultTimeLimitS: 8,
-    prompt: 'Sasso, Carta o Forbice?',
-    options: ['Sasso', 'Carta', 'Forbice'], // 0 = Sasso, 1 = Carta, 2 = Forbice
-    points: { win: 500, draw: 100, lose: 0 },
-    build() {
-      return {
-        kind: 'minigame',
-        minigameType: 'morra_cinese',
-        text: this.prompt,
-        options: this.options,
-        time_limit_s: this.defaultTimeLimitS,
-        // Nessun correct_index: l'esito si decide alla chiusura in resolve().
-      };
-    },
-    /**
-     * Estrae la mossa del PC (una sola, globale per tutti i giocatori) e
-     * restituisce come classificare una scelta rispetto a essa.
-     */
-    resolve() {
-      const machineChoice = Math.floor(Math.random() * 3);
-      return {
-        machineChoice,
-        // Regola morra: la scelta batte la macchina se è "una avanti" nel ciclo
-        // Sasso(0) → Carta(1) → Forbice(2) → Sasso(0).
-        outcomeFor(optionIndex) {
-          const d = (optionIndex - machineChoice + 3) % 3;
-          return d === 0 ? 'draw' : d === 1 ? 'win' : 'lose';
-        },
-      };
-    },
-  },
-});
-
-const MINIGAME_TYPE_KEYS = Object.freeze(Object.keys(MINIGAME_TYPES));
+/**
+ * Traduce il tipo richiesto in un tipo concreto: il segnaposto `random` viene
+ * risolto estraendo dal sacchetto della sessione, così il round generato porta
+ * sempre un `minigameType` reale e i client non vedono mai `'random'`.
+ * @param {string} type chiave di MINIGAME_TYPES oppure RANDOM_TYPE
+ * @param {{ next: () => (string|null) }} bag sacchetto della sessione
+ * @returns {object | null} la definizione, o null se il tipo non è utilizzabile
+ */
+function resolveMinigameDef(type, bag) {
+  const concreteType = type === RANDOM_TYPE ? bag.next() : type;
+  return concreteType ? minigames.get(concreteType) : null;
+}
 
 /**
  * Costruisce la sequenza di round di una partita: le domande del quiz, con gli
  * eventuali minigiochi pianificati in editor (`quiz.minigames`) inseriti
  * nella posizione richiesta. Lo splice avviene dal fondo verso l'inizio così
  * gli indici `afterQuestionIndex` restano validi durante l'inserimento.
+ *
+ * ⚠ Gli slot vengono ordinati per posizione decrescente prima dello splice, ma
+ * l'estrazione casuale segue quell'ordine: irrilevante per l'esito (il
+ * sacchetto è comunque casuale), ma è il motivo per cui due partite con gli
+ * stessi slot `random` non producono la stessa sequenza.
+ *
  * @param {object} quiz
+ * @param {{ next: () => (string|null) }} bag sacchetto per gli slot `random`
  * @returns {Array<object>} rounds
  */
-function buildRounds(quiz) {
+function buildRounds(quiz, bag) {
   const rounds = quiz.questions.map((q) => ({ kind: 'question', ...q }));
 
   const slots = Array.isArray(quiz.minigames) ? quiz.minigames : [];
   const sortedSlots = slots.slice().sort((a, b) => b.afterQuestionIndex - a.afterQuestionIndex);
   for (const slot of sortedSlots) {
-    const def = MINIGAME_TYPES[slot.type];
-    if (!def) continue; // tipo sconosciuto: validato a monte in quiz-manager/routes, qui difesa in profondità
+    const def = resolveMinigameDef(slot.type, bag);
+    if (!def) continue; // tipo sconosciuto: validato a monte in routes, qui difesa in profondità
     rounds.splice(slot.afterQuestionIndex + 1, 0, def.build());
   }
 
@@ -206,14 +197,27 @@ function buildRounds(quiz) {
 class GameSession {
   /**
    * @param {{ title?: string, questions: Array<{ text: string, options: string[], correct_index: number, time_limit_s: number }> }} quiz
+   * @param {{ rnd?: () => number }} [options] `rnd` è il generatore casuale usato
+   *   dai minigiochi (estrazione del tipo e stato macchina). Iniettabile per i
+   *   test, stessa filosofia del parametro `now`: in produzione resta Math.random.
    */
-  constructor(quiz) {
+  constructor(quiz, options = {}) {
     if (!quiz || !Array.isArray(quiz.questions) || quiz.questions.length === 0) {
       throw new EmptyQuizError();
     }
 
+    this._rnd = options.rnd ?? Math.random;
+
+    /**
+     * Sacchetto di estrazione dei minigiochi, condiviso fra gli slot `random`
+     * pianificati in editor e gli inserimenti ad-hoc dell'host: è per-sessione,
+     * quindi la varietà è garantita all'interno di una singola partita e
+     * ricomincia da capo a ogni nuova GameSession (incluso il riavvio).
+     */
+    this._minigameBag = minigames.createShuffleBag(MINIGAME_TYPE_KEYS, this._rnd);
+
     this.quiz = quiz;
-    this.rounds = buildRounds(quiz);
+    this.rounds = buildRounds(quiz, this._minigameBag);
     this.state = STATES.LOBBY;
     this.currentRoundIndex = -1;
     this.roundStartedAt = null;
@@ -441,8 +445,8 @@ class GameSession {
     // ogni risposta PRIMA del loop di somma dei punteggi.
     let machineChoice = null;
     if (round.kind === 'minigame') {
-      const def = MINIGAME_TYPES[round.minigameType];
-      const resolution = def.resolve();
+      const def = minigames.get(round.minigameType);
+      const resolution = def.resolve(this._rnd);
       machineChoice = resolution.machineChoice;
       for (const answer of this.currentAnswers.values()) {
         answer.outcome = resolution.outcomeFor(answer.optionIndex);
@@ -506,13 +510,14 @@ class GameSession {
    * sia per l'inserimento pianificato in editor (già presente in `this.rounds`
    * dalla costruzione) sia per l'inserimento manuale dell'host a partita in
    * corso (questo metodo).
-   * @param {string} type - chiave di MINIGAME_TYPES
+   * @param {string} type - chiave di MINIGAME_TYPES, oppure `'random'` per
+   *   lasciar estrarre al sacchetto della sessione
    * @param {number} [now]
    * @returns {{ finished: boolean }} stesso shape di ritorno di nextQuestion()
    */
   insertMinigame(type, now = Date.now()) {
     this._assertState(STATES.RESULTS, 'insertMinigame');
-    const def = MINIGAME_TYPES[type];
+    const def = resolveMinigameDef(type, this._minigameBag);
     if (!def) {
       throw new InvalidMinigameTypeError();
     }
@@ -555,8 +560,11 @@ module.exports = {
   POINTS_MIN,
   MAX_NICKNAME_LENGTH,
   AVATAR_IDS,
+  // Riesportati dal registry (`server/minigames/`) per comodità dei consumer
+  // storici — routes/host.js e i test importavano già questi nomi da qui.
   MINIGAME_TYPES,
   MINIGAME_TYPE_KEYS,
+  RANDOM_TYPE,
   InvalidStateError,
   DuplicateNicknameError,
   PlayerNotFoundError,

@@ -43,7 +43,14 @@ const state = {
   questions:     [],
   dragSrcIndex:  null,   // indice item draggato
   editorSnapshot: null,  // JSON di titolo+domande all'apertura editor, per rilevare modifiche non salvate
+  // Catalogo minigiochi [{ type, label, description }], caricato da
+  // GET /minigames — generato dal registry server. L'editor non elenca mai i
+  // tipi a mano: un minigioco nuovo compare qui da solo.
+  minigames:     [],
 };
+
+/** Voce sempre presente nel menù minigioco dell'editor. */
+const MINIGAME_NONE = '';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    2. TOAST SYSTEM
@@ -554,9 +561,26 @@ const TIME_OPTIONS  = [5, 10, 15, 20, 25, 30, 45, 60, 90, 120];
  * Apre la vista editor.
  * @param {number|null} quizId — null per nuovo quiz
  */
+/**
+ * Carica una volta sola il catalogo dei minigiochi disponibili.
+ * Se la chiamata fallisce l'editor resta usabile: il menù mostrerà solo
+ * "Nessuno" più i tipi già presenti nel quiz, che vengono comunque conservati.
+ */
+async function loadMinigameCatalog() {
+  if (state.minigames.length > 0) return;
+  try {
+    const res = await apiGet('/minigames');
+    if (res.success) state.minigames = res.data.minigames;
+  } catch {
+    // Silenzioso: non è un errore che debba bloccare la modifica di un quiz.
+  }
+}
+
 async function openEditor(quizId) {
   state.editingId = quizId;
   state.questions = [];
+
+  await loadMinigameCatalog();
 
   if (quizId !== null) {
     // Carica quiz esistente
@@ -634,6 +658,37 @@ function renderQuestionList() {
 /**
  * Costruisce il DOM di una singola domanda nell'editor.
  */
+/**
+ * `<option>` del menù minigioco di una domanda, costruiti dal catalogo del
+ * registry: questo file non nomina mai un minigioco specifico.
+ *
+ * Se il quiz contiene un tipo assente dal catalogo (catalogo non caricato, o
+ * minigioco rimosso da una versione futura) viene aggiunta una voce apposita:
+ * salvare il quiz non deve mai cancellare in silenzio una scelta dell'host.
+ *
+ * @param {string|null} selected tipo attualmente impostato sulla domanda
+ */
+function minigameOptionsHtml(selected) {
+  const current = selected ?? MINIGAME_NONE;
+  const known = state.minigames.some((m) => m.type === current);
+
+  const entries = [
+    { type: MINIGAME_NONE, label: 'Nessuno' },
+    ...state.minigames,
+    ...(current !== MINIGAME_NONE && !known
+      ? [{ type: current, label: `${current} (non disponibile)` }]
+      : []),
+  ];
+
+  return entries
+    .map((m) => {
+      const isSelected = m.type === current ? ' selected' : '';
+      const title = m.description ? ` title="${escapeHtml(m.description)}"` : '';
+      return `<option value="${escapeHtml(m.type)}"${isSelected}${title}>${escapeHtml(m.label)}</option>`;
+    })
+    .join('');
+}
+
 function buildQuestionItem(q, idx) {
   const item = document.createElement('div');
   item.className = 'question-item';
@@ -713,17 +768,16 @@ function buildQuestionItem(q, idx) {
           aria-label="Tempo limite domanda ${idx + 1}"
         >${timeOpts}</select>
       </div>
-      <label class="minigame-toggle-row" for="q-minigame-${idx}">
-        <input
-          type="checkbox"
+      <div class="minigame-toggle-row${q._minigameAfter ? ' is-active' : ''}">
+        <span class="material-symbols-outlined" aria-hidden="true">casino</span>
+        <label for="q-minigame-${idx}">Minigioco dopo questa domanda:</label>
+        <select
           id="q-minigame-${idx}"
+          class="form-select"
           data-role="q-minigame-after"
           data-q="${idx}"
-          ${q._minigameAfter ? 'checked' : ''}
-        >
-        <span class="material-symbols-outlined" aria-hidden="true">casino</span>
-        <span>Inserisci un minigioco (Morra Cinese) subito dopo questa domanda</span>
-      </label>
+        >${minigameOptionsHtml(q._minigameAfter)}</select>
+      </div>
     </div>
   `;
 
@@ -773,10 +827,14 @@ function attachQuestionEvents(item, idx) {
     state.questions[idx].time_limit_s = parseInt(timeSelect.value, 10);
   });
 
-  // Minigioco pianificato dopo questa domanda (unico tipo disponibile: pari_dispari)
-  const minigameToggle = item.querySelector('[data-role="q-minigame-after"]');
-  minigameToggle.addEventListener('change', () => {
-    state.questions[idx]._minigameAfter = minigameToggle.checked ? 'morra_cinese' : null;
+  // Minigioco pianificato dopo questa domanda. Il valore è una chiave del
+  // registry (o `random`); stringa vuota = nessun minigioco.
+  const minigameSelect = item.querySelector('[data-role="q-minigame-after"]');
+  minigameSelect.addEventListener('change', () => {
+    const value = minigameSelect.value;
+    state.questions[idx]._minigameAfter = value === MINIGAME_NONE ? null : value;
+    minigameSelect.closest('.minigame-toggle-row')
+      .classList.toggle('is-active', value !== MINIGAME_NONE);
   });
 
   // Rimuovi domanda
@@ -973,24 +1031,25 @@ const gameRestartBtn  = document.getElementById('game-restart-btn');
 let gameSocket = null;
 let gameCountdownInterval = null;
 let currentQuestionOptions = [];
-let minigameSuspenseInterval = null;
 
-// Icone SVG delle mosse di Morra Cinese (indici allineati al server:
-// 0 = Sasso, 1 = Carta, 2 = Forbice). Servite come statici da /resources.
-const MORRA_LABELS = ['Sasso', 'Carta', 'Forbice'];
-const MORRA_ASSETS = [
-  '/resources/img/morra-sasso.svg',
-  '/resources/img/morra-carta.svg',
-  '/resources/img/morra-forbice.svg',
-];
+/* global Minigames */
 
-/** Crea un <img> per la mossa `i` (Sasso/Carta/Forbice). */
-function morraImg(i, cls = 'morra-move') {
-  const img = document.createElement('img');
-  img.src = MORRA_ASSETS[i] ?? '';
-  img.alt = MORRA_LABELS[i] ?? '';
-  img.className = cls;
-  return img;
+// Presentazione del minigioco del round corrente, ottenuta dal registry
+// condiviso (/shared/minigames/). Questo file non sa quali minigiochi esistano
+// né come si disegnano: chiede al registry e delega.
+// `Minigames.get()` non restituisce mai null — un tipo sconosciuto ottiene una
+// presentazione generica, così un round anomalo degrada invece di rompersi.
+let currentMinigame = null;
+
+/** Elementi che la presentazione host può disegnare durante un round minigioco. */
+const minigameEls = () => ({
+  questionText:  gameQuestionText,
+  correctAnswer: gameCorrectAnswer,
+});
+
+/** Ferma un'eventuale animazione di attesa. Idempotente, sicura da chiamare sempre. */
+function stopMinigameSuspense() {
+  currentMinigame?.host.stopSuspense();
 }
 
 // Mappa avatar: id stabile → emoji TEMPORANEA (identica al client player).
@@ -1050,27 +1109,6 @@ function startGameCountdown(endsAt) {
 }
 
 /**
- * Suspense minigioco: fa ciclare rapidamente l'emoji della mossa nel titolo,
- * finché il reveal (game:results) non la ferma sulla scelta del PC.
- */
-function startMinigameSuspense() {
-  stopMinigameSuspense();
-  let i = 0;
-  minigameSuspenseInterval = setInterval(() => {
-    gameQuestionText.innerHTML = '';
-    gameQuestionText.appendChild(morraImg(i % MORRA_ASSETS.length, 'morra-move morra-move-hero'));
-    i++;
-  }, 150);
-}
-
-function stopMinigameSuspense() {
-  if (minigameSuspenseInterval) {
-    clearInterval(minigameSuspenseInterval);
-    minigameSuspenseInterval = null;
-  }
-}
-
-/**
  * Apre la schermata di conduzione partita e crea la sessione sul server.
  * @param {object} quiz
  * @param {'personal'|'preloaded'} type
@@ -1114,19 +1152,24 @@ function connectGameSocket(quiz, type) {
     currentQuestionOptions = q.options;
     stopMinigameSuspense();
     const isMinigame = q.kind === 'minigame';
+    // Il round minigioco porta con sé la propria presentazione; una domanda no.
+    currentMinigame = isMinigame ? Minigames.get(q.minigameType) : null;
+
     gameQuestionBox.classList.toggle('is-minigame', isMinigame);
     gameStatusText.textContent = isMinigame
-      ? '🎲 Minigioco: Morra Cinese in corso…'
+      ? currentMinigame.hostStatusText
       : `Domanda ${q.index + 1} di ${q.total} in corso…`;
-    // Minigioco: il titolo mostra l'emoji ciclica di suspense; la domanda vera
-    // mostra il proprio testo.
+
+    // Minigioco: il titolo è affidato alla sua animazione di attesa; la domanda
+    // vera mostra semplicemente il proprio testo.
     if (isMinigame) {
-      startMinigameSuspense();
+      currentMinigame.host.startSuspense(minigameEls(), q);
     } else {
       gameQuestionText.textContent = q.text;
     }
-    // Opzioni a solo scopo visualizzativo: l'host non risponde. Per il minigioco
-    // le opzioni sono le mosse (🪨 Sasso, 📄 Carta, ✂️ Forbice).
+
+    // Opzioni a solo scopo visualizzativo: l'host non risponde. Il minigioco può
+    // sostituire la lettera A/B/C con una propria icona.
     gameOptionsList.innerHTML = '';
     const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
     q.options.forEach((option, i) => {
@@ -1134,8 +1177,9 @@ function connectGameSocket(quiz, type) {
       li.className = 'game-option-card';
       const letter = document.createElement('span');
       letter.className = 'game-option-letter';
-      if (isMinigame) {
-        letter.appendChild(morraImg(i, 'morra-move'));
+      const icon = currentMinigame?.optionIcon(i);
+      if (icon) {
+        letter.appendChild(icon);
       } else {
         letter.textContent = LETTERS[i] ?? String(i + 1);
       }
@@ -1163,19 +1207,16 @@ function connectGameSocket(quiz, type) {
     const isMinigame = results.kind === 'minigame';
     gameStatusText.textContent = 'Round chiuso: risultati sul tabellone.';
 
-    // Reveal: la domanda mostra la risposta corretta; il minigioco ferma la
-    // suspense sulla mossa del PC. Per un minigioco non esiste una riga "corretta"
-    // (l'esito è relativo alla scelta di ciascuno), quindi nessun highlight.
-    const machineIndex = isMinigame ? results.machineChoice : results.correctIndex;
+    // Reveal: la domanda mostra la risposta corretta; il minigioco disegna il
+    // proprio (ferma l'attesa e rivela lo stato della macchina). La riga da
+    // evidenziare nella distribuzione la decide il minigioco stesso, perché non
+    // tutti hanno una nozione di "riga corretta".
+    const machineIndex = isMinigame
+      ? currentMinigame.highlightIndex(results)
+      : results.correctIndex;
+
     if (isMinigame) {
-      gameQuestionText.innerHTML = '';
-      gameQuestionText.appendChild(morraImg(results.machineChoice, 'morra-move morra-move-hero'));
-      gameCorrectAnswer.innerHTML = '';
-      gameCorrectAnswer.append(
-        document.createTextNode('Il computer ha scelto: '),
-        morraImg(results.machineChoice, 'morra-move morra-move-inline'),
-        document.createTextNode(` ${currentQuestionOptions[results.machineChoice] ?? '—'}`)
-      );
+      currentMinigame.host.reveal(minigameEls(), results, currentQuestionOptions);
     } else {
       gameCorrectAnswer.textContent =
         `Risposta corretta: ${currentQuestionOptions[results.correctIndex] ?? '—'}`;
@@ -1191,8 +1232,9 @@ function connectGameSocket(quiz, type) {
       const label = document.createElement('span');
       label.className = 'game-dist-label';
       const optionLabel = currentQuestionOptions[i] ?? `Opzione ${i + 1}`;
-      if (isMinigame) {
-        label.append(morraImg(i, 'morra-move morra-move-inline'), document.createTextNode(` ${optionLabel}`));
+      const distIcon = currentMinigame?.optionIcon(i);
+      if (distIcon) {
+        label.append(distIcon, document.createTextNode(` ${optionLabel}`));
       } else {
         label.textContent = optionLabel;
       }
@@ -1317,8 +1359,11 @@ gameNextBtn.addEventListener('click', () => {
   });
 });
 
+// Minigioco ad-hoc durante la partita: l'host non sceglie il tipo, lo estrae il
+// server dal sacchetto della sessione. Un bottone solo, nessun menù da navigare
+// davanti a una sala che aspetta.
 gameMinigameBtn.addEventListener('click', () => {
-  gameSocket?.emit('host:insert-minigame', { type: 'morra_cinese' }, (res) => {
+  gameSocket?.emit('host:insert-minigame', { type: 'random' }, (res) => {
     if (!res.ok) showToast(res.error, 'error');
   });
 });
