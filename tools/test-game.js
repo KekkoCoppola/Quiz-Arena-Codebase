@@ -1,0 +1,327 @@
+'use strict';
+
+/**
+ * tools/test-game.js
+ *
+ * Smoke test isolato per server/game.js.
+ * Testa la macchina a stati in-memory SENZA rete/UI — eseguibile subito dopo Step 5.
+ *
+ * Utilizzo: node tools/test-game.js
+ * (Non committato — escluso da .gitignore)
+ */
+
+const {
+  GameSession,
+  STATES,
+  POINTS_MAX,
+  POINTS_MIN,
+  MAX_NICKNAME_LENGTH,
+  MINIGAME_TYPE_KEYS,
+  InvalidStateError,
+  DuplicateNicknameError,
+  PlayerNotFoundError,
+  AlreadyAnsweredError,
+  InvalidAnswerIndexError,
+  InvalidNicknameError,
+  EmptyQuizError,
+  NotEnoughPlayersError,
+  AVATAR_IDS,
+  InvalidAvatarError,
+  InvalidMinigameTypeError,
+} = require('../server/game');
+
+// ─── Setup ───────────────────────────────────────────────────────────────────────
+
+let passed = 0;
+let failed = 0;
+
+function assert(condition, label) {
+  if (condition) {
+    console.log(`  ✅  ${label}`);
+    passed++;
+  } else {
+    console.error(`  ❌  ${label}`);
+    failed++;
+  }
+}
+
+function assertThrows(fn, ErrorClass, label) {
+  try {
+    fn();
+    console.error(`  ❌  ${label} (nessuna eccezione lanciata)`);
+    failed++;
+  } catch (err) {
+    if (err instanceof ErrorClass) {
+      console.log(`  ✅  ${label}`);
+      passed++;
+    } else {
+      console.error(`  ❌  ${label} (errore inatteso: ${err.constructor.name}: ${err.message})`);
+      failed++;
+    }
+  }
+}
+
+const QUIZ = {
+  title: 'Quiz Test',
+  questions: [
+    { text: 'Domanda 1', options: ['A', 'B', 'C', 'D'], correct_index: 0, time_limit_s: 10 },
+    { text: 'Domanda 2', options: ['Sì', 'No'], correct_index: 1, time_limit_s: 10 },
+  ],
+};
+
+// ─── Test ────────────────────────────────────────────────────────────────────────
+
+function run() {
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('  🧪  Quiz-Zata! — Smoke Test: game.js');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+  // 1. Costruzione
+  console.log('  🎬  Fase 1: Costruzione');
+  assertThrows(() => new GameSession(null), EmptyQuizError, 'constructor: lancia EmptyQuizError per quiz nullo');
+  assertThrows(() => new GameSession({ questions: [] }), EmptyQuizError, 'constructor: lancia EmptyQuizError per quiz senza domande');
+
+  const game = new GameSession(QUIZ);
+  assert(game.state === STATES.LOBBY, 'constructor: stato iniziale LOBBY');
+
+  // 2. Lobby
+  console.log('\n  👥  Fase 2: Lobby');
+  assertThrows(() => game.startGame(1000), NotEnoughPlayersError, 'startGame: lancia NotEnoughPlayersError senza giocatori');
+
+  const alice = game.addPlayer('Alice');
+  assert(alice.id && alice.nickname === 'Alice' && alice.score === 0, 'addPlayer: crea giocatore con score 0');
+
+  const bob = game.addPlayer('Bob');
+  assert(bob.id !== alice.id, 'addPlayer: ID univoci per giocatori diversi');
+
+  assertThrows(() => game.addPlayer('alice'), DuplicateNicknameError, 'addPlayer: lancia DuplicateNicknameError (case-insensitive)');
+  assertThrows(() => game.addPlayer('   '), InvalidNicknameError, 'addPlayer: lancia InvalidNicknameError per nickname vuoto');
+  assertThrows(() => game.addPlayer('X'.repeat(MAX_NICKNAME_LENGTH + 1)), InvalidNicknameError, 'addPlayer: lancia InvalidNicknameError per nickname troppo lungo');
+  assert(game.getPlayers().length === 2, 'getPlayers: restituisce 2 giocatori');
+
+  // 3. Avvio partita + Domanda 1
+  console.log('\n  ▶️   Fase 3: Avvio partita e Domanda 1');
+  game.startGame(1000);
+  assert(game.state === STATES.QUESTION, 'startGame: transizione a QUESTION');
+  assertThrows(() => game.startGame(1000), InvalidStateError, 'startGame: lancia InvalidStateError se già avviata');
+
+  const q1 = game.getCurrentRound();
+  assert(q1.text === 'Domanda 1' && q1.correct_index === undefined, 'getCurrentRound: sanitizzata, senza correct_index');
+  assert(q1.total === 2, 'getCurrentRound: total corretto');
+
+  assertThrows(() => game.addPlayer('Carol'), InvalidStateError, 'addPlayer: bloccato fuori da LOBBY');
+
+  // Alice risponde subito e giusto (1500ms dopo start, su 10s => ratio alto)
+  const resAlice = game.submitAnswer(alice.id, 0, 1500);
+  assert(resAlice.correct === true, 'submitAnswer: Alice risposta corretta');
+  assert(resAlice.pointsAwarded > POINTS_MIN && resAlice.pointsAwarded <= POINTS_MAX, 'submitAnswer: punteggio Alice nel range atteso (risposta rapida)');
+
+  assertThrows(() => game.submitAnswer(alice.id, 1, 1600), AlreadyAnsweredError, 'submitAnswer: lancia AlreadyAnsweredError su doppia risposta');
+  assertThrows(() => game.submitAnswer(bob.id, 99, 2000), InvalidAnswerIndexError, 'submitAnswer: lancia InvalidAnswerIndexError per indice fuori range');
+  assertThrows(() => game.submitAnswer('id-inesistente', 0, 2000), PlayerNotFoundError, 'submitAnswer: lancia PlayerNotFoundError per giocatore ignoto');
+
+  // Bob risponde sbagliato, tardi (10500ms dopo start, su 10s)
+  const resBob = game.submitAnswer(bob.id, 1, 10500);
+  assert(resBob.correct === false && resBob.pointsAwarded === 0, 'submitAnswer: Bob risposta sbagliata => 0 punti');
+
+  // 4. Risultati Domanda 1
+  console.log('\n  📊  Fase 4: Risultati Domanda 1');
+  const results1 = game.endQuestion(11000);
+  assert(game.state === STATES.RESULTS, 'endQuestion: transizione a RESULTS');
+  assert(results1.correctIndex === 0, 'endQuestion: correctIndex esposto correttamente');
+  assert(results1.distribution[0] === 1 && results1.distribution[1] === 1, 'endQuestion: distribuzione risposte corretta');
+  assert(alice.score === resAlice.pointsAwarded, 'endQuestion: punteggio Alice aggiornato sul player');
+  assert(bob.score === 0, 'endQuestion: punteggio Bob invariato (0)');
+  assert(results1.leaderboard[0].nickname === 'Alice', 'endQuestion: leaderboard ordinata correttamente');
+
+  assertThrows(() => game.submitAnswer(alice.id, 0, 11500), InvalidStateError, 'submitAnswer: bloccato fuori da QUESTION');
+
+  // 5. Domanda 2 (Bob non risponde => tempo scaduto)
+  console.log('\n  ⏭️   Fase 5: Domanda 2 (Bob non risponde)');
+  const advance = game.nextQuestion(12000);
+  assert(advance.finished === false, 'nextQuestion: partita non ancora finita');
+  assert(game.state === STATES.QUESTION, 'nextQuestion: transizione a QUESTION');
+  assert(game.currentRoundIndex === 1, 'nextQuestion: indice round incrementato');
+
+  game.submitAnswer(alice.id, 1, 12500); // corretta
+
+  const results2 = game.endQuestion(22000); // tempo scaduto, Bob non ha risposto
+  assert(results2.answers.length === 1, 'endQuestion: solo le risposte pervenute sono incluse');
+  assert(bob.score === 0, 'endQuestion: Bob senza risposta resta a 0 punti');
+
+  // 6. Fine partita
+  console.log('\n  🏆  Fase 6: Fine partita');
+  const finalAdvance = game.nextQuestion(23000);
+  assert(finalAdvance.finished === true, 'nextQuestion: segnala fine partita sull\'ultima domanda');
+  assert(game.state === STATES.FINAL_LEADERBOARD, 'nextQuestion: transizione a FINAL_LEADERBOARD');
+  assert(finalAdvance.leaderboard[0].nickname === 'Alice', 'FINAL_LEADERBOARD: Alice in testa alla classifica');
+
+  assertThrows(() => game.nextQuestion(24000), InvalidStateError, 'nextQuestion: bloccato dopo FINAL_LEADERBOARD');
+
+  // 7. removePlayer
+  console.log('\n  🚪  Fase 7: Rimozione giocatore');
+  game.removePlayer(bob.id);
+  assert(game.getPlayers().length === 1, 'removePlayer: rimuove correttamente il giocatore');
+  assertThrows(() => game.removePlayer('id-inesistente'), PlayerNotFoundError, 'removePlayer: lancia PlayerNotFoundError per ID ignoto');
+
+  // 8. Avatar e connessione (Fase 7)
+  console.log('\n  🦊  Fase 8: Avatar e connessione');
+  const g8 = new GameSession(QUIZ);
+  assert(Array.isArray(AVATAR_IDS) && AVATAR_IDS.length === 12, 'AVATAR_IDS: 12 avatar precaricati');
+  assert(Object.isFrozen(AVATAR_IDS), 'AVATAR_IDS: lista immutabile');
+
+  const pA = g8.addPlayer('Alice', 'volpe');
+  assert(pA.avatar === 'volpe', 'addPlayer: avatar scelto registrato');
+  assert(pA.connected === true, 'addPlayer: player nasce connesso');
+
+  const pB = g8.addPlayer('Bob');
+  assert(AVATAR_IDS.includes(pB.avatar), 'addPlayer senza avatar: assegnato un avatar valido');
+
+  assertThrows(() => g8.addPlayer('Carl', 'dinosauro'), InvalidAvatarError,
+    'addPlayer: avatar sconosciuto lancia InvalidAvatarError');
+
+  g8.setPlayerConnected(pA.id, false);
+  assert(g8.players.get(pA.id).connected === false, 'setPlayerConnected(false) applicato');
+  g8.setPlayerConnected(pA.id, true);
+  assert(g8.players.get(pA.id).connected === true, 'setPlayerConnected(true) applicato');
+  assertThrows(() => g8.setPlayerConnected('id-inesistente', true), PlayerNotFoundError,
+    'setPlayerConnected: player inesistente lancia PlayerNotFoundError');
+
+  g8.startGame(0);
+  const lb8 = g8.getLeaderboard();
+  assert(lb8.every((p) => typeof p.avatar === 'string'), 'getLeaderboard: include avatar');
+  assert(g8.getSnapshot().players.every((p) => 'connected' in p), 'getSnapshot: include connected');
+
+  // 9a. Minigioco pianificato in editor (quiz.minigames) — Morra Cinese
+  console.log('\n  🎲  Fase 9a: Minigioco pianificato (Morra Cinese)');
+  const QUIZ_WITH_MINIGAME = {
+    title: 'Quiz con minigioco pianificato',
+    questions: [
+      { text: 'Q1', options: ['A', 'B'], correct_index: 0, time_limit_s: 10 },
+      { text: 'Q2', options: ['A', 'B'], correct_index: 1, time_limit_s: 10 },
+    ],
+    minigames: [{ afterQuestionIndex: 0, type: 'morra_cinese' }],
+  };
+
+  assert(MINIGAME_TYPE_KEYS.includes('morra_cinese'), 'MINIGAME_TYPE_KEYS: espone morra_cinese');
+
+  const g9 = new GameSession(QUIZ_WITH_MINIGAME);
+  assert(g9.rounds.length === 3, 'buildRounds: inserisce il minigioco pianificato nella sequenza (3 round totali)');
+  assert(
+    g9.rounds[0].kind === 'question' && g9.rounds[1].kind === 'minigame' && g9.rounds[2].kind === 'question',
+    'buildRounds: ordine round atteso (domanda, minigioco, domanda)'
+  );
+  assert(g9.rounds[1].minigameType === 'morra_cinese', 'buildRounds: minigameType propagato sul round generato');
+  assert(g9.rounds[1].correct_index === undefined, 'buildRounds: il round minigioco NON ha correct_index');
+
+  const dan = g9.addPlayer('Dan');
+  g9.startGame(0);
+  assert(g9.getCurrentRound().kind === 'question', 'getCurrentRound: round 0 è una domanda vera');
+
+  g9.submitAnswer(dan.id, 0, 500);
+  g9.endQuestion(1000);
+  const toMinigame = g9.nextQuestion(1000);
+  assert(toMinigame.finished === false, 'nextQuestion: avanza sul round pianificato senza terminare la partita');
+
+  const minigameRound = g9.getCurrentRound();
+  assert(
+    minigameRound.kind === 'minigame' && minigameRound.minigameType === 'morra_cinese',
+    'getCurrentRound: round 1 riconosciuto come minigioco pianificato'
+  );
+  assert(
+    minigameRound.options.length === 3 && minigameRound.correct_index === undefined,
+    'getCurrentRound: minigioco con 3 opzioni e senza correct_index'
+  );
+
+  // Suspense preservata: submitAnswer su minigioco registra la scelta senza rivelare l'esito.
+  const danMinigameAnswer = g9.submitAnswer(dan.id, 2, 500); // Dan sceglie Forbice
+  assert(
+    danMinigameAnswer.recorded === true && danMinigameAnswer.correct === undefined,
+    'submitAnswer: minigioco ritorna { recorded: true } senza rivelare l\'esito'
+  );
+  assert(
+    g9.currentAnswers.get(dan.id).outcome === null,
+    'submitAnswer: esito ancora nullo prima della chiusura (suspense)'
+  );
+
+  const scoreBeforeMinigame = dan.score;
+  const minigameResults = g9.endQuestion(1000);
+  assert(minigameResults.kind === 'minigame', 'endQuestion: kind minigame nel riepilogo');
+  assert(minigameResults.correctIndex === null, 'endQuestion: minigioco senza correctIndex');
+  assert(
+    Number.isInteger(minigameResults.machineChoice) && minigameResults.machineChoice >= 0 && minigameResults.machineChoice <= 2,
+    'endQuestion: machineChoice è una mossa valida (0-2)'
+  );
+
+  // Verifica deterministica anche con randomness: ricalcolo l'esito atteso dalla
+  // mossa macchina rivelata e assertisco la coerenza esito ↔ punti (500/100/0).
+  const danResult = minigameResults.answers.find((a) => a.playerId === dan.id);
+  const d = (2 - minigameResults.machineChoice + 3) % 3; // 2 = mossa di Dan (Forbice)
+  const expectedOutcome = d === 0 ? 'draw' : d === 1 ? 'win' : 'lose';
+  const expectedPoints = { win: 500, draw: 100, lose: 0 }[expectedOutcome];
+  assert(danResult.outcome === expectedOutcome, `endQuestion: esito coerente con la mossa macchina (${expectedOutcome})`);
+  assert(danResult.pointsAwarded === expectedPoints, `endQuestion: punti coerenti con l'esito (${expectedPoints})`);
+  assert(dan.score === scoreBeforeMinigame + expectedPoints, 'endQuestion: punti del minigioco sommati alla classifica');
+
+  const toQ2 = g9.nextQuestion(1000);
+  assert(toQ2.finished === false, 'nextQuestion: dal minigioco avanza alla domanda successiva pianificata');
+  assert(g9.getCurrentRound().kind === 'question', 'getCurrentRound: round 2 torna a essere una domanda vera');
+
+  g9.submitAnswer(dan.id, 1, 500);
+  g9.endQuestion(1000);
+  const finalAdvance9 = g9.nextQuestion(1000);
+  assert(finalAdvance9.finished === true, 'nextQuestion: la partita termina regolarmente dopo l\'ultimo round pianificato');
+
+  // 9b. Minigioco manuale ad-hoc (insertMinigame, invocato dall'host durante RESULTS)
+  console.log('\n  🎰  Fase 9b: Minigioco manuale ad-hoc (insertMinigame)');
+  const g9b = new GameSession(QUIZ);
+  assertThrows(() => g9b.insertMinigame('morra_cinese'), InvalidStateError,
+    'insertMinigame: bloccato fuori da RESULTS (LOBBY)');
+
+  const eve = g9b.addPlayer('Eve');
+  g9b.startGame(0);
+  assertThrows(() => g9b.insertMinigame('morra_cinese'), InvalidStateError,
+    'insertMinigame: bloccato fuori da RESULTS (QUESTION)');
+
+  g9b.submitAnswer(eve.id, 0, 500);
+  g9b.endQuestion(1000); // -> RESULTS
+
+  assertThrows(() => g9b.insertMinigame('tipo_inesistente'), InvalidMinigameTypeError,
+    'insertMinigame: lancia InvalidMinigameTypeError per tipo sconosciuto');
+
+  const roundsBeforeInsert = g9b.rounds.length;
+  const insertResult = g9b.insertMinigame('morra_cinese', 2000);
+  assert(g9b.rounds.length === roundsBeforeInsert + 1, 'insertMinigame: aggiunge un round alla sequenza');
+  assert(insertResult.finished === false, 'insertMinigame: avanza subito sul round appena inserito');
+  assert(g9b.state === STATES.QUESTION, 'insertMinigame: la partita torna in stato QUESTION');
+
+  const insertedRound = g9b.getCurrentRound();
+  assert(
+    insertedRound.kind === 'minigame' && insertedRound.minigameType === 'morra_cinese',
+    'insertMinigame: il round corrente è il minigioco appena inserito'
+  );
+
+  g9b.submitAnswer(eve.id, 0, 500);
+  const insertedResults = g9b.endQuestion(1000);
+  assert(
+    ['win', 'draw', 'lose'].includes(insertedResults.answers.find((a) => a.playerId === eve.id).outcome),
+    'endQuestion: il minigioco ad-hoc assegna un esito valido'
+  );
+  const afterInsertedMinigame = g9b.nextQuestion(1000);
+  assert(afterInsertedMinigame.finished === false, 'nextQuestion: dopo il minigioco ad-hoc avanza alla domanda successiva pianificata');
+
+  g9b.submitAnswer(eve.id, 1, 500);
+  g9b.endQuestion(1000);
+  const finalAfterInsert = g9b.nextQuestion(1000);
+  assert(finalAfterInsert.finished === true, 'nextQuestion: la partita termina regolarmente dopo l\'inserimento ad-hoc');
+
+  // ─── Riepilogo ──────────────────────────────────────────────────────────────────
+
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log(`  Risultato: ${passed} passati, ${failed} falliti`);
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+  process.exit(failed > 0 ? 1 : 0);
+}
+
+run();

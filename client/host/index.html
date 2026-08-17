@@ -10,6 +10,7 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Quiz-Zata! Admin</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="/shared/minigames/minigames.css">
   <!-- Font Awesome Free 6.5.2 vendored (offline-first, licenza MIT/OFL/CC BY 4.0 nel banner del file) -->
   <script src="vendor/fontawesome-all.min.js"></script>
 </head>
@@ -359,6 +360,9 @@
                 <button id="game-next-btn" class="btn-game-control btn-game-secondary" disabled>
                   <span class="material-symbols-outlined">skip_next</span> Prossima Domanda
                 </button>
+                <button id="game-minigame-btn" class="btn-game-control btn-game-minigame" disabled title="Inserisci un minigioco non pianificato prima della prossima domanda">
+                  <span class="material-symbols-outlined">casino</span> Inserisci Minigioco
+                </button>
                 <button id="game-restart-btn" class="btn-game-control btn-game-tertiary" disabled>
                   <span class="material-symbols-outlined">replay</span> Riavvia Partita
                 </button>
@@ -376,6 +380,13 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="vendor/qrcode.js"></script>
+
+  <!-- Minigiochi: il registry, poi un modulo per gioco (si autoregistrano).
+       Aggiungere un minigioco = aggiungere una riga qui e in client/player/index.html.
+       Vedi client/shared/minigames/_TEMPLATE.js. -->
+  <script src="/shared/minigames/index.js"></script>
+  <script src="/shared/minigames/morra-cinese.js"></script>
+
   <script src="app.js"></script>
 </body>
 

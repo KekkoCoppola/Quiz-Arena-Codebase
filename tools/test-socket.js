@@ -59,17 +59,32 @@ const QUIZ_QUESTIONS = [
   { text: '2 + 2?',             options: ['3', '4', '5', '6'],                   correct_index: 1, time_limit_s: 2 },
 ];
 
+// Quiz con un minigioco "Morra Cinese" pianificato dopo la prima domanda
+// (Fase Minigiochi), usato per validare il trigger pianificato via socket.
+const QUIZ_WITH_MINIGAME_QUESTIONS = [
+  { text: 'Capitale della Francia?', options: ['Berlino', 'Parigi', 'Madrid', 'Roma'], correct_index: 1, time_limit_s: 2 },
+  { text: '3 + 3?',                  options: ['5', '6', '7', '8'],                    correct_index: 1, time_limit_s: 2 },
+];
+const QUIZ_WITH_MINIGAME_SLOTS = [{ afterQuestionIndex: 0, type: 'morra_cinese' }];
+
 const dbPath = path.join(os.tmpdir(), `quizzata-test-socket-${Date.now()}.sqlite`);
 
 function seedTempDb() {
   db.initDb(dbPath);
   const stmt = db.getDb().prepare(
-    'INSERT INTO preloaded_quizzes (title, category, questions) VALUES (?, ?, ?)'
+    'INSERT INTO preloaded_quizzes (title, category, questions, minigames) VALUES (?, ?, ?, ?)'
   );
-  const result = stmt.run('Quiz Test Socket', 'Test', JSON.stringify(QUIZ_QUESTIONS));
+  const result = stmt.run('Quiz Test Socket', 'Test', JSON.stringify(QUIZ_QUESTIONS), '[]');
   const quizId = Number(result.lastInsertRowid);
+
+  const resultMinigame = stmt.run(
+    'Quiz Test Socket — Minigioco pianificato', 'Test',
+    JSON.stringify(QUIZ_WITH_MINIGAME_QUESTIONS), JSON.stringify(QUIZ_WITH_MINIGAME_SLOTS)
+  );
+  const quizWithMinigameId = Number(resultMinigame.lastInsertRowid);
+
   db.closeDb();
-  return quizId;
+  return { quizId, quizWithMinigameId };
 }
 
 // ─── Avvio server figlio ─────────────────────────────────────────────────────────
@@ -100,7 +115,7 @@ async function run() {
   console.log('  🧪  Quiz-Zata! — Test Integrazione: game-socket.js');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
-  const quizId = seedTempDb();
+  const { quizId, quizWithMinigameId } = seedTempDb();
   const server = startServer();
   const sockets = [];
 
@@ -276,6 +291,79 @@ async function run() {
     // 7b. host:end-game per pulizia finale (nessun player connesso rimasto).
     const endGameAck = await emitAck(host, 'host:end-game', null);
     assert(endGameAck.ok === true, 'host:end-game accettato');
+
+    // 8. Minigiochi — trigger pianificato (quiz.minigames) e manuale (host:insert-minigame)
+    console.log('\n  🎲  Fase 8: Minigiochi');
+
+    const p3 = ioc(URL);
+    sockets.push(p3);
+    await once(p3, 'connect');
+
+    const createdMinigameQuiz = await emitAck(host, 'host:create-game', { quizId: quizWithMinigameId, quizType: 'preloaded' });
+    assert(createdMinigameQuiz.ok === true, 'host:create-game con quiz "minigioco pianificato" accettato');
+    await emitAck(p3, 'player:join', { nickname: 'Zoe' });
+
+    // insertMinigame è consentito solo da RESULTS: rifiutato mentre la partita è ancora in LOBBY.
+    const insertOutsideResults = await emitAck(host, 'host:insert-minigame', { type: 'morra_cinese' });
+    assert(insertOutsideResults.ok === false, 'host:insert-minigame rifiutato fuori da RESULTS (LOBBY)');
+
+    // 8a. Domanda 1 → il round pianificato subito dopo deve essere il minigioco.
+    const q8_1Promise = once(p3, 'game:question');
+    await emitAck(host, 'host:start-game', null);
+    const q8_1 = await q8_1Promise;
+    assert(q8_1.kind === 'question', 'game:question: round 0 è una domanda vera (kind)');
+
+    const r8_1Promise = once(host, 'game:results');
+    await emitAck(p3, 'player:answer', { optionIndex: 1 }); // unica connessa: chiusura anticipata
+    await r8_1Promise;
+
+    const q8_2Promise = once(p3, 'game:question');
+    await emitAck(host, 'host:next-question', null);
+    const q8_2 = await q8_2Promise;
+    assert(q8_2.kind === 'minigame' && q8_2.minigameType === 'morra_cinese',
+      'game:question: round pianificato riconosciuto come minigioco "morra_cinese"');
+    assert(q8_2.options.length === 3 && q8_2.correct_index === undefined,
+      'game:question: minigioco con 3 mosse e senza correct_index (suspense preservata)');
+
+    // 8b. Dal minigioco: l'ack del player NON rivela l'esito; il reveal (game:results)
+    // porta machineChoice. Poi l'host inserisce un secondo minigioco ad-hoc.
+    const r8_2Promise = once(host, 'game:results');
+    const minigameAnswerAck = await emitAck(p3, 'player:answer', { optionIndex: 2 }); // Forbice
+    assert(minigameAnswerAck.recorded === true && minigameAnswerAck.correct === undefined,
+      'player:answer: minigioco confermato senza rivelare l\'esito');
+    const r8_2 = await r8_2Promise;
+    assert(r8_2.kind === 'minigame', 'game:results: kind "minigame" propagato nel riepilogo');
+    assert(Number.isInteger(r8_2.machineChoice) && r8_2.machineChoice >= 0 && r8_2.machineChoice <= 2,
+      'game:results: machineChoice (mossa del PC) rivelato');
+    assert(['win', 'draw', 'lose'].includes(r8_2.answers[0].outcome),
+      'game:results: esito win/draw/lose assegnato al giocatore');
+
+    const q8_3Promise = once(p3, 'game:question');
+    const adHocAck = await emitAck(host, 'host:insert-minigame', { type: 'morra_cinese' });
+    assert(adHocAck.ok === true, 'host:insert-minigame accettato da RESULTS');
+    const q8_3 = await q8_3Promise;
+    assert(q8_3.kind === 'minigame' && q8_3.minigameType === 'morra_cinese',
+      'game:question: minigioco ad-hoc inserito manualmente riconosciuto');
+
+    // 8c. Dopo il minigioco ad-hoc, la partita torna alla domanda 2 originariamente pianificata.
+    const r8_3Promise = once(host, 'game:results');
+    await emitAck(p3, 'player:answer', { optionIndex: 0 });
+    await r8_3Promise;
+
+    const q8_4Promise = once(p3, 'game:question');
+    await emitAck(host, 'host:next-question', null);
+    const q8_4 = await q8_4Promise;
+    assert(q8_4.kind === 'question' && q8_4.text === QUIZ_WITH_MINIGAME_QUESTIONS[1].text,
+      'game:question: dopo il minigioco ad-hoc la partita riprende la domanda pianificata successiva');
+
+    const final8Promise = once(p3, 'game:final');
+    await emitAck(p3, 'player:answer', { optionIndex: 1 });
+    await once(host, 'game:results');
+    await emitAck(host, 'host:next-question', null);
+    const final8 = await final8Promise;
+    assert(final8.leaderboard.length === 1, 'game:final: partita "minigioco" conclusa correttamente');
+
+    await emitAck(host, 'host:end-game', null);
 
   } finally {
     for (const s of sockets) s.disconnect();

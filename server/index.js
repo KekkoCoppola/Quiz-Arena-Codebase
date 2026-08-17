@@ -61,6 +61,15 @@ app.use(
   express.static(path.join(__dirname, '../resources'))
 );
 
+// ─── Static: Codice client condiviso fra le due SPA ──────────────────────────
+// Oggi contiene i moduli di presentazione dei minigiochi, caricati sia dal
+// pannello host sia dal client giocatore. Separato da /resources perché è
+// codice, non asset. Va montato prima del fallback API/player, come /resources.
+app.use(
+  '/shared',
+  express.static(path.join(__dirname, '../client/shared'))
+);
+
 // ─── API Host ─────────────────────────────────────────────────────────────────
 app.use('/api/host', hostRouter);
 

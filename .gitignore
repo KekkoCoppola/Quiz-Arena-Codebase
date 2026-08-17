@@ -33,12 +33,8 @@ server/db/*.sqlite-journal
 server/db/*.sqlite-wal
 server/db/*.sqlite-shm
 
-# Script di smoke test temporanei (non committare)
-tools/test-db.js
-tools/test-game.js
-
 # Claude Code (config locale, non committare)
-.claude/
+# .impeccable/live/ è stato di esecuzione: rigenera un token di handshake a ogni
+# avvio del server di preview locale, che i secret scanner segnalano su ogni PR.
 .impeccable/
-CLAUDE.md
 .superpowers/

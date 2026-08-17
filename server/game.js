@@ -15,9 +15,26 @@
  * (setTimeout lato server + emit Socket.io) sarà collegato in Step 6.
  *
  * NON contiene logica di rete (→ Step 6: handler Socket.io in index.js).
+ *
+ * Fase Minigiochi: la sequenza di gioco non è più direttamente `quiz.questions`
+ * ma `this.rounds`, costruita una volta in costruttore da `buildRounds()`.
+ * Un round può essere una domanda vera (`kind: 'question'`, autorata dall'host)
+ * o un minigioco (`kind: 'minigame'`, generato a runtime dal registry in
+ * `server/minigames/` — stessa forma di una domanda, ma senza `correct_index`
+ * perché l'esito si decide alla chiusura). Questa uniformità di forma è ciò che
+ * permette a `submitAnswer`/`_computeScore`/`endQuestion` di restare identici
+ * per entrambi i tipi di round.
+ *
+ * Le REGOLE dei singoli minigiochi non stanno qui: ognuno è un modulo isolato in
+ * `server/minigames/<nome>.js`, caricato e validato dal registry. Questo file
+ * sa solo *orchestrare* un minigioco, non come funziona nessuno di essi.
  */
 
 const { randomUUID } = require('node:crypto');
+
+const minigames = require('./minigames');
+
+const { MINIGAME_TYPES, MINIGAME_TYPE_KEYS, RANDOM_TYPE } = minigames;
 
 // ─── Costanti di Punteggio ───────────────────────────────────────────────────────
 // Stile Kahoot: punteggio massimo per risposta istantanea, minimo per risposta
@@ -112,21 +129,98 @@ class NotEnoughPlayersError extends Error {
   }
 }
 
+class InvalidMinigameTypeError extends Error {
+  constructor(message = 'Tipo di minigioco non valido.') {
+    super(message);
+    this.name = 'InvalidMinigameTypeError';
+  }
+}
+
+// ─── Minigiochi ──────────────────────────────────────────────────────────────────
+// Le regole dei minigiochi vivono in `server/minigames/`, un modulo per gioco,
+// caricati e validati dal registry all'avvio. Qui resta solo l'orchestrazione.
+//
+// A differenza di una domanda, un minigioco NON ha una risposta corretta
+// prefissata: ha una meccanica propria che si risolve alla CHIUSURA del round
+// (`resolve()`), confrontando la scelta di ogni giocatore con uno stato della
+// macchina generato in quel momento (es. la mossa del PC a Morra Cinese).
+// Questo modello "gioca contro il PC + reveal" è ciò che distingue un minigioco
+// da una domanda camuffata. Il punteggio confluisce nella stessa classifica.
+//
+// Per aggiungere un minigioco si crea un file in `server/minigames/`: nulla in
+// questo file va toccato. Vedi `server/minigames/_TEMPLATE.js`.
+
+/**
+ * Traduce il tipo richiesto in un tipo concreto: il segnaposto `random` viene
+ * risolto estraendo dal sacchetto della sessione, così il round generato porta
+ * sempre un `minigameType` reale e i client non vedono mai `'random'`.
+ * @param {string} type chiave di MINIGAME_TYPES oppure RANDOM_TYPE
+ * @param {{ next: () => (string|null) }} bag sacchetto della sessione
+ * @returns {object | null} la definizione, o null se il tipo non è utilizzabile
+ */
+function resolveMinigameDef(type, bag) {
+  const concreteType = type === RANDOM_TYPE ? bag.next() : type;
+  return concreteType ? minigames.get(concreteType) : null;
+}
+
+/**
+ * Costruisce la sequenza di round di una partita: le domande del quiz, con gli
+ * eventuali minigiochi pianificati in editor (`quiz.minigames`) inseriti
+ * nella posizione richiesta. Lo splice avviene dal fondo verso l'inizio così
+ * gli indici `afterQuestionIndex` restano validi durante l'inserimento.
+ *
+ * ⚠ Gli slot vengono ordinati per posizione decrescente prima dello splice, ma
+ * l'estrazione casuale segue quell'ordine: irrilevante per l'esito (il
+ * sacchetto è comunque casuale), ma è il motivo per cui due partite con gli
+ * stessi slot `random` non producono la stessa sequenza.
+ *
+ * @param {object} quiz
+ * @param {{ next: () => (string|null) }} bag sacchetto per gli slot `random`
+ * @returns {Array<object>} rounds
+ */
+function buildRounds(quiz, bag) {
+  const rounds = quiz.questions.map((q) => ({ kind: 'question', ...q }));
+
+  const slots = Array.isArray(quiz.minigames) ? quiz.minigames : [];
+  const sortedSlots = slots.slice().sort((a, b) => b.afterQuestionIndex - a.afterQuestionIndex);
+  for (const slot of sortedSlots) {
+    const def = resolveMinigameDef(slot.type, bag);
+    if (!def) continue; // tipo sconosciuto: validato a monte in routes, qui difesa in profondità
+    rounds.splice(slot.afterQuestionIndex + 1, 0, def.build());
+  }
+
+  return rounds;
+}
+
 // ─── GameSession ─────────────────────────────────────────────────────────────────
 
 class GameSession {
   /**
    * @param {{ title?: string, questions: Array<{ text: string, options: string[], correct_index: number, time_limit_s: number }> }} quiz
+   * @param {{ rnd?: () => number }} [options] `rnd` è il generatore casuale usato
+   *   dai minigiochi (estrazione del tipo e stato macchina). Iniettabile per i
+   *   test, stessa filosofia del parametro `now`: in produzione resta Math.random.
    */
-  constructor(quiz) {
+  constructor(quiz, options = {}) {
     if (!quiz || !Array.isArray(quiz.questions) || quiz.questions.length === 0) {
       throw new EmptyQuizError();
     }
 
+    this._rnd = options.rnd ?? Math.random;
+
+    /**
+     * Sacchetto di estrazione dei minigiochi, condiviso fra gli slot `random`
+     * pianificati in editor e gli inserimenti ad-hoc dell'host: è per-sessione,
+     * quindi la varietà è garantita all'interno di una singola partita e
+     * ricomincia da capo a ogni nuova GameSession (incluso il riavvio).
+     */
+    this._minigameBag = minigames.createShuffleBag(MINIGAME_TYPE_KEYS, this._rnd);
+
     this.quiz = quiz;
+    this.rounds = buildRounds(quiz, this._minigameBag);
     this.state = STATES.LOBBY;
-    this.currentQuestionIndex = -1;
-    this.questionStartedAt = null;
+    this.currentRoundIndex = -1;
+    this.roundStartedAt = null;
 
     /** @type {Map<string, { id: string, nickname: string, avatar: string, score: number, connected: boolean }>} */
     this.players = new Map();
@@ -156,8 +250,8 @@ class GameSession {
     return player;
   }
 
-  get currentQuestion() {
-    return this.quiz.questions[this.currentQuestionIndex] ?? null;
+  get currentRound() {
+    return this.rounds[this.currentRoundIndex] ?? null;
   }
 
   // ─── Lobby ──────────────────────────────────────────────────────────────────────
@@ -235,39 +329,48 @@ class GameSession {
       throw new NotEnoughPlayersError();
     }
 
-    this.currentQuestionIndex = 0;
-    this._enterQuestion(now);
+    this.currentRoundIndex = 0;
+    this._enterRound(now);
   }
 
-  _enterQuestion(now) {
+  _enterRound(now) {
     this.state = STATES.QUESTION;
-    this.questionStartedAt = now;
+    this.roundStartedAt = now;
     this.currentAnswers = new Map();
   }
 
   /**
-   * Restituisce la domanda corrente sanitizzata (senza `correct_index`),
-   * sicura da inviare ai client giocatore mentre il round è aperto.
+   * Restituisce il round corrente sanitizzato (senza `correct_index`),
+   * sicuro da inviare ai client giocatore mentre il round è aperto.
+   * `kind`/`minigameType` permettono ai client di distinguere una domanda
+   * vera da un round minigioco e mostrare una schermata diversa.
    */
-  getCurrentQuestion() {
-    this._assertState(STATES.QUESTION, 'getCurrentQuestion');
-    const q = this.currentQuestion;
+  getCurrentRound() {
+    this._assertState(STATES.QUESTION, 'getCurrentRound');
+    const r = this.currentRound;
     return {
-      index: this.currentQuestionIndex,
-      total: this.quiz.questions.length,
-      text: q.text,
-      options: q.options,
-      time_limit_s: q.time_limit_s,
+      index: this.currentRoundIndex,
+      total: this.rounds.length,
+      text: r.text,
+      options: r.options,
+      time_limit_s: r.time_limit_s,
+      kind: r.kind,
+      minigameType: r.minigameType ?? null,
     };
   }
 
   /**
    * Registra la risposta di un giocatore. Consentito solo in stato QUESTION,
-   * una sola risposta per giocatore per domanda.
+   * una sola risposta per giocatore per round (domanda o minigioco).
+   *
+   * Domanda: l'esito (correct/punti) è noto subito e viene calcolato qui.
+   * Minigioco: l'esito dipende dallo stato macchina che esiste solo alla
+   * chiusura, quindi qui si registra solo la scelta — nessun esito rivelato,
+   * così la suspense del reveal resta intatta.
    * @param {string} playerId
    * @param {number} optionIndex
    * @param {number} [now]
-   * @returns {{ correct: boolean, pointsAwarded: number }}
+   * @returns {{ correct: boolean, pointsAwarded: number } | { recorded: true }}
    */
   submitAnswer(playerId, optionIndex, now = Date.now()) {
     this._assertState(STATES.QUESTION, 'submitAnswer');
@@ -277,17 +380,30 @@ class GameSession {
       throw new AlreadyAnsweredError();
     }
 
-    const q = this.currentQuestion;
-    if (!Number.isInteger(optionIndex) || optionIndex < 0 || optionIndex >= q.options.length) {
+    const round = this.currentRound;
+    if (!Number.isInteger(optionIndex) || optionIndex < 0 || optionIndex >= round.options.length) {
       throw new InvalidAnswerIndexError();
     }
 
-    const correct = optionIndex === q.correct_index;
-    const pointsAwarded = correct ? this._computeScore(q, now) : 0;
+    if (round.kind === 'minigame') {
+      // Esito e punti differiti a endQuestion (resolve dello stato macchina).
+      this.currentAnswers.set(playerId, {
+        optionIndex,
+        correct: null,
+        outcome: null,
+        pointsAwarded: 0,
+        answeredAt: now,
+      });
+      return { recorded: true };
+    }
+
+    const correct = optionIndex === round.correct_index;
+    const pointsAwarded = correct ? this._computeScore(round, now) : 0;
 
     this.currentAnswers.set(playerId, {
       optionIndex,
       correct,
+      outcome: null,
       pointsAwarded,
       answeredAt: now,
     });
@@ -301,7 +417,7 @@ class GameSession {
    */
   _computeScore(question, now) {
     const timeLimitMs = question.time_limit_s * 1000;
-    const elapsedMs = now - this.questionStartedAt;
+    const elapsedMs = now - this.roundStartedAt;
     const ratio = Math.max(0, Math.min(1, 1 - elapsedMs / timeLimitMs));
     if (ratio === 0) return 0; // tempo scaduto
     return Math.round(POINTS_MIN + (POINTS_MAX - POINTS_MIN) * ratio);
@@ -310,16 +426,33 @@ class GameSession {
   // ─── Results ────────────────────────────────────────────────────────────────────
 
   /**
-   * Chiude la domanda corrente: QUESTION -> RESULTS.
-   * Assegna 0 punti ai giocatori che non hanno risposto, aggiorna i punteggi
-   * totali e restituisce un riepilogo con distribuzione risposte e classifica.
+   * Chiude il round corrente: QUESTION -> RESULTS.
+   * Per un minigioco, prima risolve lo stato macchina (es. la mossa del PC) e
+   * assegna a ogni scelta l'esito (vittoria/pareggio/sconfitta) con i relativi
+   * punti; per una domanda i punti sono già stati calcolati in submitAnswer.
+   * In entrambi i casi i punti confluiscono nella stessa classifica.
+   * Il riepilogo restituito espone `correctIndex` (domanda) oppure `machineChoice`
+   * (minigioco); l'altro campo è `null`.
    * @param {number} [now]
    */
   endQuestion(now = Date.now()) {
     this._assertState(STATES.QUESTION, 'endQuestion');
 
-    const q = this.currentQuestion;
-    const distribution = new Array(q.options.length).fill(0);
+    const round = this.currentRound;
+    const distribution = new Array(round.options.length).fill(0);
+
+    // Risoluzione minigioco: estrai lo stato macchina e assegna esito + punti a
+    // ogni risposta PRIMA del loop di somma dei punteggi.
+    let machineChoice = null;
+    if (round.kind === 'minigame') {
+      const def = minigames.get(round.minigameType);
+      const resolution = def.resolve(this._rnd);
+      machineChoice = resolution.machineChoice;
+      for (const answer of this.currentAnswers.values()) {
+        answer.outcome = resolution.outcomeFor(answer.optionIndex);
+        answer.pointsAwarded = def.points[answer.outcome];
+      }
+    }
 
     for (const player of this.players.values()) {
       const answer = this.currentAnswers.get(player.id);
@@ -333,14 +466,18 @@ class GameSession {
     this.state = STATES.RESULTS;
 
     return {
-      questionIndex: this.currentQuestionIndex,
-      correctIndex: q.correct_index,
+      questionIndex: this.currentRoundIndex,
+      kind: round.kind,
+      minigameType: round.minigameType ?? null,
+      correctIndex: round.kind === 'minigame' ? null : round.correct_index,
+      machineChoice,
       distribution,
       answers: Array.from(this.currentAnswers.entries()).map(([playerId, a]) => ({
         playerId,
         nickname: this.players.get(playerId)?.nickname ?? null,
         optionIndex: a.optionIndex,
         correct: a.correct,
+        outcome: a.outcome,
         pointsAwarded: a.pointsAwarded,
       })),
       leaderboard: this.getLeaderboard(),
@@ -348,23 +485,44 @@ class GameSession {
   }
 
   /**
-   * Avanza alla domanda successiva (RESULTS -> QUESTION) oppure, se era
-   * l'ultima domanda, chiude la partita (RESULTS -> FINAL_LEADERBOARD).
+   * Avanza al round successivo (RESULTS -> QUESTION) oppure, se era
+   * l'ultimo round, chiude la partita (RESULTS -> FINAL_LEADERBOARD).
    * @param {number} [now]
    */
   nextQuestion(now = Date.now()) {
     this._assertState(STATES.RESULTS, 'nextQuestion');
 
-    const isLastQuestion = this.currentQuestionIndex >= this.quiz.questions.length - 1;
-    if (isLastQuestion) {
+    const isLastRound = this.currentRoundIndex >= this.rounds.length - 1;
+    if (isLastRound) {
       this.state = STATES.FINAL_LEADERBOARD;
-      this.questionStartedAt = null;
+      this.roundStartedAt = null;
       return { finished: true, leaderboard: this.getLeaderboard() };
     }
 
-    this.currentQuestionIndex++;
-    this._enterQuestion(now);
+    this.currentRoundIndex++;
+    this._enterRound(now);
     return { finished: false };
+  }
+
+  /**
+   * Inserisce un round minigioco subito dopo quello corrente e avanza subito
+   * su di esso. Consentito solo da RESULTS (mai a metà di un round attivo),
+   * sia per l'inserimento pianificato in editor (già presente in `this.rounds`
+   * dalla costruzione) sia per l'inserimento manuale dell'host a partita in
+   * corso (questo metodo).
+   * @param {string} type - chiave di MINIGAME_TYPES, oppure `'random'` per
+   *   lasciar estrarre al sacchetto della sessione
+   * @param {number} [now]
+   * @returns {{ finished: boolean }} stesso shape di ritorno di nextQuestion()
+   */
+  insertMinigame(type, now = Date.now()) {
+    this._assertState(STATES.RESULTS, 'insertMinigame');
+    const def = resolveMinigameDef(type, this._minigameBag);
+    if (!def) {
+      throw new InvalidMinigameTypeError();
+    }
+    this.rounds.splice(this.currentRoundIndex + 1, 0, def.build());
+    return this.nextQuestion(now);
   }
 
   // ─── Leaderboard ────────────────────────────────────────────────────────────────
@@ -386,8 +544,8 @@ class GameSession {
   getSnapshot() {
     return {
       state: this.state,
-      currentQuestionIndex: this.currentQuestionIndex,
-      totalQuestions: this.quiz.questions.length,
+      currentQuestionIndex: this.currentRoundIndex,
+      totalQuestions: this.rounds.length,
       players: this.getPlayers(),
     };
   }
@@ -402,6 +560,11 @@ module.exports = {
   POINTS_MIN,
   MAX_NICKNAME_LENGTH,
   AVATAR_IDS,
+  // Riesportati dal registry (`server/minigames/`) per comodità dei consumer
+  // storici — routes/host.js e i test importavano già questi nomi da qui.
+  MINIGAME_TYPES,
+  MINIGAME_TYPE_KEYS,
+  RANDOM_TYPE,
   InvalidStateError,
   DuplicateNicknameError,
   PlayerNotFoundError,
@@ -411,4 +574,5 @@ module.exports = {
   InvalidAvatarError,
   EmptyQuizError,
   NotEnoughPlayersError,
+  InvalidMinigameTypeError,
 };

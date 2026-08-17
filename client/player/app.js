@@ -8,7 +8,7 @@
  * feedback con posizione, podio finale, riavvio, riconnessione con token.
  */
 
-/* global io */
+/* global io, Minigames */
 
 // Mappa avatar: id stabile → emoji TEMPORANEA (futuri SVG: cambiare solo qui).
 const AVATARS = {
@@ -25,6 +25,14 @@ const socket = io();
 let playerId = null;
 let selectedAvatar = null;
 let countdownInterval = null;
+// Round corrente, per il reveal del feedback (il payload game:results non
+// ripete le opzioni): tipo di round + opzioni mostrate.
+let currentRoundKind = 'question';
+let currentRoundOptions = [];
+// Presentazione del minigioco in corso, dal registry condiviso
+// (/shared/minigames/). Null durante una domanda normale. Questo file non sa
+// quali minigiochi esistano: chiede al registry e delega.
+let currentMinigame = null;
 
 // ─── Riferimenti DOM ─────────────────────────────────────────────────────────
 
@@ -195,23 +203,47 @@ nicknameInput.addEventListener('keydown', (e) => {
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
 function renderQuestion(q, alreadyAnswered = false) {
-  questionProgress.textContent = `${q.index + 1}/${q.total}`;
+  const isMinigame = q.kind === 'minigame';
+  currentRoundKind = q.kind;
+  currentRoundOptions = q.options;
+
+  // La classe di layout del minigioco precedente va rimossa prima di applicare
+  // quella nuova: due minigiochi possono chiedere disposizioni diverse.
+  if (currentMinigame?.playerLayoutClass) {
+    answerButtons.classList.remove(currentMinigame.playerLayoutClass);
+  }
+  currentMinigame = isMinigame ? Minigames.get(q.minigameType) : null;
+
+  screens.question.classList.toggle('is-minigame', isMinigame);
+  questionProgress.textContent = isMinigame ? currentMinigame.playerBadge : `${q.index + 1}/${q.total}`;
+  questionProgress.classList.toggle('badge-yellow', !isMinigame);
+  questionProgress.classList.toggle('badge-ochre', isMinigame);
   questionText.textContent = q.text;
   answerSent.hidden = !alreadyAnswered;
   answerButtons.classList.toggle('answer-locked', alreadyAnswered);
+  if (currentMinigame?.playerLayoutClass) {
+    answerButtons.classList.add(currentMinigame.playerLayoutClass);
+  }
   answerButtons.innerHTML = '';
 
   q.options.forEach((option, i) => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'answer-btn';
-    const letter = document.createElement('span');
-    letter.className = 'letter';
-    letter.textContent = LETTERS[i] ?? String(i + 1);
-    const label = document.createElement('span');
-    label.textContent = option;
-    btn.append(letter, label);
     btn.addEventListener('click', () => submitAnswer(i, btn));
+
+    if (isMinigame) {
+      // Il minigioco decide che aspetto ha la sua scelta (icona, forma, testo).
+      currentMinigame.player.renderChoice(btn, i, option);
+    } else {
+      btn.className = 'answer-btn';
+      const letter = document.createElement('span');
+      letter.className = 'letter';
+      letter.textContent = LETTERS[i] ?? String(i + 1);
+      const label = document.createElement('span');
+      label.textContent = option;
+      btn.append(letter, label);
+    }
+
     answerButtons.appendChild(btn);
   });
 
@@ -236,9 +268,29 @@ function submitAnswer(optionIndex, btn) {
 
 function ordinale(n) { return `${n}°`; }
 
-function renderFeedback({ mine, leaderboard }) {
+/**
+ * @param {object} p
+ * @param {object|null} p.mine la mia risposta, null se non ho risposto in tempo
+ * @param {Array} p.leaderboard classifica dal payload game:results
+ * @param {string} [p.kind] 'question' | 'minigame'
+ * @param {object|null} [p.results] payload game:results completo, passato tale
+ *   e quale al minigioco: è lui a sapere quali campi gli servono
+ */
+function renderFeedback({ mine, leaderboard, kind = 'question', results = null }) {
   feedbackSticker.classList.remove('is-correct', 'is-wrong', 'is-neutral');
-  if (!mine) {
+
+  if (kind === 'minigame') {
+    // Il minigioco disegna il proprio esito: sa lui cosa significa "vinto" e
+    // come mostrarlo. Qui si passano solo gli elementi su cui può scrivere.
+    // Se il round è arrivato senza che sia passato da renderQuestion (es. un
+    // rientro a metà partita), si ricade sulla presentazione generica.
+    const presentation = currentMinigame ?? Minigames.get(results?.minigameType);
+    presentation.player.reveal(
+      { sticker: feedbackSticker, text: feedbackText, points: feedbackPoints },
+      mine,
+      results ?? {}
+    );
+  } else if (!mine) {
     feedbackSticker.classList.add('is-neutral');
     feedbackText.textContent = 'Tempo scaduto!';
     feedbackPoints.textContent = '+0 punti';
@@ -330,7 +382,12 @@ socket.on('game:results', (results) => {
   if (!playerId) return;
   stopCountdown();
   const mine = results.answers.find((a) => a.playerId === playerId) ?? null;
-  renderFeedback({ mine, leaderboard: results.leaderboard });
+  renderFeedback({
+    mine,
+    leaderboard: results.leaderboard,
+    kind: results.kind,
+    results,
+  });
 });
 
 socket.on('game:final', ({ leaderboard }) => {

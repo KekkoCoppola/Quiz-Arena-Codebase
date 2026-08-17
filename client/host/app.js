@@ -35,10 +35,22 @@ const state = {
   preloaded:     [],     // quiz di sistema
   currentQuiz:   null,   // quiz aperto in game view
   editingId:     null,   // id del quiz in modifica (null = nuovo)
-  questions:     [],     // domande nell'editor
+  // Domande nell'editor. Ogni domanda può avere `_minigameAfter: string|null`,
+  // campo client-only (non fa parte dello schema quiz) che marca "inserisci un
+  // minigioco di questo tipo subito dopo questa domanda": viaggia con l'oggetto
+  // durante drag&drop/rimozione, quindi non serve ricalcolare indici a mano.
+  // In saveQuiz() viene derivato l'array `minigames` e rimosso dal payload questions.
+  questions:     [],
   dragSrcIndex:  null,   // indice item draggato
   editorSnapshot: null,  // JSON di titolo+domande all'apertura editor, per rilevare modifiche non salvate
+  // Catalogo minigiochi [{ type, label, description }], caricato da
+  // GET /minigames — generato dal registry server. L'editor non elenca mai i
+  // tipi a mano: un minigioco nuovo compare qui da solo.
+  minigames:     [],
 };
+
+/** Voce sempre presente nel menù minigioco dell'editor. */
+const MINIGAME_NONE = '';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    2. TOAST SYSTEM
@@ -549,9 +561,26 @@ const TIME_OPTIONS  = [5, 10, 15, 20, 25, 30, 45, 60, 90, 120];
  * Apre la vista editor.
  * @param {number|null} quizId — null per nuovo quiz
  */
+/**
+ * Carica una volta sola il catalogo dei minigiochi disponibili.
+ * Se la chiamata fallisce l'editor resta usabile: il menù mostrerà solo
+ * "Nessuno" più i tipi già presenti nel quiz, che vengono comunque conservati.
+ */
+async function loadMinigameCatalog() {
+  if (state.minigames.length > 0) return;
+  try {
+    const res = await apiGet('/minigames');
+    if (res.success) state.minigames = res.data.minigames;
+  } catch {
+    // Silenzioso: non è un errore che debba bloccare la modifica di un quiz.
+  }
+}
+
 async function openEditor(quizId) {
   state.editingId = quizId;
   state.questions = [];
+
+  await loadMinigameCatalog();
 
   if (quizId !== null) {
     // Carica quiz esistente
@@ -564,6 +593,12 @@ async function openEditor(quizId) {
       const quiz = res.data.quiz;
       quizTitleInput.value = quiz.title;
       state.questions      = quiz.questions.map((q) => ({ ...q }));
+      // Riporta gli slot minigioco pianificati (server) sulla domanda che li precede.
+      for (const slot of quiz.minigames ?? []) {
+        if (state.questions[slot.afterQuestionIndex]) {
+          state.questions[slot.afterQuestionIndex]._minigameAfter = slot.type;
+        }
+      }
       editorTitle.textContent = 'Modifica Quiz';
     } catch {
       showToast('Errore di rete. Riprova.', 'error');
@@ -591,10 +626,11 @@ function hasUnsavedEditorChanges() {
 
 function createEmptyQuestion() {
   return {
-    text:          '',
-    options:       ['', '', '', ''],
-    correct_index: 0,
-    time_limit_s:  20,
+    text:            '',
+    options:         ['', '', '', ''],
+    correct_index:   0,
+    time_limit_s:    20,
+    _minigameAfter:  null,
   };
 }
 
@@ -622,6 +658,37 @@ function renderQuestionList() {
 /**
  * Costruisce il DOM di una singola domanda nell'editor.
  */
+/**
+ * `<option>` del menù minigioco di una domanda, costruiti dal catalogo del
+ * registry: questo file non nomina mai un minigioco specifico.
+ *
+ * Se il quiz contiene un tipo assente dal catalogo (catalogo non caricato, o
+ * minigioco rimosso da una versione futura) viene aggiunta una voce apposita:
+ * salvare il quiz non deve mai cancellare in silenzio una scelta dell'host.
+ *
+ * @param {string|null} selected tipo attualmente impostato sulla domanda
+ */
+function minigameOptionsHtml(selected) {
+  const current = selected ?? MINIGAME_NONE;
+  const known = state.minigames.some((m) => m.type === current);
+
+  const entries = [
+    { type: MINIGAME_NONE, label: 'Nessuno' },
+    ...state.minigames,
+    ...(current !== MINIGAME_NONE && !known
+      ? [{ type: current, label: `${current} (non disponibile)` }]
+      : []),
+  ];
+
+  return entries
+    .map((m) => {
+      const isSelected = m.type === current ? ' selected' : '';
+      const title = m.description ? ` title="${escapeHtml(m.description)}"` : '';
+      return `<option value="${escapeHtml(m.type)}"${isSelected}${title}>${escapeHtml(m.label)}</option>`;
+    })
+    .join('');
+}
+
 function buildQuestionItem(q, idx) {
   const item = document.createElement('div');
   item.className = 'question-item';
@@ -701,6 +768,16 @@ function buildQuestionItem(q, idx) {
           aria-label="Tempo limite domanda ${idx + 1}"
         >${timeOpts}</select>
       </div>
+      <div class="minigame-toggle-row${q._minigameAfter ? ' is-active' : ''}">
+        <span class="material-symbols-outlined" aria-hidden="true">casino</span>
+        <label for="q-minigame-${idx}">Minigioco dopo questa domanda:</label>
+        <select
+          id="q-minigame-${idx}"
+          class="form-select"
+          data-role="q-minigame-after"
+          data-q="${idx}"
+        >${minigameOptionsHtml(q._minigameAfter)}</select>
+      </div>
     </div>
   `;
 
@@ -748,6 +825,16 @@ function attachQuestionEvents(item, idx) {
   const timeSelect = item.querySelector('[data-role="q-time"]');
   timeSelect.addEventListener('change', () => {
     state.questions[idx].time_limit_s = parseInt(timeSelect.value, 10);
+  });
+
+  // Minigioco pianificato dopo questa domanda. Il valore è una chiave del
+  // registry (o `random`); stringa vuota = nessun minigioco.
+  const minigameSelect = item.querySelector('[data-role="q-minigame-after"]');
+  minigameSelect.addEventListener('change', () => {
+    const value = minigameSelect.value;
+    state.questions[idx]._minigameAfter = value === MINIGAME_NONE ? null : value;
+    minigameSelect.closest('.minigame-toggle-row')
+      .classList.toggle('is-active', value !== MINIGAME_NONE);
   });
 
   // Rimuovi domanda
@@ -859,9 +946,17 @@ async function saveQuiz() {
     }
   }
 
+  // Deriva gli slot minigioco pianificati dal flag client-only `_minigameAfter`
+  // e ripulisce le domande prima di inviarle (non fa parte dello schema quiz).
+  const minigames = [];
+  const questionsPayload = questions.map(({ _minigameAfter, ...rest }, idx) => {
+    if (_minigameAfter) minigames.push({ afterQuestionIndex: idx, type: _minigameAfter });
+    return rest;
+  });
+
   setSaveLoading(true);
   try {
-    const body = { title, questions };
+    const body = { title, questions: questionsPayload, minigames };
     const res  = state.editingId !== null
       ? await apiPut(`/quizzes/${state.editingId}`, body)
       : await apiPost('/quizzes', body);
@@ -928,13 +1023,34 @@ const gameQr                 = document.getElementById('game-qr');
 const gamePartialLeaderboard = document.getElementById('game-partial-leaderboard');
 const gameFinalPodium        = document.getElementById('game-final-podium');
 
-const gameStartBtn   = document.getElementById('game-start-btn');
-const gameNextBtn    = document.getElementById('game-next-btn');
-const gameRestartBtn = document.getElementById('game-restart-btn');
+const gameStartBtn    = document.getElementById('game-start-btn');
+const gameNextBtn     = document.getElementById('game-next-btn');
+const gameMinigameBtn = document.getElementById('game-minigame-btn');
+const gameRestartBtn  = document.getElementById('game-restart-btn');
 
 let gameSocket = null;
 let gameCountdownInterval = null;
 let currentQuestionOptions = [];
+
+/* global Minigames */
+
+// Presentazione del minigioco del round corrente, ottenuta dal registry
+// condiviso (/shared/minigames/). Questo file non sa quali minigiochi esistano
+// né come si disegnano: chiede al registry e delega.
+// `Minigames.get()` non restituisce mai null — un tipo sconosciuto ottiene una
+// presentazione generica, così un round anomalo degrada invece di rompersi.
+let currentMinigame = null;
+
+/** Elementi che la presentazione host può disegnare durante un round minigioco. */
+const minigameEls = () => ({
+  questionText:  gameQuestionText,
+  correctAnswer: gameCorrectAnswer,
+});
+
+/** Ferma un'eventuale animazione di attesa. Idempotente, sicura da chiamare sempre. */
+function stopMinigameSuspense() {
+  currentMinigame?.host.stopSuspense();
+}
 
 // Mappa avatar: id stabile → emoji TEMPORANEA (identica al client player).
 const GAME_AVATARS = {
@@ -1034,9 +1150,26 @@ function connectGameSocket(quiz, type) {
 
   gameSocket.on('game:question', (q) => {
     currentQuestionOptions = q.options;
-    gameStatusText.textContent = `Domanda ${q.index + 1} di ${q.total} in corso…`;
-    gameQuestionText.textContent = q.text;
-    // Opzioni a solo scopo visualizzativo: l'host non risponde.
+    stopMinigameSuspense();
+    const isMinigame = q.kind === 'minigame';
+    // Il round minigioco porta con sé la propria presentazione; una domanda no.
+    currentMinigame = isMinigame ? Minigames.get(q.minigameType) : null;
+
+    gameQuestionBox.classList.toggle('is-minigame', isMinigame);
+    gameStatusText.textContent = isMinigame
+      ? currentMinigame.hostStatusText
+      : `Domanda ${q.index + 1} di ${q.total} in corso…`;
+
+    // Minigioco: il titolo è affidato alla sua animazione di attesa; la domanda
+    // vera mostra semplicemente il proprio testo.
+    if (isMinigame) {
+      currentMinigame.host.startSuspense(minigameEls(), q);
+    } else {
+      gameQuestionText.textContent = q.text;
+    }
+
+    // Opzioni a solo scopo visualizzativo: l'host non risponde. Il minigioco può
+    // sostituire la lettera A/B/C con una propria icona.
     gameOptionsList.innerHTML = '';
     const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
     q.options.forEach((option, i) => {
@@ -1044,7 +1177,12 @@ function connectGameSocket(quiz, type) {
       li.className = 'game-option-card';
       const letter = document.createElement('span');
       letter.className = 'game-option-letter';
-      letter.textContent = LETTERS[i] ?? String(i + 1);
+      const icon = currentMinigame?.optionIcon(i);
+      if (icon) {
+        letter.appendChild(icon);
+      } else {
+        letter.textContent = LETTERS[i] ?? String(i + 1);
+      }
       const label = document.createElement('span');
       label.textContent = option;
       li.append(letter, label);
@@ -1055,6 +1193,7 @@ function connectGameSocket(quiz, type) {
     showGameBox(gameQuestionBox);
     gameStartBtn.disabled = true;
     gameNextBtn.disabled = true;
+    gameMinigameBtn.disabled = true;
     gameRestartBtn.disabled = true;
   });
 
@@ -1064,19 +1203,41 @@ function connectGameSocket(quiz, type) {
 
   gameSocket.on('game:results', (results) => {
     stopGameCountdown();
+    stopMinigameSuspense();
+    const isMinigame = results.kind === 'minigame';
     gameStatusText.textContent = 'Round chiuso: risultati sul tabellone.';
-    gameCorrectAnswer.textContent =
-      `Risposta corretta: ${currentQuestionOptions[results.correctIndex] ?? '—'}`;
+
+    // Reveal: la domanda mostra la risposta corretta; il minigioco disegna il
+    // proprio (ferma l'attesa e rivela lo stato della macchina). La riga da
+    // evidenziare nella distribuzione la decide il minigioco stesso, perché non
+    // tutti hanno una nozione di "riga corretta".
+    const machineIndex = isMinigame
+      ? currentMinigame.highlightIndex(results)
+      : results.correctIndex;
+
+    if (isMinigame) {
+      currentMinigame.host.reveal(minigameEls(), results, currentQuestionOptions);
+    } else {
+      gameCorrectAnswer.textContent =
+        `Risposta corretta: ${currentQuestionOptions[results.correctIndex] ?? '—'}`;
+    }
 
     const totalAnswers = results.distribution.reduce((a, b) => a + b, 0);
     gameDistribution.innerHTML = '';
     results.distribution.forEach((n, i) => {
       const li = document.createElement('li');
-      li.className = 'game-dist-row' + (i === results.correctIndex ? ' is-correct' : '');
+      // Domanda: evidenzia la riga corretta. Minigioco: evidenzia la mossa del PC.
+      li.className = 'game-dist-row' + (i === machineIndex ? ' is-correct' : '');
       const pct = totalAnswers > 0 ? Math.round((n / totalAnswers) * 100) : 0;
       const label = document.createElement('span');
       label.className = 'game-dist-label';
-      label.textContent = currentQuestionOptions[i] ?? `Opzione ${i + 1}`;
+      const optionLabel = currentQuestionOptions[i] ?? `Opzione ${i + 1}`;
+      const distIcon = currentMinigame?.optionIcon(i);
+      if (distIcon) {
+        label.append(distIcon, document.createTextNode(` ${optionLabel}`));
+      } else {
+        label.textContent = optionLabel;
+      }
       const track = document.createElement('div');
       track.className = 'game-dist-track';
       const bar = document.createElement('div');
@@ -1085,7 +1246,7 @@ function connectGameSocket(quiz, type) {
       track.appendChild(bar);
       const count = document.createElement('span');
       count.className = 'game-dist-count';
-      count.textContent = i === results.correctIndex ? `✔ ${n}` : String(n);
+      count.textContent = i === machineIndex ? `✔ ${n}` : String(n);
       li.append(label, track, count);
       gameDistribution.appendChild(li);
     });
@@ -1099,10 +1260,12 @@ function connectGameSocket(quiz, type) {
 
     showGameBox(gameResultsBox);
     gameNextBtn.disabled = false;
+    gameMinigameBtn.disabled = false;
   });
 
   gameSocket.on('game:final', ({ leaderboard }) => {
     stopGameCountdown();
+    stopMinigameSuspense();
     gameStatusText.textContent = 'Partita conclusa!';
     gameFinalPodium.innerHTML = '';
     const MEDALS = ['🥇', '🥈', '🥉'];
@@ -1133,6 +1296,7 @@ function connectGameSocket(quiz, type) {
     }
     showGameBox(gameFinalBox);
     gameNextBtn.disabled = true;
+    gameMinigameBtn.disabled = true;
     gameRestartBtn.disabled = false;
   });
 
@@ -1144,6 +1308,7 @@ function connectGameSocket(quiz, type) {
 
 function disconnectGameSocket() {
   stopGameCountdown();
+  stopMinigameSuspense();
   if (gameSocket) {
     gameSocket.disconnect();
     gameSocket = null;
@@ -1190,6 +1355,15 @@ gameStartBtn.addEventListener('click', () => {
 
 gameNextBtn.addEventListener('click', () => {
   gameSocket?.emit('host:next-question', null, (res) => {
+    if (!res.ok) showToast(res.error, 'error');
+  });
+});
+
+// Minigioco ad-hoc durante la partita: l'host non sceglie il tipo, lo estrae il
+// server dal sacchetto della sessione. Un bottone solo, nessun menù da navigare
+// davanti a una sala che aspetta.
+gameMinigameBtn.addEventListener('click', () => {
+  gameSocket?.emit('host:insert-minigame', { type: 'random' }, (res) => {
     if (!res.ok) showToast(res.error, 'error');
   });
 });

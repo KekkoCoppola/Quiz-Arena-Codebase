@@ -21,6 +21,9 @@ const PRELOADED_QUIZZES = [
   {
     title: '🐾 Il mondo degli animali',
     category: 'Natura',
+    // Minigioco pianificato di esempio (Fase Minigiochi): dopo la prima
+    // domanda (indice 0) si inserisce un round "Morra Cinese".
+    minigames: [{ afterQuestionIndex: 0, type: 'morra_cinese' }],
     questions: [
       {
         text: 'Quale animale fa "miao"?',
@@ -230,7 +233,7 @@ function main() {
 
   const checkStmt  = database.prepare('SELECT id FROM preloaded_quizzes WHERE title = ?');
   const insertStmt = database.prepare(
-    'INSERT INTO preloaded_quizzes (title, category, questions) VALUES (?, ?, ?)'
+    'INSERT INTO preloaded_quizzes (title, category, questions, minigames) VALUES (?, ?, ?, ?)'
   );
 
   let inserted = 0;
@@ -244,7 +247,7 @@ function main() {
       console.log(`  ⏭  Già presente : "${quiz.title}"`);
       skipped++;
     } else {
-      insertStmt.run(quiz.title, quiz.category, JSON.stringify(quiz.questions));
+      insertStmt.run(quiz.title, quiz.category, JSON.stringify(quiz.questions), JSON.stringify(quiz.minigames ?? []));
       console.log(`  ✅ Inserito       : "${quiz.title}" (${quiz.questions.length} domande)`);
       inserted++;
     }

@@ -1660,6 +1660,33 @@ body.sidebar-collapsed .sidebar-toggle-arrow .material-symbols-outlined {
   gap: 2rem;
 }
 
+/* Fase Minigiochi: menù per pianificare un minigioco subito dopo questa
+   domanda. Stessa grammatica visiva di un input (bordo Ink, radius base),
+   accento Ochre quando attivo — nessun pattern nuovo, solo variante colore.
+   La riga si accende via classe `.is-active` (non `:has()`) perché il controllo
+   è una <select>: il tipo scelto lo decide il registry, non questo foglio. */
+.minigame-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--surface-container);
+  border: 3px solid var(--on-background);
+  border-radius: var(--radius-base);
+  font-weight: 700;
+}
+.minigame-toggle-row.is-active {
+  background: var(--retro-ochre);
+  color: var(--retro-dark);
+}
+.minigame-toggle-row label { cursor: pointer; }
+.minigame-toggle-row .form-select {
+  margin-left: auto;
+  width: auto;
+  min-width: 12rem;
+  cursor: pointer;
+}
+
 .form-label-brutal {
   display: block;
   font-weight: 700;
@@ -2047,6 +2074,7 @@ body.sidebar-collapsed .sidebar-toggle-arrow .material-symbols-outlined {
 .btn-game-primary { background: var(--retro-terracotta); color: var(--on-primary); }
 .btn-game-secondary { background: var(--retro-teal); color: var(--on-primary); }
 .btn-game-tertiary { background: var(--primary-container); color: var(--retro-dark); }
+.btn-game-minigame { background: var(--retro-ochre); color: var(--retro-dark); }
 .btn-game-danger { background: var(--error); color: var(--on-error); }
 
 /* Azione primaria: visivamente dominante rispetto alle secondarie (gerarchia per fase). */
@@ -2441,6 +2469,17 @@ body.sidebar-collapsed .sidebar-toggle-arrow .material-symbols-outlined {
 .game-player-badge .material-symbols-outlined { font-size: 18px; }
 
 .game-live-question { font-size: var(--text-headline-md); font-weight: 900; margin-bottom: 16px; }
+
+/* Round minigioco: stessa struttura di una domanda, accento Ochre invece del
+   verde/teal standard, per segnalare a colpo d'occhio che non è una domanda
+   del quiz (Retro Street: nessun sistema visivo nuovo, solo variante colore). */
+.game-question-box.is-minigame .game-live-question { color: var(--retro-ochre); }
+.game-question-box.is-minigame .game-option-card { border-color: var(--retro-ochre); }
+
+/* Gli stili specifici di ogni minigioco (icone, forme, animazioni) NON stanno
+   qui: vivono in client/shared/minigames/minigames.css, condiviso con la SPA
+   player e prefissato .mg-<tipo>-. Qui resta solo l'accento del round. */
+
 .game-option-cards {
   list-style: none; padding: 0;
   display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;

@@ -34,11 +34,19 @@ CREATE TABLE IF NOT EXISTS users (
 --     "correct_index": 0,          -- indice (0-based) dell'opzione corretta
 --     "time_limit_s":  30          -- secondi a disposizione per rispondere
 --   }
+--
+-- NOTA SU `minigames` (Fase Minigiochi):
+--   Array JSON serializzato di minigiochi pianificati tra le domande. Ogni
+--   elemento: { "afterQuestionIndex": 0, "type": "pari_dispari" }.
+--   `afterQuestionIndex` è l'indice (0-based) della domanda in `questions`
+--   dopo la quale inserire il minigioco. `type` deve essere una delle chiavi
+--   di MINIGAME_TYPES in server/game.js (unica fonte di verità sui tipi validi).
 CREATE TABLE IF NOT EXISTS quizzes (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id     INTEGER NOT NULL,
     title       TEXT    NOT NULL,
     questions   TEXT    NOT NULL DEFAULT '[]',
+    minigames   TEXT    NOT NULL DEFAULT '[]',
     created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
     updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
 
@@ -65,6 +73,7 @@ CREATE TABLE IF NOT EXISTS preloaded_quizzes (
     title       TEXT    NOT NULL,
     category    TEXT    NOT NULL DEFAULT 'Generale',
     questions   TEXT    NOT NULL DEFAULT '[]',
+    minigames   TEXT    NOT NULL DEFAULT '[]',
     created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 

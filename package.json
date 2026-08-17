@@ -10,7 +10,8 @@
     "dev": "node --watch server/index.js",
     "start": "node server/index.js",
     "lint": "npx eslint .",
-    "test:socket": "node tools/test-socket.js"
+    "test:socket": "node tools/test-socket.js",
+    "test:minigames": "node tools/test-minigames.js"
   },
   "keywords": [
     "quiz",
