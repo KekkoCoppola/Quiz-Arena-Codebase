@@ -1,0 +1,6 @@
+{
+  "files": ["client/host/**/*.html", "client/player/**/*.html"],
+  "insertBefore": "</body>",
+  "commentSyntax": "html",
+  "cspChecked": true
+}

@@ -38,7 +38,3 @@ tools/test-db.js
 tools/test-game.js
 
 # Claude Code (config locale, non committare)
-.claude/
-.impeccable/
-CLAUDE.md
-.superpowers/
