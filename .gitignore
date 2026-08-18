@@ -38,3 +38,13 @@ server/db/*.sqlite-shm
 # avvio del server di preview locale, che i secret scanner segnalano su ogni PR.
 .impeccable/
 .superpowers/
+
+# File temporanei degli editor
+# (es. style.css.tmp.13280.90c1928200b4, generato salvando da un editor esterno)
+*.tmp
+*.tmp.*
+*~
+*.swp
+*.swo
+*.bak
+*.orig
