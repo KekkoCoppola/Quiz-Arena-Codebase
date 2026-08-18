@@ -1,0 +1,810 @@
+@charset "UTF-8";
+
+/**
+ * client/sala/style.css
+ *
+ * Vista sala — lo schermo proiettato. Ricalca il mockup "Quizzata Retro-Chunky"
+ * fornito dall'utente e il DESIGN.md che lo accompagna.
+ *
+ * Tre differenze deliberate rispetto al mockup, tutte imposte dal contesto:
+ *
+ *  1. Niente Tailwind, niente CDN. Il mockup carica Tailwind, Google Fonts e
+ *     Material Symbols dalla rete; qui è tutto CSS scritto a mano e font
+ *     vendorati, perché durante l'evento il Raspberry è offline.
+ *  2. Le risposte non sono <button>. Sulla sala nessuno clicca: sono schede di
+ *     sola lettura, quindi niente stati hover/active e niente cursore.
+ *  3. Lo sfondo è la carta a pois, non lo split ochre/teal. È ciò che il mockup
+ *     produce davvero: le sue `.grid-bg-left/right` usano `theme()` dentro un
+ *     <style> semplice, che il CDN di Tailwind non risolve, quindi restano
+ *     trasparenti. Della divisione resta la riga verticale centrale, che il
+ *     mockup disegna col bordo destro della metà sinistra.
+ */
+
+/* ─── Font vendorati ────────────────────────────────────────────────────── */
+
+@font-face {
+  font-family: 'Quicksand';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/resources/fonts/quicksand-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Quicksand';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/resources/fonts/quicksand-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Quicksand';
+  font-style: normal;
+  font-weight: 700 900;
+  font-display: swap;
+  src: url('/resources/fonts/quicksand-700.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: block;
+  src: url('/resources/fonts/material-symbols-outlined.woff2') format('woff2');
+}
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Token ─────────────────────────────────────────────────────────────── */
+/* Valori presi dal DESIGN.md del mockup. Dove divergono da client/host/
+   (paper-base, primary-container) vince questo file: la sala è la superficie
+   che il mockup descrive. */
+
+:root {
+  --paper-base:      #f4e8d1;
+  --retro-dark:      #2A2A2A;
+  --retro-ochre:     #F2A65A;
+  --retro-teal:      #008080;
+  --retro-terracotta:#E05A47;
+
+  --primary-container: #ffed00;
+  --surface-container: #eceef0;
+  --surface-dim:       #d8dadc;
+  --white:             #ffffff;
+
+  --font-family: 'Quicksand', system-ui, sans-serif;
+
+  /* Tipografia del DESIGN.md */
+  --display-lg:        48px;
+  --display-lg-lh:     56px;
+  --display-lg-mobile: 32px;
+  --headline-md:       24px;
+  --body-lg:           20px;
+
+  /* Ombre a blocco: offset pieno, mai sfocatura */
+  --block:      8px 8px 0px 0px var(--retro-dark);
+  --block-sm:   4px 4px 0px 0px var(--retro-dark);
+  --border:     4px solid var(--retro-dark);
+
+  --radius:      1rem;
+  --radius-lg:   2rem;
+  --radius-full: 9999px;
+}
+
+/* ─── Reset e base ──────────────────────────────────────────────────────── */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body { height: 100%; }
+
+body {
+  font-family: var(--font-family);
+  font-weight: 700;
+  color: var(--retro-dark);
+  background-color: var(--paper-base);
+  /* Due griglie di pois sfalsate: è la trama del mockup. */
+  background-image:
+    radial-gradient(var(--retro-dark) 1px, transparent 1px),
+    radial-gradient(var(--retro-dark) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: 0 0, 20px 20px;
+  overflow: hidden;   /* nessuno scrolla un proiettore */
+  cursor: none;       /* il puntatore non deve comparire in sala */
+  -webkit-font-smoothing: antialiased;
+}
+
+[hidden] { display: none !important; }
+
+/* ─── Sfondo: divisione centrale e adesivi ──────────────────────────────── */
+
+.sala-bg-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* La riga che divide il campo in due metà. */
+.sala-bg-split {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 4px;
+  transform: translateX(-2px);
+  background: var(--retro-dark);
+}
+
+.sala-sticker {
+  position: absolute;
+  opacity: 0.8;
+  filter: drop-shadow(4px 4px 0px var(--retro-dark));
+}
+
+.sala-sticker--1 { top: 2.5rem;  left: 2.5rem;  width: 6rem;  height: 6rem;  color: var(--retro-terracotta); transform: rotate(-15deg); }
+.sala-sticker--2 { bottom: 5rem; right: 2.5rem; width: 8rem;  height: 8rem;  color: var(--primary-container); transform: rotate(20deg); }
+.sala-sticker--3 { top: 33%;     left: 1rem;    width: 4rem;  height: 4rem;  color: var(--retro-ochre); transform: rotate(45deg); }
+.sala-sticker--4 { bottom: 33%;  right: 25%;    width: 5rem;  height: 5rem;  color: var(--white); transform: rotate(-30deg); }
+
+/* ─── Impalcatura ───────────────────────────────────────────────────────── */
+
+.sala-shell {
+  position: relative;
+  z-index: 10;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Barra superiore ───────────────────────────────────────────────────── */
+
+.sala-top-bar {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 50;
+  margin: 1rem;
+  padding: 1rem;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--block);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Traccia di avanzamento: cerchi disegnati e barrette alternati. */
+.sala-progress {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow: hidden;
+}
+
+.sala-progress .dot {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  border: var(--border);
+  background: var(--surface-dim);
+  /* "Drawn circle": raggi asimmetrici, per l'effetto disegnato a mano. */
+  border-radius: 50% 40% 60% 30% / 40% 60% 30% 50%;
+}
+
+.sala-progress .bar {
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 0.5rem;
+  border: var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface-dim);
+}
+
+.sala-progress .is-done { background: var(--retro-terracotta); }
+
+.sala-progress .is-current {
+  width: 1.5rem;
+  height: 1.5rem;
+  background: var(--primary-container);
+  display: grid;
+  place-items: center;
+}
+
+.sala-progress .is-current::after {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--retro-dark);
+}
+
+/* Logo: sporge sopra la barra ed è ruotato, come un adesivo appiccicato. */
+.sala-logo-wrap {
+  flex: 0 0 auto;
+  margin-top: -2rem;
+  padding: 0.5rem;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--block);
+  transform: rotate(-5deg);
+  display: flex;
+}
+
+.sala-logo-wrap img {
+  width: 4rem;
+  height: 4rem;
+  object-fit: contain;
+}
+
+.sala-timer-wrap {
+  flex: 1 1 0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.sala-timer-badge {
+  font-size: var(--headline-md);
+  font-weight: 900;
+  line-height: 1.3;
+  padding: 0.5rem 1rem;
+  color: var(--white);
+  background: var(--retro-teal);
+  border: var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--block-sm);
+  transform: rotate(3deg);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ultimi secondi: in sala il colore fa il lavoro che il suono da solo non fa. */
+.sala-timer-badge.is-urgent {
+  background: var(--retro-terracotta);
+  animation: sala-pulse 700ms steps(2, jump-none) infinite;
+}
+
+@keyframes sala-pulse {
+  from { transform: rotate(3deg) scale(1); }
+  to   { transform: rotate(3deg) scale(1.08); }
+}
+
+/* ─── Palco ─────────────────────────────────────────────────────────────── */
+
+.sala-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  padding: 0 1rem 1.5rem;
+}
+
+.sala-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.sala-panel-title {
+  font-size: var(--display-lg-mobile);
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.sala-count-bubble {
+  background: var(--primary-container);
+  border: var(--border);
+  border-radius: var(--radius-full);
+  padding: 0.05em 0.45em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Attesa ────────────────────────────────────────────────────────────── */
+
+#sala-idle { justify-content: center; }
+
+.sala-idle-text {
+  font-size: var(--display-lg);
+  line-height: var(--display-lg-lh);
+  font-weight: 900;
+  text-align: center;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--block);
+  padding: 2rem 3rem;
+  transform: rotate(-1deg);
+}
+
+/* ─── Scheda domanda ────────────────────────────────────────────────────── */
+
+/* Il pannello domanda ha tre fasce: scheda, risposte, contatore. Le risposte
+   NON devono mai uscire dallo schermo — con overflow:hidden verrebbero tagliate
+   in silenzio, e su un proiettore significa perderle del tutto. Per questo la
+   scheda è l'unica fascia che cede spazio. */
+#sala-question {
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.q-card-wrap {
+  width: 92%;
+  max-width: 48rem;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+.q-card {
+  position: relative;
+  background: var(--white);
+  border: var(--border);
+  box-shadow: var(--block);
+  padding: 2rem 3rem;
+  text-align: center;
+  transform: rotate(-1deg);
+}
+
+/* Badge categoria "a nastro adesivo": sporge dall'angolo, bordi tagliati storti. */
+.q-tape {
+  position: absolute;
+  top: -1rem;
+  left: -1rem;
+  padding: 0.5rem 1.5rem;
+  background: var(--primary-container);
+  color: var(--retro-dark);
+  border: 2px solid var(--retro-dark);
+  box-shadow: var(--block-sm);
+  font-size: var(--headline-md);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transform: rotate(-5deg);
+  clip-path: polygon(0 0, 100% 5%, 95% 100%, 5% 95%);
+}
+
+.q-text {
+  font-size: var(--display-lg);
+  line-height: var(--display-lg-lh);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  margin-bottom: 1rem;
+  /* Ombra secondaria terracotta: stacca il titolo dallo sfondo. */
+  filter: drop-shadow(2px 2px 0px var(--retro-terracotta));
+}
+
+/* Variante SENZA immagine: la riga di istruzione sotto il titolo. */
+.q-hint {
+  display: inline-block;
+  font-size: var(--body-lg);
+  font-weight: 700;
+  padding: 0.25rem 1rem;
+  background: var(--surface-container);
+  border: var(--border);
+  border-radius: 0.375rem;
+}
+
+/* Variante CON immagine: riquadro tratteggiato, oggi un segnaposto. */
+.q-media {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  /* Il 16:9 vale finché c'è spazio: oltre, l'altezza vince sul rapporto e
+     l'immagine vera si adatta con object-fit invece di sfondare il layout. */
+  max-height: 34vh;
+  margin: 1rem 0 0;
+  border: 4px dashed var(--retro-dark);
+  border-radius: var(--radius-lg);
+  background: rgba(216, 218, 220, 0.3);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.q-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.q-media .material-symbols-outlined {
+  font-size: 3.75rem;
+  color: rgba(42, 42, 42, 0.2);
+}
+
+/* Puntina decorativa in alto a destra. */
+.q-pin {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--radius-full);
+  background: var(--retro-terracotta);
+  border: var(--border);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+.q-pin span {
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* ─── Risposte ──────────────────────────────────────────────────────────── */
+
+.sala-options {
+  list-style: none;
+  width: 100%;
+  max-width: 64rem;
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2rem;
+  padding: 0 1rem;
+}
+
+.sala-options.is-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.sala-option-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--block);
+  font-size: var(--display-lg-mobile);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  min-width: 0;
+}
+
+.sala-option-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sala-option-letter {
+  flex: 0 0 auto;
+  width: 3rem;
+  height: 3rem;
+  display: grid;
+  place-items: center;
+  background: var(--white);
+  border: var(--border);
+  color: var(--retro-dark);
+  font-size: var(--display-lg-mobile);
+  font-weight: 900;
+}
+
+/* Quattro trattamenti che si ripetono a ciclo: colore di fondo, colore del
+   testo e — di proposito — forma diversa del contenitore della lettera. È
+   l'"imperfezione organica" del DESIGN.md: nessuna delle quattro è uguale. */
+.sala-option-card:nth-child(4n+1) { background: var(--retro-ochre); color: var(--retro-dark); }
+.sala-option-card:nth-child(4n+2) { background: var(--retro-teal); color: var(--white); }
+.sala-option-card:nth-child(4n+3) { background: var(--retro-terracotta); color: var(--white); }
+.sala-option-card:nth-child(4n)   { background: var(--primary-container); color: var(--retro-dark); }
+
+.sala-option-card:nth-child(4n+1) .sala-option-letter { border-radius: var(--radius-full); }
+.sala-option-card:nth-child(4n+2) .sala-option-letter { border-radius: var(--radius-lg); }
+.sala-option-card:nth-child(4n+3) .sala-option-letter { border-radius: 50% 40% 60% 30% / 40% 60% 30% 50%; }
+.sala-option-card:nth-child(4n)   .sala-option-letter { border-radius: var(--radius-full); }
+
+.sala-answer-count {
+  flex: 0 0 auto;
+  font-size: var(--body-lg);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--block-sm);
+  padding: 0.25rem 1.25rem;
+  transform: rotate(-1deg);
+}
+
+/* Accento del round minigioco: il nastro cambia colore, il resto no. */
+.sala-panel.is-minigame .q-tape { background: var(--retro-ochre); }
+
+/* ─── Lobby ─────────────────────────────────────────────────────────────── */
+
+#sala-lobby { justify-content: center; }
+
+.sala-lobby-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 3rem;
+  align-items: center;
+  padding: 0 2rem;
+}
+
+.sala-join-card {
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--block);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  transform: rotate(-1.5deg);
+}
+
+.sala-join-kicker {
+  font-size: var(--headline-md);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: var(--primary-container);
+  border: 2px solid var(--retro-dark);
+  box-shadow: var(--block-sm);
+  padding: 0.25rem 1rem;
+  transform: rotate(-2deg);
+  clip-path: polygon(0 0, 100% 5%, 95% 100%, 5% 95%);
+}
+
+.sala-qr {
+  width: 100%;
+  max-width: 20rem;
+  aspect-ratio: 1;
+  background: var(--white);
+  border: var(--border);
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  display: flex;
+}
+
+.sala-qr svg { width: 100%; height: 100%; display: block; }
+
+.sala-join-url {
+  font-size: var(--body-lg);
+  font-weight: 900;
+  word-break: break-all;
+  text-align: center;
+}
+
+.sala-lobby-players { min-width: 0; }
+
+.sala-player-grid {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  max-height: 55vh;
+  overflow: hidden;
+  align-content: flex-start;
+}
+
+.sala-player-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: var(--body-lg);
+  font-weight: 900;
+  padding: 0.35em 0.8em;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--block-sm);
+  animation: sala-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.sala-player-chip .avatar { font-size: 1.4em; line-height: 1; }
+.sala-player-chip.is-disconnected { opacity: 0.45; }
+
+/* L'ingresso di un giocatore è metà dello spettacolo d'apertura: si vede. */
+@keyframes sala-pop {
+  from { transform: scale(0.4) rotate(-8deg); opacity: 0; }
+  to   { transform: scale(1) rotate(0deg);    opacity: 1; }
+}
+
+.sala-lobby-empty {
+  font-size: var(--body-lg);
+  margin-top: 1rem;
+}
+
+/* ─── Risultati ─────────────────────────────────────────────────────────── */
+
+#sala-results { justify-content: center; gap: 1.5rem; }
+
+.sala-reveal {
+  font-size: var(--display-lg-mobile);
+  font-weight: 900;
+  padding: 0.5rem 1.5rem;
+  background: var(--primary-container);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--block);
+  transform: rotate(-1deg);
+  text-align: center;
+}
+
+.sala-results-grid {
+  width: 100%;
+  max-width: 72rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 3rem;
+  padding: 0 2rem;
+  min-height: 0;
+}
+
+.sala-distribution {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sala-dist-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 3rem;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--body-lg);
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.sala-dist-label { display: flex; align-items: center; gap: 0.4em; min-width: 0; overflow-wrap: anywhere; }
+
+.sala-dist-track {
+  grid-column: 1 / -1;
+  height: 1.5rem;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.sala-dist-bar {
+  height: 100%;
+  background: var(--retro-teal);
+  transition: width 600ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sala-dist-row.is-correct .sala-dist-bar { background: var(--primary-container); }
+.sala-dist-row.is-correct .sala-dist-label::after { content: ' ✔'; }
+
+.sala-standings-title {
+  font-size: var(--headline-md);
+  font-weight: 900;
+  margin-bottom: 0.5rem;
+}
+
+.sala-standings-list, .sala-final-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: var(--body-lg);
+  font-weight: 900;
+}
+
+.sala-standings-list li, .sala-final-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.3em 0.9em;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--block-sm);
+}
+
+/* ─── Podio ─────────────────────────────────────────────────────────────── */
+
+#sala-final { justify-content: center; }
+
+.sala-podium {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 1.5rem;
+}
+
+.sala-podium-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 1.5rem 2rem;
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--block);
+  font-weight: 900;
+  min-width: 12rem;
+}
+
+.sala-podium-step .medal  { font-size: 3rem;   line-height: 1; }
+.sala-podium-step .avatar { font-size: 3.5rem; line-height: 1; }
+.sala-podium-step .name   { font-size: var(--display-lg-mobile); text-transform: uppercase; }
+.sala-podium-step .points { font-size: var(--body-lg); }
+
+.sala-podium-step.rank-1 { background: var(--primary-container);  order: 2; padding-bottom: 3.5rem; transform: rotate(-1deg); }
+.sala-podium-step.rank-2 { background: var(--retro-teal); color: var(--white); order: 1; padding-bottom: 2rem; transform: rotate(1.5deg); }
+.sala-podium-step.rank-3 { background: var(--retro-ochre); order: 3; padding-bottom: 1.25rem; transform: rotate(-2deg); }
+
+.sala-final-list { margin-top: 1.5rem; max-height: 25vh; overflow: hidden; }
+
+/* ─── Schermi bassi ─────────────────────────────────────────────────────── */
+/* Un proiettore 720p, o una finestra non a schermo intero, non regge le
+   misure del mockup: la scheda domanda spingerebbe le risposte oltre il bordo.
+   Si stringe tutto in blocco, invece di lasciar tagliare la fascia che conta
+   di più. */
+
+@media (max-height: 900px) {
+  :root {
+    --display-lg:        34px;
+    --display-lg-lh:     40px;
+    --display-lg-mobile: 24px;
+    --headline-md:       19px;
+    --body-lg:           17px;
+  }
+  .sala-top-bar    { margin: 0.6rem 1rem; padding: 0.6rem 1rem; }
+  .sala-logo-wrap  { margin-top: -1.4rem; }
+  .sala-logo-wrap img { width: 2.75rem; height: 2.75rem; }
+  .sala-stage      { padding: 0 1rem 0.75rem; }
+  .q-card          { padding: 1.1rem 1.75rem; }
+  .q-text          { margin-bottom: 0.6rem; }
+  .q-media         { max-height: 26vh; margin-top: 0.6rem; }
+  .sala-options    { gap: 0.9rem; }
+  .sala-option-card{ padding: 0.75rem 1rem; gap: 0.7rem; }
+  .sala-option-letter { width: 2.4rem; height: 2.4rem; }
+  .sala-panel      { gap: 0.75rem; }
+}
+
+/* ─── Schermi molto grandi ──────────────────────────────────────────────── */
+/* Il mockup è tarato su un desktop. Su un proiettore in fondo a una sala i
+   48px del titolo diventano piccoli, quindi oltre il full HD si scala tutto in
+   blocco invece di ritoccare le singole regole: le proporzioni restano quelle
+   approvate. */
+
+@media (min-width: 1920px) {
+  :root {
+    --display-lg:        64px;
+    --display-lg-lh:     72px;
+    --display-lg-mobile: 42px;
+    --headline-md:       30px;
+    --body-lg:           26px;
+  }
+  .sala-option-letter { width: 4rem; height: 4rem; }
+  .sala-logo-wrap img { width: 5rem; height: 5rem; }
+}
+
+/* ─── Accessibilità del movimento ───────────────────────────────────────── */
+/* PRODUCT.md lo richiede. In sala il movimento è decorativo: si toglie. */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

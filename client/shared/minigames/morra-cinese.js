@@ -63,7 +63,7 @@
       return moveImg(i, 'mg-morra-cinese-move');
     },
 
-    host: {
+    sala: {
       /**
        * Attesa: le tre mosse si alternano rapidamente al posto del titolo,
        * così la sala capisce che il computer non ha ancora deciso.

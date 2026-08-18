@@ -58,8 +58,18 @@ CREATE TABLE IF NOT EXISTS quizzes (
 CREATE INDEX IF NOT EXISTS idx_quizzes_user_id ON quizzes(user_id);
 
 -- ─── Tabella: preloaded_quizzes ──────────────────────────────────────────────────
--- Quiz precaricati di sistema (non modificabili dagli host).
--- Vengono popolati tramite tools/seed-preloaded.js.
+-- Quiz precaricati di sistema (non modificabili dagli host dal pannello).
+--
+-- ATTENZIONE — questa tabella e una COPIA DERIVATA, non la fonte di verita.
+-- I quiz di sistema vivono come file in content/quizzes/, uno per quiz, e
+-- server/quiz-library.js riallinea questa tabella ad ogni avvio: inserisce i
+-- nuovi, aggiorna quelli cambiati, elimina quelli il cui file e sparito.
+-- Modificare le righe a mano non serve a niente: al riavvio successivo vengono
+-- sovrascritte. Per cambiare un quiz si modifica il suo file.
+--
+-- "slug" e l identita stabile e corrisponde al nome del file senza estensione
+-- (il-mondo-degli-animali.json -> "il-mondo-degli-animali"). Non e il titolo:
+-- cosi rinominare il titolo aggiorna il quiz invece di crearne un doppione.
 --
 -- La struttura di `questions` è identica alla tabella `quizzes`:
 --   {
@@ -70,6 +80,7 @@ CREATE INDEX IF NOT EXISTS idx_quizzes_user_id ON quizzes(user_id);
 --   }
 CREATE TABLE IF NOT EXISTS preloaded_quizzes (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug        TEXT    UNIQUE,
     title       TEXT    NOT NULL,
     category    TEXT    NOT NULL DEFAULT 'Generale',
     questions   TEXT    NOT NULL DEFAULT '[]',

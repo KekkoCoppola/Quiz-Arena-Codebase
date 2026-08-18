@@ -428,7 +428,7 @@ function renderPreloadedSection() {
     empty.className = 'empty-state';
     empty.innerHTML = `
       <span class="empty-icon" aria-hidden="true"><i class="fas fa-box-open"></i></span>
-      <p>Nessun quiz precaricato trovato.<br>Esegui <code>node tools/seed-preloaded.js</code> per aggiungerli.</p>
+      <p>Nessun quiz di sistema trovato.<br>Aggiungi un file in <code>content/quizzes/</code> e riavvia il server.</p>
     `;
     preloadedGrid.appendChild(empty);
     return;
@@ -1049,7 +1049,7 @@ const minigameEls = () => ({
 
 /** Ferma un'eventuale animazione di attesa. Idempotente, sicura da chiamare sempre. */
 function stopMinigameSuspense() {
-  currentMinigame?.host.stopSuspense();
+  currentMinigame?.sala.stopSuspense();
 }
 
 // Mappa avatar: id stabile → emoji TEMPORANEA (identica al client player).
@@ -1163,7 +1163,7 @@ function connectGameSocket(quiz, type) {
     // Minigioco: il titolo è affidato alla sua animazione di attesa; la domanda
     // vera mostra semplicemente il proprio testo.
     if (isMinigame) {
-      currentMinigame.host.startSuspense(minigameEls(), q);
+      currentMinigame.sala.startSuspense(minigameEls(), q);
     } else {
       gameQuestionText.textContent = q.text;
     }
@@ -1216,7 +1216,7 @@ function connectGameSocket(quiz, type) {
       : results.correctIndex;
 
     if (isMinigame) {
-      currentMinigame.host.reveal(minigameEls(), results, currentQuestionOptions);
+      currentMinigame.sala.reveal(minigameEls(), results, currentQuestionOptions);
     } else {
       gameCorrectAnswer.textContent =
         `Risposta corretta: ${currentQuestionOptions[results.correctIndex] ?? '—'}`;

@@ -11,7 +11,9 @@
     "start": "node server/index.js",
     "lint": "npx eslint .",
     "test:socket": "node tools/test-socket.js",
-    "test:minigames": "node tools/test-minigames.js"
+    "test:minigames": "node tools/test-minigames.js",
+    "test:quizzes": "node tools/test-quizzes.js",
+    "quizzes": "node tools/check-quizzes.js"
   },
   "keywords": [
     "quiz",

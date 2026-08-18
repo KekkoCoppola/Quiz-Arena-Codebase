@@ -18,6 +18,15 @@ const { spawn } = require('node:child_process');
 const jwt    = require('jsonwebtoken');
 const { io: ioc } = require('socket.io-client');
 
+// La cartella dei quiz di sistema va decisa PRIMA di caricare la config, che
+// legge process.env una sola volta al require. Senza questa riga il processo
+// di test sincronizzerebbe i quiz VERI del progetto invece dei propri.
+const quizzesDir = require('node:path').join(
+  require('node:os').tmpdir(),
+  `quizzata-test-socket-quizzes-${Date.now()}`
+);
+process.env.QUIZZES_DIR = quizzesDir;
+
 const config = require('../server/config');
 const db     = require('../server/quiz-manager');
 
@@ -55,36 +64,55 @@ function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 // ─── Setup DB temporaneo ─────────────────────────────────────────────────────────
 
 const QUIZ_QUESTIONS = [
-  { text: 'Capitale d\'Italia?', options: ['Roma', 'Milano', 'Napoli', 'Torino'], correct_index: 0, time_limit_s: 2 },
-  { text: '2 + 2?',             options: ['3', '4', '5', '6'],                   correct_index: 1, time_limit_s: 2 },
+  { text: 'Capitale d\'Italia?', options: ['Roma', 'Milano', 'Napoli', 'Torino'], correct_index: 0, time_limit_s: 5 },
+  { text: '2 + 2?',             options: ['3', '4', '5', '6'],                   correct_index: 1, time_limit_s: 5 },
 ];
 
 // Quiz con un minigioco "Morra Cinese" pianificato dopo la prima domanda
 // (Fase Minigiochi), usato per validare il trigger pianificato via socket.
 const QUIZ_WITH_MINIGAME_QUESTIONS = [
-  { text: 'Capitale della Francia?', options: ['Berlino', 'Parigi', 'Madrid', 'Roma'], correct_index: 1, time_limit_s: 2 },
-  { text: '3 + 3?',                  options: ['5', '6', '7', '8'],                    correct_index: 1, time_limit_s: 2 },
+  { text: 'Capitale della Francia?', options: ['Berlino', 'Parigi', 'Madrid', 'Roma'], correct_index: 1, time_limit_s: 5 },
+  { text: '3 + 3?',                  options: ['5', '6', '7', '8'],                    correct_index: 1, time_limit_s: 5 },
 ];
 const QUIZ_WITH_MINIGAME_SLOTS = [{ afterQuestionIndex: 0, type: 'morra_cinese' }];
 
 const dbPath = path.join(os.tmpdir(), `quizzata-test-socket-${Date.now()}.sqlite`);
 
-function seedTempDb() {
+// I quiz di sistema vivono in file e il server riallinea il DB ad ogni avvio,
+// cancellando le righe senza file corrispondente: seminare direttamente in
+// tabella non funziona più, le fixture verrebbero spazzate via al boot del
+// server figlio. Per questo il test scrive veri file JSON (vedi quizzesDir,
+// dichiarata in cima al file).
+
+function seedTempQuizzes() {
+  fs.mkdirSync(quizzesDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(quizzesDir, 'quiz-test-socket.json'),
+    JSON.stringify({ title: 'Quiz Test Socket', category: 'Test', minigames: [], questions: QUIZ_QUESTIONS })
+  );
+  fs.writeFileSync(
+    path.join(quizzesDir, 'quiz-test-socket-minigioco.json'),
+    JSON.stringify({
+      title: 'Quiz Test Socket — Minigioco pianificato',
+      category: 'Test',
+      minigames: QUIZ_WITH_MINIGAME_SLOTS,
+      questions: QUIZ_WITH_MINIGAME_QUESTIONS,
+    })
+  );
+
+  // initDb applica lo schema e sincronizza i file: da qui si ricavano gli id
+  // veri, che non sono più prevedibili come lo erano gli INSERT in sequenza.
   db.initDb(dbPath);
-  const stmt = db.getDb().prepare(
-    'INSERT INTO preloaded_quizzes (title, category, questions, minigames) VALUES (?, ?, ?, ?)'
-  );
-  const result = stmt.run('Quiz Test Socket', 'Test', JSON.stringify(QUIZ_QUESTIONS), '[]');
-  const quizId = Number(result.lastInsertRowid);
-
-  const resultMinigame = stmt.run(
-    'Quiz Test Socket — Minigioco pianificato', 'Test',
-    JSON.stringify(QUIZ_WITH_MINIGAME_QUESTIONS), JSON.stringify(QUIZ_WITH_MINIGAME_SLOTS)
-  );
-  const quizWithMinigameId = Number(resultMinigame.lastInsertRowid);
-
+  const righe = db.getDb()
+    .prepare('SELECT id, slug FROM preloaded_quizzes')
+    .all();
   db.closeDb();
-  return { quizId, quizWithMinigameId };
+
+  const trova = (slug) => righe.find((r) => r.slug === slug)?.id;
+  return {
+    quizId:             trova('quiz-test-socket'),
+    quizWithMinigameId: trova('quiz-test-socket-minigioco'),
+  };
 }
 
 // ─── Avvio server figlio ─────────────────────────────────────────────────────────
@@ -93,7 +121,10 @@ function startServer() {
   return spawn(
     process.execPath,
     [path.join(__dirname, '..', 'server', 'index.js')],
-    { env: { ...process.env, PORT: String(PORT), DB_PATH: dbPath }, stdio: 'ignore' }
+    {
+      env: { ...process.env, PORT: String(PORT), DB_PATH: dbPath, QUIZZES_DIR: quizzesDir },
+      stdio: 'ignore',
+    }
   );
 }
 
@@ -115,7 +146,7 @@ async function run() {
   console.log('  🧪  Quiz-Zata! — Test Integrazione: game-socket.js');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
-  const { quizId, quizWithMinigameId } = seedTempDb();
+  const { quizId, quizWithMinigameId } = seedTempQuizzes();
   const server = startServer();
   const sockets = [];
 
@@ -206,7 +237,7 @@ async function run() {
     assert(q2.index === 1, 'game:question: indice domanda 2');
 
     await emitAck(p1, 'player:answer', { optionIndex: 1 }); // solo Alice risponde
-    const r2 = await once(p2, 'game:results', 4000);        // Bob non risponde → timeout 2s
+    const r2 = await once(p2, 'game:results', 9000);        // Bob non risponde → si attende lo scadere dei 5s
     assert(r2.correctIndex === 1, 'results dopo timeout: correctIndex domanda 2');
     assert(r2.distribution[1] === 1, 'results dopo timeout: solo 1 risposta registrata');
 
@@ -373,6 +404,7 @@ async function run() {
       fs.rmSync(dbPath, { force: true });
       fs.rmSync(`${dbPath}-wal`, { force: true });
       fs.rmSync(`${dbPath}-shm`, { force: true });
+      fs.rmSync(quizzesDir, { recursive: true, force: true });
     } catch { /* best effort */ }
   }
 

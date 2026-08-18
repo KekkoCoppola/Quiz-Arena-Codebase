@@ -22,11 +22,12 @@
 const router   = require('express').Router();
 const bcryptjs = require('bcryptjs');
 const jwt      = require('jsonwebtoken');
-const os       = require('node:os');
 
 const config                                          = require('../config');
 const { verifyToken }                                 = require('../middleware/auth');
-const { isValidSlotType, listForUi: listMinigamesForUi } = require('../minigames');
+const { lanJoinUrl }                                  = require('../lan-url');
+const { listForUi: listMinigamesForUi }               = require('../minigames');
+const { validateQuiz }                                = require('../quiz-schema');
 const {
   getUserByUsername,
   getUserById,
@@ -56,79 +57,10 @@ function sendError(res, status, message) {
 }
 
 // ─── Validazione Input Quiz ───────────────────────────────────────────────────────
-
-/**
- * Valida il body di una richiesta di creazione/aggiornamento quiz.
- * @param {{ title: any, questions: any, minigames?: any }} input
- * @returns {string | null} Messaggio di errore, o null se tutto è valido
- */
-function validateQuizInput({ title, questions, minigames }) {
-  if (typeof title !== 'string' || title.trim().length === 0 || title.length > 100) {
-    return 'Il titolo deve essere una stringa tra 1 e 100 caratteri.';
-  }
-  if (!Array.isArray(questions) || questions.length === 0) {
-    return 'Il quiz deve contenere almeno una domanda.';
-  }
-  if (questions.length > MAX_QUESTIONS_PER_QUIZ) {
-    return `Il quiz può contenere al massimo ${MAX_QUESTIONS_PER_QUIZ} domande.`;
-  }
-  for (let i = 0; i < questions.length; i++) {
-    const q = questions[i];
-    const num = i + 1;
-
-    if (!q || typeof q.text !== 'string' || q.text.trim().length === 0) {
-      return `Domanda ${num}: il campo "text" è obbligatorio.`;
-    }
-    if (!Array.isArray(q.options) || q.options.length < 2 || q.options.length > 4) {
-      return `Domanda ${num}: "options" deve essere un array di 2-4 stringhe.`;
-    }
-    if (q.options.some((o) => typeof o !== 'string' || o.trim().length === 0)) {
-      return `Domanda ${num}: ogni opzione deve essere una stringa non vuota.`;
-    }
-    if (
-      typeof q.correct_index !== 'number' ||
-      !Number.isInteger(q.correct_index) ||
-      q.correct_index < 0 ||
-      q.correct_index >= q.options.length
-    ) {
-      return `Domanda ${num}: "correct_index" deve essere un intero valido (0-${q.options.length - 1}).`;
-    }
-    if (
-      typeof q.time_limit_s !== 'number' ||
-      !Number.isInteger(q.time_limit_s) ||
-      q.time_limit_s < 5 ||
-      q.time_limit_s > 120
-    ) {
-      return `Domanda ${num}: "time_limit_s" deve essere un intero tra 5 e 120 secondi.`;
-    }
-  }
-
-  if (minigames !== undefined) {
-    if (!Array.isArray(minigames)) {
-      return '"minigames" deve essere un array.';
-    }
-    for (let i = 0; i < minigames.length; i++) {
-      const m = minigames[i];
-      const num = i + 1;
-      if (
-        !m ||
-        typeof m.afterQuestionIndex !== 'number' ||
-        !Number.isInteger(m.afterQuestionIndex) ||
-        m.afterQuestionIndex < 0 ||
-        m.afterQuestionIndex >= questions.length
-      ) {
-        return `Minigioco ${num}: "afterQuestionIndex" deve essere un intero valido (0-${questions.length - 1}).`;
-      }
-      // `isValidSlotType` accetta i tipi registrati e il segnaposto "random":
-      // così aggiungere un minigioco non richiede di toccare questa validazione.
-      if (typeof m.type !== 'string' || !isValidSlotType(m.type)) {
-        return `Minigioco ${num}: "type" non riconosciuto.`;
-      }
-    }
-  }
-
-  return null;
-}
+// La validazione NON vive più qui: sta in server/quiz-schema.js, perché deve
+// valere anche per i quiz che non passano dall'HTTP (quelli di sistema, letti
+// da content/quizzes/). Chiusa dentro questo file lasciava scoperta l'altra
+// strada, e un quiz malformato arrivava intatto fino alla sala.
 
 // ─── POST /login ─────────────────────────────────────────────────────────────────
 
@@ -229,7 +161,7 @@ router.post('/quizzes', verifyToken, (req, res) => {
   try {
     const { title, questions, minigames } = req.body ?? {};
 
-    const validationError = validateQuizInput({ title, questions, minigames });
+    const validationError = validateQuiz({ title, questions, minigames });
     if (validationError) {
       return sendError(res, 400, validationError);
     }
@@ -296,7 +228,7 @@ router.put('/quizzes/:id', verifyToken, (req, res) => {
     const questions = req.body?.questions !== undefined ? req.body.questions : existing.questions;
     const minigames = req.body?.minigames !== undefined ? req.body.minigames : existing.minigames;
 
-    const validationError = validateQuizInput({ title, questions, minigames });
+    const validationError = validateQuiz({ title, questions, minigames });
     if (validationError) {
       return sendError(res, 400, validationError);
     }
@@ -396,17 +328,11 @@ router.get('/preloaded-quizzes/:id', verifyToken, (req, res) => {
 /**
  * GET /api/host/game/join-info
  * Restituisce l'URL LAN a cui i giocatori si collegano (per QR code in lobby).
- * Prende il primo indirizzo IPv4 non-loopback; fallback localhost se assente.
+ * Il calcolo vive in server/lan-url.js perché lo condivide con /api/join-info,
+ * la versione pubblica usata dalla vista sala, che non ha un token.
  */
 router.get('/game/join-info', verifyToken, (_req, res) => {
-  let ip = null;
-  for (const addresses of Object.values(os.networkInterfaces())) {
-    for (const net of addresses ?? []) {
-      if (net.family === 'IPv4' && !net.internal) { ip = net.address; break; }
-    }
-    if (ip) break;
-  }
-  res.json({ success: true, data: { url: `http://${ip ?? 'localhost'}:${config.port}` } });
+  res.json({ success: true, data: { url: lanJoinUrl() } });
 });
 
 module.exports = router;

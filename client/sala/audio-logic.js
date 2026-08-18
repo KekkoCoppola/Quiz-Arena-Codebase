@@ -1,13 +1,13 @@
 'use strict';
 
 /**
- * client/host/audio-logic.js
+ * client/sala/audio-logic.js
  *
- * Decisioni pure del comparto audio dell'host: nessun DOM, nessuna Web Audio API,
- * nessun timer. Ricalca la separazione già usata dal progetto fra server/game.js
+ * Decisioni pure del comparto audio: nessun DOM, nessuna Web Audio API, nessun
+ * timer. Ricalca la separazione già usata dal progetto fra server/game.js
  * (puro, testabile) e server/game-socket.js (I/O).
  *
- * Caricato come <script> nel pannello host (espone window.AudioLogic) e come
+ * Caricato come <script> dalla vista sala (espone window.AudioLogic) e come
  * modulo CommonJS da tools/test-audio.js.
  */
 

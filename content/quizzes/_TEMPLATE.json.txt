@@ -1,0 +1,54 @@
+COPIA QUESTO FILE COME  <nome-quiz>.json  NELLA STESSA CARTELLA.
+
+Il nome del file è l'identità del quiz: sceglilo in minuscolo, senza spazi né
+accenti (es. capitali-del-mondo.json). Non cambiarlo più dopo: rinominarlo fa
+sparire il quiz e ne crea uno nuovo. Il TITOLO invece puoi cambiarlo quando
+vuoi, ed è quello che la gente legge.
+
+Questo file finisce in .txt di proposito, così il caricatore lo ignora.
+
+──────────────────────────────────────────────────────────────────────────────
+{
+  "title": "🎯 Titolo che vedranno tutti",
+
+  "category": "Generale",
+
+  "minigames": [
+    { "afterQuestionIndex": 0, "type": "random" }
+  ],
+
+  "questions": [
+    {
+      "text": "Il testo della domanda?",
+      "options": ["Prima", "Seconda", "Terza", "Quarta"],
+      "correct_index": 0,
+      "time_limit_s": 20
+    }
+  ]
+}
+──────────────────────────────────────────────────────────────────────────────
+
+REGOLE (le stesse che il server controlla all'avvio):
+
+  title          1-100 caratteri.
+  category       facoltativa; se manca diventa "Generale".
+  questions      da 1 a 20. Ogni domanda:
+                   text           non vuoto
+                   options        da 2 a 4 stringhe non vuote
+                   correct_index  0 = la prima opzione. DEVE puntare a
+                                  un'opzione che esiste: con 4 opzioni può
+                                  valere 0, 1, 2 o 3. È l'errore più facile da
+                                  fare e rende la domanda non vincibile.
+                   time_limit_s   da 5 a 120 secondi
+  minigames      facoltativi. afterQuestionIndex è l'indice della domanda DOPO
+                 la quale inserire il minigioco (0 = dopo la prima).
+                 type: "random" per farlo estrarre a sorte, oppure il tipo
+                 esatto di un minigioco esistente (es. "morra_cinese").
+
+DOPO AVER MODIFICATO:
+
+  npm run quizzes     controlla i file e ti dice cosa non va, senza avviare nulla
+  riavvia il server   i quiz vengono riallineati da soli
+
+Se un quiz ha un errore viene ESCLUSO e il server lo scrive all'avvio: gli altri
+quiz restano giocabili.

@@ -29,7 +29,9 @@ const MAX_QUIZZES_PER_USER = 3;
  * Numero massimo di domande per quiz.
  * Deve restare allineato a `MAX_QUESTIONS` in client/host/app.js (limite lato UI).
  */
-const MAX_QUESTIONS_PER_QUIZ = 20;
+// Riesportata da quiz-schema.js, che è dove la forma di un quiz è definita:
+// due copie di questo numero divergerebbero al primo cambio.
+const { MAX_QUESTIONS_PER_QUIZ } = require('./quiz-schema');
 
 // ─── Errori Custom ───────────────────────────────────────────────────────────────
 
@@ -129,6 +131,56 @@ function initDb(dbPath) {
   // si ottiene ignorando l'errore "duplicate column name" su una seconda esecuzione.
   addColumnIfMissing('quizzes', "minigames TEXT NOT NULL DEFAULT '[]'");
   addColumnIfMissing('preloaded_quizzes', "minigames TEXT NOT NULL DEFAULT '[]'");
+
+  // Migrazione Fase Quiz-come-file: identita stabile dei quiz di sistema,
+  // corrispondente al nome del file in content/quizzes/. Senza UNIQUE perche
+  // ALTER TABLE ADD COLUMN non lo consente su SQLite; l unicita e garantita da
+  // quiz-library.js, unico modulo che scrive in questa tabella.
+  addColumnIfMissing('preloaded_quizzes', 'slug TEXT');
+
+  syncPreloadedQuizzes();
+}
+
+/**
+ * Riallinea i quiz di sistema ai file in content/quizzes/.
+ *
+ * Chiamata ad ogni avvio: i file sono la fonte di verita, il DB una copia.
+ * Un quiz malformato viene **escluso, non blocca l'avvio** — e la differenza
+ * con i minigiochi, dove un modulo rotto impedisce il boot: li e un bug di
+ * codice, qui e un refuso di contenuto, e fermare tutta la serata perche una
+ * domanda ha un indice sbagliato sarebbe sproporzionato.
+ *
+ * Il prezzo di quella scelta e che l'esclusione va **vista**: per questo gli
+ * errori escono con console.error e non con un log discreto. Sono il momento
+ * in cui ci si accorge del refuso, e deve capitare in fase di avvio invece
+ * che davanti a una sala piena.
+ */
+function syncPreloadedQuizzes() {
+  const { syncToDatabase } = require('./quiz-library');
+  let esito;
+  try {
+    esito = syncToDatabase(_db);
+  } catch (err) {
+    // Nemmeno un guasto della libreria deve impedire l'avvio: senza quiz di
+    // sistema il gioco resta utilizzabile con quelli personali.
+    console.error('[quiz] sincronizzazione fallita, i quiz di sistema restano quelli in DB:', err.message);
+    return;
+  }
+
+  for (const errore of esito.errors) {
+    console.error('  \u274C  QUIZ ESCLUSO  ' + errore);
+  }
+  if (esito.errors.length > 0) {
+    console.error('[quiz] ' + esito.errors.length + ' quiz esclusi: correggi i file in content/quizzes/ e riavvia.');
+  }
+
+  const mosse = [];
+  if (esito.inserted) mosse.push(esito.inserted + ' aggiunti');
+  if (esito.updated)  mosse.push(esito.updated + ' aggiornati');
+  if (esito.removed)  mosse.push(esito.removed + ' rimossi');
+  if (mosse.length) {
+    console.log('[quiz] quiz di sistema: ' + mosse.join(', ') + '.');
+  }
 }
 
 /**
@@ -376,6 +428,7 @@ module.exports = {
   createQuiz,
   updateQuiz,
   deleteQuiz,
+  syncPreloadedQuizzes,
   // Preloaded Quizzes (sola lettura)
   getPreloadedQuizzes,
   getPreloadedQuizById,

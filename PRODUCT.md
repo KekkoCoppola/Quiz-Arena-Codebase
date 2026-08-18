@@ -6,8 +6,10 @@ product
 
 ## Users
 
-- **Host** — organizzatore di un evento dal vivo (pub, scuola, fiera). Usa un tablet o PC connesso allo stesso hotspot Wi-Fi del Raspberry Pi per gestire i propri quiz e condurre la partita davanti a una stanza intera. Deve poter agire sotto pressione, in tempo reale, davanti a un pubblico che aspetta.
+- **Host** — organizzatore di un evento dal vivo (pub, scuola, fiera). Usa un tablet o PC connesso allo stesso hotspot Wi-Fi del Raspberry Pi per gestire i propri quiz e condurre la partita. Il suo schermo è **privato**: contiene i comandi, non lo spettacolo. Deve poter agire sotto pressione, in tempo reale, davanti a un pubblico che aspetta.
 - **Player** — pubblico dell'evento, si unisce da smartphone browser inquadrando un QR code o l'IP locale. Zero installazione, zero account, nessuna competenza tecnica richiesta.
+
+A queste due persone corrispondono **tre superfici**, non due. La terza non ha un utente: è la **vista sala** (`/sala`), di sola lettura, che il Raspberry apre da solo in kiosk e manda al proiettore via HDMI — ed è da lì che esce anche l'audio. È lo schermo che guarda la stanza.
 
 Contesto: rete Wi-Fi locale isolata (Raspberry Pi come access point), completamente offline. Nessuna connessione internet richiesta durante l'evento.
 
@@ -27,7 +29,7 @@ Quiz-Zata! è un motore di gioco a quiz multiplayer locale, in stile Kahoot, che
 ## Design Principles
 
 1. **Controllo rapido, zero ansia** — l'host conduce un evento dal vivo sotto pressione sociale; ogni azione critica (avvia, prossima domanda, termina) deve essere inequivocabile a colpo d'occhio, mai ambigua o nascosta.
-2. **Leggibile a distanza** — la schermata di conduzione partita è spesso proiettata o vista da una stanza intera, non solo dall'host da vicino: tipografia grande, contrasto alto, niente dettagli minuti che contano.
+2. **Leggibile a distanza** — la vista sala è letta da una stanza intera, a diversi metri: tipografia grande, contrasto alto, niente dettagli minuti che contano. Il pannello dell'host segue la regola opposta — è a mezzo metro dagli occhi e deve stare denso.
 3. **Identità propria, non presa in prestito** — retro-arcade neo-brutalista distintivo, mai scivolare verso il template SaaS anonimo né verso il clone diretto di Kahoot.
 4. **Zero frizione per il player** — browser mobile, nessuna installazione, funziona anche per chi non è a proprio agio con la tecnologia.
 5. **Coerenza sistemica** — riusare bordi 4px, ombre offset dure, badge sticker e token colore già stabiliti in `client/host/style.css` invece di reinventare pattern ad ogni nuova feature.

@@ -1,0 +1,117 @@
+{
+  "title": "🌍 Il mondo intorno a noi",
+  "category": "Cultura Generale",
+  "minigames": [],
+  "questions": [
+    {
+      "text": "Qual è la capitale dell'Italia?",
+      "options": [
+        "Milano",
+        "Napoli",
+        "Roma",
+        "Venezia"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 25
+    },
+    {
+      "text": "Quante stagioni ci sono in un anno?",
+      "options": [
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 20
+    },
+    {
+      "text": "In quale stagione cadono le foglie dagli alberi?",
+      "options": [
+        "Primavera",
+        "Estate",
+        "Autunno",
+        "Inverno"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Quale pianeta è più vicino al Sole?",
+      "options": [
+        "Terra",
+        "Venere",
+        "Mercurio",
+        "Marte"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 30
+    },
+    {
+      "text": "Quanti mesi ha un anno?",
+      "options": [
+        "10",
+        "11",
+        "12",
+        "13"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Quale mezzo di trasporto vola?",
+      "options": [
+        "Barca",
+        "Bicicletta",
+        "Treno",
+        "Aereo"
+      ],
+      "correct_index": 3,
+      "time_limit_s": 15
+    },
+    {
+      "text": "Di cosa è fatta la neve?",
+      "options": [
+        "Sabbia",
+        "Zucchero",
+        "Acqua ghiacciata",
+        "Sale"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Come si chiama la nostra stella più vicina?",
+      "options": [
+        "Luna",
+        "Sole",
+        "Marte",
+        "Giove"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Quanti giorni ci sono in una settimana?",
+      "options": [
+        "5",
+        "6",
+        "7",
+        "8"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 15
+    },
+    {
+      "text": "In quale mare è bagnata l'Italia?",
+      "options": [
+        "Oceano Pacifico",
+        "Mar Mediterraneo",
+        "Mar Baltico",
+        "Oceano Atlantico"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 30
+    }
+  ]
+}

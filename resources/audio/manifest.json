@@ -1,5 +1,11 @@
 {
-  "music": {},
+  "music": {
+    "bed": { "file": "music/bed.ogg", "gain": 1.0 }
+  },
   "vo": {},
-  "sfx": {}
+  "sfx": {
+    "player-joined": [
+      { "file": "sfx/player-joined-01.wav", "gain": 1.0 }
+    ]
+  }
 }

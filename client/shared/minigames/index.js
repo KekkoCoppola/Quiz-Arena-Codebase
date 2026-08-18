@@ -3,8 +3,8 @@
 /**
  * client/shared/minigames/index.js
  *
- * Registry di PRESENTAZIONE dei minigiochi, condiviso fra le due SPA
- * (host e player) e servito su `/shared`.
+ * Registry di PRESENTAZIONE dei minigiochi, condiviso fra la vista sala e il
+ * client player, e servito su `/shared`.
  *
  * Le regole di gioco non stanno qui: vivono in `server/minigames/`. Qui c'è solo
  * il "come si vede" — icone, animazione di suspense, reveal. Stesso confine fra
@@ -21,7 +21,8 @@
  *      presentazione parziale viene completata con i default. Un minigioco
  *      nuovo è giocabile subito e si arricchisce dopo.
  *
- * Caricato come <script> dalle due SPA (espone window.Minigames) e come modulo
+ * Caricato come <script> dalla vista sala e dal client player (espone
+ * window.Minigames) e come modulo
  * CommonJS da tools/test-minigames.js.
  */
 
@@ -57,14 +58,20 @@
     },
 
     /**
-     * Quale riga evidenziare nella distribuzione delle risposte lato host.
+     * Quale riga evidenziare nella distribuzione delle risposte in sala.
      * Per la quasi totalità dei minigiochi è la scelta della macchina.
      */
     highlightIndex(results) {
       return results.machineChoice;
     },
 
-    host: {
+    /**
+     * Presentazione sullo schermo proiettato. Si chiama `sala` e non `host`
+     * perché è la sala a vederla: sul tablet dell'host restano i comandi.
+     * Il testo di stato per l'host è invece `hostStatusText`, qui sopra —
+     * quello sì che è rivolto a chi conduce.
+     */
+    sala: {
       /**
        * Round aperto: la sala aspetta. Qui va l'animazione di attesa.
        * @param {{ questionText: HTMLElement }} els
@@ -142,14 +149,14 @@
 
   /**
    * Completa una presentazione parziale con i default, un livello alla volta:
-   * un modulo che definisce solo `host.reveal` conserva `host.startSuspense`
+   * un modulo che definisce solo `sala.reveal` conserva `sala.startSuspense`
    * di default invece di perderlo.
    */
   function withDefaults(def) {
     return {
       ...DEFAULT_PRESENTATION,
       ...def,
-      host:   { ...DEFAULT_PRESENTATION.host,   ...(def.host   ?? {}) },
+      sala:   { ...DEFAULT_PRESENTATION.sala,   ...(def.sala   ?? {}) },
       player: { ...DEFAULT_PRESENTATION.player, ...(def.player ?? {}) },
     };
   }

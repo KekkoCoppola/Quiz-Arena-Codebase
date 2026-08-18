@@ -3,7 +3,7 @@
 /**
  * tools/test-audio.js
  *
- * Smoke test isolato per client/host/audio-logic.js.
+ * Smoke test isolato per client/sala/audio-logic.js.
  * Testa le decisioni pure del comparto audio SENZA DOM/Web Audio.
  *
  * Utilizzo: node tools/test-audio.js
@@ -18,7 +18,7 @@ const {
   tensionPlan,
   resolveGain,
   validateManifest,
-} = require('../client/host/audio-logic');
+} = require('../client/sala/audio-logic');
 
 // ─── Setup ───────────────────────────────────────────────────────────────────────
 

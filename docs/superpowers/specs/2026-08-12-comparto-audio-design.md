@@ -36,8 +36,15 @@ immagini, e non esiste alcun riferimento ad `<audio>` in tutto il codice.
 
 ## 1. Architettura: tre canali
 
-Nuovo modulo **`client/host/audio.js`**, caricato con un `<script>` prima di
-`app.js`. Nessun build step, nessun modulo ES: JS vanilla servito staticamente.
+Modulo **`client/sala/audio.js`**, caricato con un `<script>` prima di `app.js`.
+Nessun build step, nessun modulo ES: JS vanilla servito staticamente.
+
+> **Aggiornato il 2026-08-17.** Il comparto era progettato per il pannello host,
+> quando quello era anche lo schermo proiettato. Con la separazione in tre viste
+> (`docs/superpowers/specs/2026-08-17-vista-sala-design.md`) l'audio è passato
+> alla **vista sala**: il suono esce dal proiettore collegato al Raspberry, non
+> dal tablet dell'host. Le §8 e §9 qui sotto sono riscritte di conseguenza; il
+> resto del design vale immutato, perché non dipendeva da quale schermo suonasse.
 
 > **Deviazione da CLAUDE.md, da aggiornare nello stesso commit.** CLAUDE.md
 > descrive i client come "JS vanilla **single-file**". `app.js` è già a ~1.450
@@ -216,45 +223,76 @@ La soluzione pulita — ritardare `game:results` verso i player — richiede una
 modifica a `game-socket.js` ed è **fuori dallo scope di questo lavoro**. Va
 riconsiderata se in prova la sfasatura risulta fastidiosa.
 
-## 8. Punti di aggancio in `app.js`
+## 8. Punti di aggancio in `client/sala/app.js`
 
 Handler già esistenti; ogni aggancio è una riga.
 
-| Riga | Punto | Uso |
-|---|---|---|
-| [1078](client/host/app.js:1078) | `openGame()` | `arm()` — gesto utente per l'autoplay |
-| [1111](client/host/app.js:1111) | `game:lobby-update` | Fase lobby, SFX ingresso giocatore |
-| [1113](client/host/app.js:1113) | `game:question` | Fase domanda, tensione, VO inizio |
-| [1156](client/host/app.js:1156) | `game:answer-count` | SFX risposta ricevuta |
-| [1160](client/host/app.js:1160) | `game:results` | Sospensione, rullo, sting, fase risultati |
-| [1224](client/host/app.js:1224) | `game:final` | Proclamazione, fase finale |
-| [1267](client/host/app.js:1267) | `disconnectGameSocket()` | `stop()`, fade out |
+| Punto | Uso |
+|---|---|
+| avvio del modulo | `arm()` — vedi §9, **non** un gesto utente |
+| `game:snapshot` | musica `bed` se una partita è già in corso |
+| `game:lobby-update` | musica `bed`, SFX ingresso giocatore (solo se la lista **cresce**) |
+| `game:question` | SFX inizio round, tensione, VO inizio |
+| `game:answer-count` | SFX risposta ricevuta |
+| `game:results` | SFX sospensione, poi reveal dopo `SUSPENSE_MS` |
+| `game:final` | proclamazione |
+| `game:ended` | `music(null)`, dissolvenza in uscita |
 
-**Restart partita:** l'host non ascolta `game:reset`; dopo `host:restart-game` il
-server rimanda `game:lobby-update`, quindi il ritorno alla fase lobby è
-automatico e non richiede codice dedicato.
+**Restart partita:** dopo `host:restart-game` il server rimanda
+`game:lobby-update`, quindi il ritorno alla fase lobby è automatico e non
+richiede codice dedicato.
+
+**Ingresso giocatore:** `game:lobby-update` arriva anche quando qualcuno *esce*.
+L'effetto è legato alla crescita della lista, non all'evento.
 
 ## 9. Autoplay
 
-I browser bloccano l'audio non preceduto da un gesto dell'utente, quindi nulla
-può partire al caricamento della pagina. `arm()` si aggancia a `openGame()`, già
-invocata da un click reale dell'host sulla scheda del quiz: nessun overlay
-"clicca per attivare l'audio". `arm()` è anche il punto in cui si crea l'
-`AudioContext` e si avvia il pre-caricamento degli effetti.
+**Sul proiettore non c'è nessuno che clicca.** Il presupposto originale — `arm()`
+agganciata al click dell'host su "Avvia partita" — è caduto con lo spostamento
+sulla vista sala: quella pagina la apre il Raspberry da solo, in kiosk, e nessuno
+la tocca per tutta la serata.
 
-Se `play()` viene rifiutata, il modulo non insiste e non lancia: il toggle si
-presenta in stato "bloccato" e un click successivo riprova.
+La soluzione non è codice, è la riga di lancio:
+
+```
+chromium-browser --kiosk --autoplay-policy=no-user-gesture-required http://localhost:3000/sala
+```
+
+Con quel flag il contesto nasce già in stato `running` e `arm()` può essere
+chiamata al caricamento della pagina. Sul desktop di sviluppo, dove il flag non
+c'è, il contesto nasce sospeso e un ripiego lo sblocca al primo click o tasto
+qualunque, staccandosi da solo. **Nessun overlay "clicca per attivare l'audio":**
+davanti a una sala non deve mai comparire, e in produzione non servirebbe.
+
+Due insidie emerse costruendolo, entrambe risolte, entrambe silenziose:
+
+- **`arm()` correva contro il caricamento del manifest.** `loadManifest()` è una
+  fetch; `arm()` parte alla valutazione dello script e trovava il catalogo
+  ancora vuoto, uscendo senza fare nulla. Ogni chiamata pubblica si accoda ora
+  alla promise del manifest.
+- **Le dissolvenze non possono usare `requestAnimationFrame`.** rAF non scatta
+  quando la pagina non sta disegnando: basta che lo schermo del Pi vada in blank
+  durante una dissolvenza in entrata e la musica resta inchiodata a volume zero,
+  senza errori. Le rampe usano `setInterval` e applicano il valore finale esatto.
+
+Se `play()` viene rifiutata il modulo non insiste e non lancia: la traccia resta
+in `pending` e riparte al primo gesto utile.
 
 ## 10. Controllo host
 
-Toggle mute globale nell'header di gioco, accanto a `game-timer-badge`
-([index.html:302](client/host/index.html:302)), stile dei badge esistenti (bordo
-Ink 4px, ombra offset piatta — DESIGN.md, nessun token nuovo). Stato persistito
-in `localStorage`.
+**Da riprogettare.** Il toggle era previsto nell'header della schermata di gioco
+dell'host, quando lì c'era anche l'audio. Ora il suono esce dalla sala, che è di
+sola lettura e non ha comandi: un mute cliccabile lì non ha senso — nessuno
+raggiunge quello schermo.
 
-Un singolo mute per tutto: durante un evento dal vivo la richiesta "abbassa
-quella musica" deve essere a **un** click di distanza, non a una scelta fra tre
-cursori.
+Il principio resta valido e vale la pena tenerlo: **un singolo mute per tutto**,
+perché durante un evento dal vivo la richiesta "abbassa quella musica" deve
+essere a un click di distanza, non a una scelta fra tre cursori. Ma il comando
+deve stare su admin-console e viaggiare come evento verso la sala. Da definire
+insieme al redesign del pannello host.
+
+`SalaAudio.info()` in console resta intanto il modo per capire in dieci secondi
+perché non si sente niente.
 
 ## 11. Gestione errori
 
@@ -273,8 +311,9 @@ non devono mai sapere se l'audio funziona.
 
 ## 12. Verifica
 
-Codice puramente client: gli script `tools/test-*.js` sono server-side e non lo
-coprono. Verifica manuale sul dev server:
+Le decisioni pure di `audio-logic.js` sono coperte da `tools/test-audio.js` (42
+asserzioni). Il solo motore di riproduzione (`audio.js`) tocca DOM e Web Audio e
+richiede verifica manuale sul dev server:
 
 1. Transizioni musicali fra le fasi con rampe udibili, non a scatto.
 2. `tension-final` atterra sullo zero con `time_limit_s` = 5, 20 e 120.

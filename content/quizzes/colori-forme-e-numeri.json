@@ -1,0 +1,117 @@
+{
+  "title": "🌈 Colori, forme e numeri",
+  "category": "Logica",
+  "minigames": [],
+  "questions": [
+    {
+      "text": "Di che colore è il sole?",
+      "options": [
+        "Verde",
+        "Blu",
+        "Giallo",
+        "Viola"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 15
+    },
+    {
+      "text": "Quanti lati ha un quadrato?",
+      "options": [
+        "3",
+        "4",
+        "5",
+        "6"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 15
+    },
+    {
+      "text": "Qual è il colore del cielo nelle giornate serene?",
+      "options": [
+        "Grigio",
+        "Blu",
+        "Arancione",
+        "Rosa"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 15
+    },
+    {
+      "text": "Quanti lati ha un triangolo?",
+      "options": [
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 15
+    },
+    {
+      "text": "Quanto fa 5 + 3?",
+      "options": [
+        "6",
+        "7",
+        "8",
+        "9"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Di che colore è l'erba?",
+      "options": [
+        "Gialla",
+        "Rossa",
+        "Verde",
+        "Blu"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 15
+    },
+    {
+      "text": "Quale forma ha una pizza rotonda?",
+      "options": [
+        "Quadrato",
+        "Triangolo",
+        "Cerchio",
+        "Rettangolo"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 15
+    },
+    {
+      "text": "Quanto fa 10 - 4?",
+      "options": [
+        "4",
+        "5",
+        "6",
+        "7"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Di che colore è il pomodoro maturo?",
+      "options": [
+        "Blu",
+        "Rosso",
+        "Viola",
+        "Arancione"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 15
+    },
+    {
+      "text": "Quale numero viene dopo il 9?",
+      "options": [
+        "8",
+        "11",
+        "10",
+        "12"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 15
+    }
+  ]
+}

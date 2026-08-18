@@ -25,6 +25,7 @@ const config       = require('./config');
 const db           = require('./quiz-manager');
 const hostRouter   = require('./routes/host');
 const playerRouter = require('./routes/player');
+const { lanJoinUrl } = require('./lan-url');
 const { attachGameHandlers } = require('./game-socket');
 
 // ─── App Express ─────────────────────────────────────────────────────────────
@@ -70,8 +71,27 @@ app.use(
   express.static(path.join(__dirname, '../client/shared'))
 );
 
+// ─── Static: SPA Sala ────────────────────────────────────────────────────────
+// La vista proiettata, di sola lettura, che il Raspberry apre da solo in kiosk.
+// Percorso fisso e pubblico — a differenza di hostPanelPath non è oscurabile:
+// non c'è nulla da nascondere (nessun comando passa da qui, gli eventi host:*
+// restano dietro requireHost) e il Pi deve poterlo aprire da un URL cablato.
+app.use(
+  '/sala',
+  express.static(path.join(__dirname, '../client/sala'))
+);
+
 // ─── API Host ─────────────────────────────────────────────────────────────────
 app.use('/api/host', hostRouter);
+
+// ─── Join info pubblica ───────────────────────────────────────────────────────
+// Stessa informazione di /api/host/game/join-info, senza autenticazione: serve
+// alla vista sala per disegnare il QR, e la sala non ha un token. Non espone
+// nulla di riservato — è l'URL che finisce proiettato in caratteri giganti
+// davanti a tutta la stanza.
+app.get('/api/join-info', (_req, res) => {
+  res.json({ success: true, data: { url: lanJoinUrl() } });
+});
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 // Formato unificato coerente con il resto delle route ({ success, data }).

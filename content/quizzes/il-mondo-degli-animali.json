@@ -1,0 +1,122 @@
+{
+  "title": "🐾 Il mondo degli animali",
+  "category": "Natura",
+  "minigames": [
+    {
+      "afterQuestionIndex": 0,
+      "type": "morra_cinese"
+    }
+  ],
+  "questions": [
+    {
+      "text": "Quale animale fa \"miao\"?",
+      "options": [
+        "Cane",
+        "Gatto",
+        "Mucca",
+        "Pecora"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Quante zampe ha un cane?",
+      "options": [
+        "2",
+        "4",
+        "6",
+        "8"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Qual è l'animale più grande del mondo?",
+      "options": [
+        "Elefante",
+        "Giraffa",
+        "Balena blu",
+        "Squalo bianco"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 25
+    },
+    {
+      "text": "Dove vive il pesce?",
+      "options": [
+        "Nel deserto",
+        "Sugli alberi",
+        "In acqua",
+        "Sottoterra"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 15
+    },
+    {
+      "text": "Quale animale ha la proboscide?",
+      "options": [
+        "Leone",
+        "Elefante",
+        "Zebra",
+        "Pinguino"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Quale animale produce il miele?",
+      "options": [
+        "Farfalla",
+        "Formica",
+        "Ape",
+        "Libellula"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Come si chiama il piccolo della mucca?",
+      "options": [
+        "Agnello",
+        "Vitello",
+        "Puledro",
+        "Cucciolo"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 25
+    },
+    {
+      "text": "Quale animale non sa volare?",
+      "options": [
+        "Aquila",
+        "Pinguino",
+        "Rondine",
+        "Piccione"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Dove dormono di notte i pipistrelli?",
+      "options": [
+        "A testa in su",
+        "A testa in giù",
+        "Per terra",
+        "Sull'acqua"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 25
+    },
+    {
+      "text": "Quale animale cambia colore per mimetizzarsi?",
+      "options": [
+        "Coccodrillo",
+        "Camaleonte",
+        "Tartaruga",
+        "Iguana"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 25
+    }
+  ]
+}

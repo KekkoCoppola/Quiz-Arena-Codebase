@@ -12,7 +12,7 @@
  * └───────────────────────────────────────────────────────────────────────────┘
  *
  * Questo è il lato PRESENTAZIONE: come il minigioco si vede sullo schermo
- * dell'host (proiettato davanti a una sala) e sul telefono del giocatore.
+ * della sala (lo schermo proiettato) e sul telefono del giocatore.
  * Le regole — punti, esiti, scelta della macchina — stanno nel gemello
  * `server/minigames/<nome-gioco>.js` e non vanno duplicate qui.
  *
@@ -92,7 +92,7 @@
       return results.machineChoice;
     },
 
-    host: {
+    sala: {
       /**
        * Round aperto: la sala aspetta e nessuno sa ancora nulla.
        * Qui va l'animazione di attesa — è il momento di suspense.
