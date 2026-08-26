@@ -101,6 +101,12 @@ function closeQuestion(io) {
   clearQuestionTimer();
   if (!currentSession || currentSession.state !== STATES.QUESTION) return;
   const results = currentSession.endQuestion();
+  // Sospensione post-chiusura (es. la ruota della Morra Cinese): come per `endsAt`,
+  // si trasmette un timestamp assoluto così sala e telefoni fanno atterrare il
+  // reveal nello stesso istante nonostante la latenza di rete.
+  if (results.revealMs > 0) {
+    results.revealAt = Date.now() + results.revealMs;
+  }
   io.emit('game:results', results);
 }
 

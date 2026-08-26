@@ -4,7 +4,7 @@
     {
       "name": "Quiz-Zata Server (dev)",
       "runtimeExecutable": "D:\\ISTALLAZION_PROGRAMMI\\node.exe",
-      "runtimeArgs": ["server/index.js"],
+      "runtimeArgs": ["--watch", "server/index.js"],
       "port": 3000,
       "autoPort": true
     }

@@ -33,6 +33,9 @@ let currentRoundOptions = [];
 // (/shared/minigames/). Null durante una domanda normale. Questo file non sa
 // quali minigiochi esistano: chiede al registry e delega.
 let currentMinigame = null;
+// Cresce a ogni nuova fase (domanda, risultati, reset, fine): un "trattieni" del
+// reveal minigioco ancora in corso si accorge di essere superato e si ferma.
+let revealToken = 0;
 
 // ─── Riferimenti DOM ─────────────────────────────────────────────────────────
 
@@ -375,6 +378,7 @@ socket.on('game:lobby-update', ({ players }) => {
 
 socket.on('game:question', (q) => {
   if (!playerId) return;
+  revealToken++; // un eventuale reveal in sospeso è ormai superato
   renderQuestion(q);
 });
 
@@ -382,12 +386,49 @@ socket.on('game:results', (results) => {
   if (!playerId) return;
   stopCountdown();
   const mine = results.answers.find((a) => a.playerId === playerId) ?? null;
-  renderFeedback({
+
+  const doReveal = () => renderFeedback({
     mine,
     leaderboard: results.leaderboard,
     kind: results.kind,
     results,
   });
+
+  // Minigioco con sospensione sincronizzata: si TRATTIENE l'esito fino a
+  // `revealAt`, così il telefono non lo svela prima che in sala il reveal si
+  // compia. L'istante è lo stesso timestamp assoluto per tutti gli schermi.
+  if (results.revealAt) {
+    const myToken = ++revealToken;
+    const presentation = currentMinigame ?? Minigames.get(results.minigameType);
+    const ctx = {
+      revealAt: results.revealAt,
+      isStale: () => myToken !== revealToken,
+      done: () => { if (myToken === revealToken) doReveal(); },
+    };
+
+    feedbackSticker.classList.remove('is-correct', 'is-wrong', 'is-neutral');
+    feedbackSticker.classList.add('is-neutral');
+    feedbackScore.textContent = '—';
+    feedbackRank.textContent = '';
+    show('feedback');
+
+    if (presentation.player.playReveal) {
+      presentation.player.playReveal(
+        { sticker: feedbackSticker, text: feedbackText, points: feedbackPoints },
+        mine,
+        results,
+        ctx,
+      );
+    } else {
+      // Fallback generico: attesa neutra fino a revealAt, senza svelare nulla.
+      feedbackText.textContent = 'Guarda lo schermo!';
+      feedbackPoints.textContent = '';
+      setTimeout(ctx.done, Math.max(0, results.revealAt - Date.now()));
+    }
+    return;
+  }
+
+  doReveal();
 });
 
 socket.on('game:final', ({ leaderboard }) => {
@@ -397,6 +438,7 @@ socket.on('game:final', ({ leaderboard }) => {
 });
 
 socket.on('game:reset', ({ playerId: newId, token }) => {
+  revealToken++; // ferma un eventuale trattieni in corso
   const session = loadSession() ?? {};
   playerId = newId;
   saveSession({ ...session, playerId: newId, token });
@@ -404,6 +446,7 @@ socket.on('game:reset', ({ playerId: newId, token }) => {
 });
 
 socket.on('game:ended', () => {
+  revealToken++; // ferma un eventuale trattieni in corso
   playerId = null;
   clearSession();
   stopCountdown();

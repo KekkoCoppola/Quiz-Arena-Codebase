@@ -444,8 +444,13 @@ class GameSession {
     // Risoluzione minigioco: estrai lo stato macchina e assegna esito + punti a
     // ogni risposta PRIMA del loop di somma dei punteggi.
     let machineChoice = null;
+    // Durata della sospensione/reveal post-chiusura (0 = nessuna). Un valore di
+    // timing dichiarato dal modulo del minigioco; game-socket.js lo converte nel
+    // timestamp assoluto `revealAt` per sincronizzare sala e telefoni.
+    let revealMs = 0;
     if (round.kind === 'minigame') {
       const def = minigames.get(round.minigameType);
+      revealMs = def.revealMs ?? 0;
       const resolution = def.resolve(this._rnd);
       machineChoice = resolution.machineChoice;
       for (const answer of this.currentAnswers.values()) {
@@ -471,10 +476,14 @@ class GameSession {
       minigameType: round.minigameType ?? null,
       correctIndex: round.kind === 'minigame' ? null : round.correct_index,
       machineChoice,
+      revealMs,
       distribution,
       answers: Array.from(this.currentAnswers.entries()).map(([playerId, a]) => ({
         playerId,
         nickname: this.players.get(playerId)?.nickname ?? null,
+        // La sala mostra ogni giocatore che "va a posarsi" sulla risposta scelta:
+        // le serve l'avatar, non solo il nickname.
+        avatar: this.players.get(playerId)?.avatar ?? null,
         optionIndex: a.optionIndex,
         correct: a.correct,
         outcome: a.outcome,

@@ -96,13 +96,27 @@
         </div>
         <ul class="sala-options" id="sala-options"></ul>
         <p class="sala-answer-count" id="sala-answer-count">Risposte: 0</p>
+
+        <!-- Palco della parata: a round chiuso ogni giocatore compare qui con
+             nome e avatar, il nome sfuma e l'avatar vola sulla risposta scelta.
+             Vive nel pannello DOMANDA perché le quattro opzioni devono restare
+             a schermo come se la domanda fosse ancora in corso. -->
+        <div class="sala-parade" id="sala-parade" hidden aria-hidden="true">
+          <div class="sala-parade-card" id="sala-parade-card">
+            <span class="sala-parade-avatar" id="sala-parade-avatar"></span>
+            <span class="sala-parade-name" id="sala-parade-name"></span>
+          </div>
+        </div>
+        <p class="sala-no-answer" id="sala-no-answer" hidden></p>
       </section>
 
-      <!-- ── Risultati del round ───────────────────────────────────────── -->
+      <!-- ── Risultati del round ───────────────────────────────────────────
+           Solo la classifica: chi ha risposto cosa si è già visto sulle
+           opzioni, con gli avatar posati sopra. Le barre di distribuzione
+           ripetevano quella stessa informazione in forma peggiore. -->
       <section class="sala-panel" id="sala-results" hidden>
         <p class="sala-reveal" id="sala-reveal"></p>
         <div class="sala-results-grid">
-          <ul class="sala-distribution" id="sala-distribution"></ul>
           <div class="sala-standings">
             <h3 class="sala-standings-title">Classifica</h3>
             <ol class="sala-standings-list" id="sala-standings"></ol>
@@ -122,6 +136,10 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="vendor/qrcode.js"></script>
+
+  <!-- Effetto coriandoli, condiviso con il client player. Facoltativo: chi lo usa
+       controlla `window.Confetti` prima di chiamarlo. -->
+  <script src="/shared/confetti.js"></script>
 
   <!-- Minigiochi: il registry, poi un modulo per gioco (si autoregistrano).
        Stesso elenco del client player: il browser non ha un filesystem da

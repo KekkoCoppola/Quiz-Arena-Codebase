@@ -240,6 +240,7 @@ async function run() {
     const r2 = await once(p2, 'game:results', 9000);        // Bob non risponde → si attende lo scadere dei 5s
     assert(r2.correctIndex === 1, 'results dopo timeout: correctIndex domanda 2');
     assert(r2.distribution[1] === 1, 'results dopo timeout: solo 1 risposta registrata');
+    assert(r2.revealAt === undefined, 'results domanda normale: nessuna sospensione (revealAt assente)');
 
     // 5. Classifica finale
     console.log('\n  🏆  Fase 5: Classifica finale');
@@ -366,6 +367,8 @@ async function run() {
     assert(r8_2.kind === 'minigame', 'game:results: kind "minigame" propagato nel riepilogo');
     assert(Number.isInteger(r8_2.machineChoice) && r8_2.machineChoice >= 0 && r8_2.machineChoice <= 2,
       'game:results: machineChoice (mossa del PC) rivelato');
+    assert(Number.isInteger(r8_2.revealAt) && r8_2.revealAt > Date.now(),
+      'game:results: revealAt (timestamp sospensione ~10s) presente per il minigioco');
     assert(['win', 'draw', 'lose'].includes(r8_2.answers[0].outcome),
       'game:results: esito win/draw/lose assegnato al giocatore');
 

@@ -85,6 +85,17 @@
       stopSuspense() {},
 
       /**
+       * OPZIONALE. Reveal animato e TEMPORIZZATO alla chiusura del round: se
+       * definito, la sala lo usa al posto del breve drumroll fisso. Deve far
+       * atterrare l'animazione esattamente a `ctx.revealAt` e poi chiamare
+       * `ctx.done()`. Il timestamp è condiviso col telefono (payload
+       * `game:results.revealAt`), così i due schermi si fermano insieme.
+       * `null` = nessun reveal animato → la sala ricade sul drumroll breve.
+       * @type {null | ((els: object, results: object, options: string[], ctx: { revealAt: number, isStale: () => boolean, done: () => void }) => void)}
+       */
+      playReveal: null,
+
+      /**
        * Reveal davanti alla sala.
        * @param {{ questionText: HTMLElement, correctAnswer: HTMLElement }} els
        * @param {object} results payload game:results
@@ -112,6 +123,21 @@
         label.textContent = option;
         btn.append(letter, label);
       },
+
+      /**
+       * OPZIONALE. Attesa sincronizzata sul telefono mentre in sala si svolge il
+       * reveal: se definito, occupa lo schermo del giocatore fino a `ctx.revealAt`
+       * e poi chiama `ctx.done()`; l'esito vero lo mostra dopo `reveal`.
+       *
+       * Regola: qui NON si rivela nulla dell'esito né della scelta della macchina.
+       * Lo spettacolo è in sala — il telefono ci rimanda, non lo duplica.
+       * Firma allineata a `reveal`: stessi argomenti più il contesto temporale.
+       *
+       * `null` = nessuna attesa dedicata (il player ricade su un'attesa generica
+       * quando `game:results.revealAt` è presente).
+       * @type {null | ((els: object, mine: object|null, results: object, ctx: { revealAt: number, isStale: () => boolean, done: () => void }) => void)}
+       */
+      playReveal: null,
 
       /**
        * Esito personale sul telefono del giocatore.

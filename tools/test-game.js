@@ -129,6 +129,7 @@ function run() {
   const results1 = game.endQuestion(11000);
   assert(game.state === STATES.RESULTS, 'endQuestion: transizione a RESULTS');
   assert(results1.correctIndex === 0, 'endQuestion: correctIndex esposto correttamente');
+  assert(results1.revealMs === 0, 'endQuestion: domanda normale senza sospensione (revealMs 0)');
   assert(results1.distribution[0] === 1 && results1.distribution[1] === 1, 'endQuestion: distribuzione risposte corretta');
   assert(alice.score === resAlice.pointsAwarded, 'endQuestion: punteggio Alice aggiornato sul player');
   assert(bob.score === 0, 'endQuestion: punteggio Bob invariato (0)');
@@ -252,6 +253,7 @@ function run() {
     Number.isInteger(minigameResults.machineChoice) && minigameResults.machineChoice >= 0 && minigameResults.machineChoice <= 2,
     'endQuestion: machineChoice è una mossa valida (0-2)'
   );
+  assert(minigameResults.revealMs === 10000, 'endQuestion: minigioco espone revealMs (durata sospensione) 10000');
 
   // Verifica deterministica anche con randomness: ricalcolo l'esito atteso dalla
   // mossa macchina rivelata e assertisco la coerenza esito ↔ punti (500/100/0).
