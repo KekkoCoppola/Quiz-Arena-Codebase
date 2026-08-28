@@ -1095,10 +1095,11 @@ function stopGameCountdown() {
   gameTimerBadge.textContent = '00:00';
 }
 
-function startGameCountdown(endsAt) {
+function startGameCountdown(endsAt, serverNow) {
+  const deadline = ServerClock.localDeadline(endsAt, serverNow);
   stopGameCountdown();
   const tick = () => {
-    const remaining = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+    const remaining = Math.ceil(ServerClock.remainingMs(deadline) / 1000);
     const m = String(Math.floor(remaining / 60)).padStart(2, '0');
     const s = String(remaining % 60).padStart(2, '0');
     gameTimerBadge.textContent = `${m}:${s}`;
@@ -1189,7 +1190,7 @@ function connectGameSocket(quiz, type) {
       gameOptionsList.appendChild(li);
     });
     gameAnswerCount.textContent = 'Risposte: 0 / ?';
-    startGameCountdown(q.endsAt);
+    startGameCountdown(q.endsAt, q.serverNow);
     showGameBox(gameQuestionBox);
     gameStartBtn.disabled = true;
     gameNextBtn.disabled = true;
@@ -1313,6 +1314,54 @@ function disconnectGameSocket() {
     gameSocket.disconnect();
     gameSocket = null;
   }
+}
+
+// ─── Giocatori di prova (gesto nascosto) ─────────────────────────────────────
+//
+// Dieci clic sul logo in cima alla schermata di partita riempiono la lobby di
+// giocatori finti. Serve a provare una partita — e soprattutto la premiazione,
+// che con tre persone non si vede davvero — senza radunare venti amici.
+//
+// Il logo è QUESTO e non quello della sidebar: la sidebar sparisce appena una
+// partita esiste, e finché non esiste non c'è nessuna lobby da riempire. Il
+// gesto stava quindi in un punto dove non poteva mai funzionare. Il logo della
+// schermata di partita invece è a schermo esattamente quando serve.
+//
+// Nascosto e non un bottone perché non è una funzione del prodotto: è un
+// attrezzo. Dieci clic ravvicinati non capitano per sbaglio, e chi non sa che
+// esiste non lo troverà mai.
+
+const BOT_GESTURE_CLICKS = 10;
+/** Oltre questa pausa il conteggio riparte: dieci clic devono essere UNA raffica. */
+const BOT_GESTURE_GAP_MS = 1500;
+
+let botGestureCount = 0;
+let botGestureLast = 0;
+
+document.querySelector('.game-logo-wrapper')?.addEventListener('click', () => {
+  const now = Date.now();
+  botGestureCount = now - botGestureLast > BOT_GESTURE_GAP_MS ? 1 : botGestureCount + 1;
+  botGestureLast = now;
+  if (botGestureCount < BOT_GESTURE_CLICKS) return;
+  botGestureCount = 0;
+  spawnTestPlayers();
+});
+
+function spawnTestPlayers() {
+  // Rete di sicurezza: il logo vive dentro la schermata di partita, quindi un
+  // socket c'è sempre. Se la partita è già iniziata è il server a rifiutare,
+  // spiegando che si entra solo dalla lobby.
+  if (!gameSocket) {
+    showToast('Apri prima una partita: i giocatori di prova entrano in lobby.', 'info');
+    return;
+  }
+  gameSocket.emit('host:spawn-bots', null, (res) => {
+    if (!res?.ok) {
+      showToast(res?.error ?? 'Impossibile aggiungere i giocatori di prova.', 'error');
+      return;
+    }
+    showToast(`${res.added} giocatori di prova aggiunti — ${res.total} in lobby.`, 'success');
+  });
 }
 
 function renderGameLobby(players) {

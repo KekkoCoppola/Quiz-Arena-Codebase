@@ -20,6 +20,7 @@ const jwt    = require('jsonwebtoken');
 const config = require('./config');
 const db     = require('./quiz-manager');
 const { GameSession, STATES } = require('./game');
+const testBots = require('./test-bots');
 
 // ─── Room Socket.io ──────────────────────────────────────────────────────────────
 
@@ -40,6 +41,14 @@ const socketPlayers = new Map();
 const playerTokens = new Map();
 /** Scadenza assoluta (ms epoch) della domanda corrente, per il rejoin. */
 let currentQuestionEndsAt = null;
+/**
+ * Giocatori finti della sessione corrente (vedi server/test-bots.js). Non hanno
+ * socket: esistono solo dentro la GameSession, e rispondono da qui.
+ * @type {Set<string>} playerId
+ */
+const botPlayers = new Set();
+/** Handle dei setTimeout con cui i bot rispondono alla domanda corrente. */
+let botTimers = [];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────────
 
@@ -48,6 +57,10 @@ function clearQuestionTimer() {
     clearTimeout(questionTimer);
     questionTimer = null;
   }
+  // Le risposte dei bot appartengono alla domanda che sta chiudendo: una in
+  // ritardo arriverebbe sul round successivo.
+  for (const t of botTimers) clearTimeout(t);
+  botTimers = [];
 }
 
 function destroySession() {
@@ -56,6 +69,7 @@ function destroySession() {
   currentQuiz = null;
   socketPlayers.clear();
   playerTokens.clear();
+  botPlayers.clear();
   currentQuestionEndsAt = null;
 }
 
@@ -82,18 +96,74 @@ function broadcastLobby(io) {
 }
 
 /**
+ * Aggiunge `count` giocatori finti alla sessione corrente.
+ * Usato dal gesto nascosto e dal riavvio, che li rimette in campo.
+ * @returns {number} quanti ne sono entrati davvero
+ */
+function spawnBots(count) {
+  let entrati = 0;
+  for (let i = 0; i < count; i++) {
+    const { nickname, avatar } = testBots.identity(i);
+    try {
+      const player = currentSession.addPlayer(nickname, avatar);
+      botPlayers.add(player.id);
+      entrati++;
+    } catch {
+      // Nickname già preso da una persona vera: si salta e si va avanti.
+    }
+  }
+  return entrati;
+}
+
+/**
  * Trasmette la domanda corrente (sanitizzata) e arma il timer di chiusura.
  * `endsAt` è un timestamp assoluto: i client calcolano il countdown da lì,
  * così la latenza di rete non desincronizza i timer.
  */
 function emitQuestion(io) {
   const q = currentSession.getCurrentRound();
-  const endsAt = Date.now() + q.time_limit_s * 1000;
+  const now = Date.now();
+  const endsAt = now + q.time_limit_s * 1000;
   currentQuestionEndsAt = endsAt;
-  io.emit('game:question', { ...q, endsAt });
+  // `serverNow` viaggia insieme a `endsAt`: da soli, due orologi distanti
+  // fanno scadere il tempo in sala e sul telefono in momenti diversi.
+  // Vedi client/shared/server-clock.js.
+  io.emit('game:question', { ...q, endsAt, serverNow: now });
 
   clearQuestionTimer();
   questionTimer = setTimeout(() => closeQuestion(io), q.time_limit_s * 1000);
+  scheduleBotAnswers(io, q);
+}
+
+/**
+ * Fa rispondere i giocatori finti, se ce ne sono.
+ *
+ * Ogni bot passa esattamente per la stessa porta di un umano — `submitAnswer`,
+ * poi il conteggio risposte e la chiusura anticipata — perché un bot che
+ * scrivesse nella sessione per una via tutta sua proverebbe un gioco che non
+ * esiste. La sola differenza è che non c'è un socket a monte.
+ */
+function scheduleBotAnswers(io, round) {
+  if (botPlayers.size === 0) return;
+  const optionCount = round.options?.length ?? 0;
+
+  for (const playerId of botPlayers) {
+    const delay = testBots.answerDelayMs(round.time_limit_s);
+    botTimers.push(setTimeout(() => {
+      if (!currentSession || currentSession.state !== STATES.QUESTION) return;
+      try {
+        currentSession.submitAnswer(playerId, testBots.pickOption(optionCount));
+      } catch {
+        // Round già chiuso o bot non più in partita: non c'è nulla da fare.
+        return;
+      }
+      io.to(ROOM_HOST).emit('game:answer-count', {
+        answered: currentSession.currentAnswers.size,
+        total: countConnected(),
+      });
+      maybeCloseEarly(io);
+    }, delay));
+  }
 }
 
 /** Chiude la domanda corrente (timeout o anticipata) e trasmette i risultati. */
@@ -104,8 +174,9 @@ function closeQuestion(io) {
   // Sospensione post-chiusura (es. la ruota della Morra Cinese): come per `endsAt`,
   // si trasmette un timestamp assoluto così sala e telefoni fanno atterrare il
   // reveal nello stesso istante nonostante la latenza di rete.
+  results.serverNow = Date.now();
   if (results.revealMs > 0) {
-    results.revealAt = Date.now() + results.revealMs;
+    results.revealAt = results.serverNow + results.revealMs;
   }
   io.emit('game:results', results);
 }
@@ -222,6 +293,7 @@ function attachGameHandlers(io) {
         data.question = {
           ...currentSession.getCurrentRound(),
           endsAt: currentQuestionEndsAt,
+          serverNow: Date.now(),
           alreadyAnswered: currentSession.currentAnswers.has(playerId),
         };
       } else if (
@@ -354,8 +426,36 @@ function attachGameHandlers(io) {
         playerSocket.emit('game:reset', { playerId: player.id, token });
       }
 
+      // I bot rientrano: il loro motivo di esistere è provare la partita più
+      // volte di fila, e rifare il gesto a ogni giro sarebbe una seccatura
+      // proprio nel caso d'uso che li giustifica.
+      const quantiBot = botPlayers.size;
+      botPlayers.clear();
+      if (quantiBot > 0) spawnBots(quantiBot);
+
       ok(cb);
       broadcastLobby(io);
+    });
+
+    /**
+     * Gesto nascosto del pannello host (dieci clic sul logo): riempie la lobby
+     * di giocatori finti per poter provare una partita — e soprattutto la
+     * premiazione — senza radunare venti persone.
+     *
+     * Solo dalla LOBBY: a partita iniziata nessuno entra più, e i bot non
+     * possono essere l'eccezione che prova un gioco diverso da quello vero.
+     */
+    socket.on('host:spawn-bots', (payload, cb) => {
+      if (!requireHost(cb)) return;
+      if (!currentSession) return fail(cb, 'Nessuna partita attiva.');
+      if (currentSession.state !== STATES.LOBBY) {
+        return fail(cb, 'I giocatori di prova si aggiungono solo dalla lobby.');
+      }
+
+      const count = testBots.normalizeCount(payload?.count);
+      const added = spawnBots(count);
+      broadcastLobby(io);
+      ok(cb, { added, total: currentSession.getPlayers().length });
     });
 
     socket.on('host:end-game', (_payload, cb) => {

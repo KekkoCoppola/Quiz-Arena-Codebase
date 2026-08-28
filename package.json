@@ -13,6 +13,8 @@
     "test:socket": "node tools/test-socket.js",
     "test:minigames": "node tools/test-minigames.js",
     "test:quizzes": "node tools/test-quizzes.js",
+    "test:final": "node tools/test-final.js",
+    "test:clock": "node tools/test-clock.js",
     "quizzes": "node tools/check-quizzes.js"
   },
   "keywords": [

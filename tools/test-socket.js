@@ -399,6 +399,54 @@ async function run() {
 
     await emitAck(host, 'host:end-game', null);
 
+    // 9. Giocatori di prova (gesto nascosto del pannello host)
+    console.log(`
+  🤖  Fase 9: Giocatori di prova`);
+
+    const impostor2 = ioc(URL); sockets.push(impostor2);
+    await once(impostor2, 'connect');
+    const botsDenied = await emitAck(impostor2, 'host:spawn-bots', { count: 3 });
+    assert(botsDenied.ok === false, 'socket senza token: host:spawn-bots rifiutato');
+
+    const botsNoGame = await emitAck(host, 'host:spawn-bots', { count: 3 });
+    assert(botsNoGame.ok === false, 'senza partita attiva: host:spawn-bots rifiutato');
+
+    await emitAck(host, 'host:create-game', { quizId, quizType: 'preloaded' });
+    const p9 = ioc(URL); sockets.push(p9);
+    await once(p9, 'connect');
+    await emitAck(p9, 'player:join', { nickname: 'Umano', avatarId: 'gufo' });
+
+    const botsAck = await emitAck(host, 'host:spawn-bots', { count: 5 });
+    assert(botsAck.ok === true && botsAck.added === 5, 'host:spawn-bots: 5 giocatori aggiunti');
+    assert(botsAck.total === 6, 'lobby: 5 bot + 1 umano');
+
+    // Il conteggio arriva sporco dalla rete: non deve poter far esplodere nulla.
+    const sporco = await emitAck(host, 'host:spawn-bots', { count: -4 });
+    assert(sporco.ok === true && sporco.added > 0, 'conteggio non valido: si ripiega sul default');
+
+    // La prova che conta: i bot rispondono DAVVERO. Se non lo facessero, il
+    // round resterebbe aperto fino allo scadere del tempo e questa attesa
+    // andrebbe in timeout invece di chiudersi in anticipo.
+    const q9Promise = once(p9, 'game:question');
+    await emitAck(host, 'host:start-game', null);
+    const q9 = await q9Promise;
+    const results9Promise = once(host, 'game:results');
+    await emitAck(p9, 'player:answer', { optionIndex: 0 });
+    const inizio = Date.now();
+    const results9 = await results9Promise;
+    const durata = Date.now() - inizio;
+
+    assert(durata < q9.time_limit_s * 1000,
+      `round chiuso in anticipo (${durata}ms < ${q9.time_limit_s * 1000}ms): i bot hanno risposto`);
+    assert(results9.answers.length === results9.leaderboard.length,
+      'ogni giocatore, bot compresi, risulta fra chi ha risposto');
+
+    // Fuori dalla lobby non si entra più, bot inclusi.
+    const tardi = await emitAck(host, 'host:spawn-bots', { count: 2 });
+    assert(tardi.ok === false, 'a partita iniziata: host:spawn-bots rifiutato');
+
+    await emitAck(host, 'host:end-game', null);
+
   } finally {
     for (const s of sockets) s.disconnect();
     server.kill();

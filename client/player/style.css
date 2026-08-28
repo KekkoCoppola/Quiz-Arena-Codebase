@@ -264,6 +264,55 @@ body {
   border-radius: 9999px; font-weight: 900;
 }
 
+/* ─── Premiazione: la propria posizione ─────────────────────────────────────
+   Durante la cerimonia questa card è l'unica cosa a schermo, e si scopre
+   nell'istante in cui la sala proclama. Il movimento sta in
+   /shared/final-ceremony.css, identico a quello del proiettore: qui c'è solo
+   come si veste su un telefono.
+   ------------------------------------------------------------------------ */
+
+.me-card {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Altezza riservata mentre la card esiste: quella che compare non deve far
+   saltare la pagina sotto le dita di chi sta guardando. A cerimonia conclusa
+   la card sparisce (il vincitore è già sul podio) e lo spazio si richiude. */
+.me-card:not(:empty) { min-height: 220px; }
+
+/* Le stelline del vincitore escono dalla card. */
+.me-card > * { position: relative; }
+
+/* Un gradino solo, non un podio a tre: si prende tutta la larghezza. */
+.me-card .podium-step {
+  flex: none;
+  max-width: none;
+  width: min(100%, 320px);
+  min-height: 200px;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius);
+  box-shadow: var(--stamp);
+}
+
+.me-card .podium-step .medal  { font-size: 34px; }
+.me-card .podium-step .avatar { font-size: 64px; }
+.me-card .podium-step .name   { font-size: 24px; }
+
+/* Fuori dal podio: una fascia larga, leggibile con un'occhiata sola. */
+.me-card-row {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  width: min(100%, 320px); padding: 20px 16px; text-align: center;
+  background: var(--paper-white); border: 4px solid var(--ink);
+  border-radius: var(--radius); box-shadow: var(--stamp);
+}
+.me-card-row .pos    { font-size: 44px; font-weight: 900; line-height: 1; }
+.me-card-row .avatar { font-size: 48px; }
+.me-card-row .name   { font-size: 20px; font-weight: 900; overflow-wrap: anywhere; }
+.me-card-row .points { font-size: 15px; color: var(--ink-muted); }
+
 .final-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
 .final-list li {
   display: flex; align-items: center; gap: 10px;

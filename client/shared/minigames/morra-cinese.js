@@ -294,6 +294,9 @@
 
         // Nessuna animazione da sincronizzare: basta attendere l'istante comune.
         // Un timeout invece di un loop rAF perché sono ~10 secondi su batteria.
+        // `ctx.revealAt` arriva già riportato sull'orologio locale da chi
+        // chiama (vedi client/shared/server-clock.js): qui si confronta con
+        // Date.now() locale ed è corretto. Non ri-correggerlo.
         const wait = Math.max(0, ctx.revealAt - Date.now());
         setTimeout(() => {
           if (ctx.isStale()) return;

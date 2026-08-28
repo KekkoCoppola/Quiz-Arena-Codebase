@@ -10,6 +10,9 @@
   <title>Quiz-Zata! — Sala</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="/shared/minigames/minigames.css">
+  <!-- Movimento della premiazione, identico sul telefono: le due superfici
+       proclamano lo stesso vincitore nello stesso istante. -->
+  <link rel="stylesheet" href="/shared/final-ceremony.css">
 </head>
 
 <body>
@@ -95,7 +98,6 @@
           </div>
         </div>
         <ul class="sala-options" id="sala-options"></ul>
-        <p class="sala-answer-count" id="sala-answer-count">Risposte: 0</p>
 
         <!-- Palco della parata: a round chiuso ogni giocatore compare qui con
              nome e avatar, il nome sfuma e l'avatar vola sulla risposta scelta.
@@ -140,6 +142,15 @@
   <!-- Effetto coriandoli, condiviso con il client player. Facoltativo: chi lo usa
        controlla `window.Confetti` prima di chiamarlo. -->
   <script src="/shared/confetti.js"></script>
+
+  <!-- Calendario della premiazione: gli istanti di ogni atto della cerimonia.
+       Stesso file caricato dal client player — è ciò che tiene sincronizzate
+       sala e telefoni senza far dipendere nulla dall'orologio dei dispositivi. -->
+  <script src="/shared/final-schedule.js"></script>
+
+  <!-- Correzione dello scarto fra orologi: senza, in sala e sul telefono
+       il tempo scade in momenti diversi. -->
+  <script src="/shared/server-clock.js"></script>
 
   <!-- Minigiochi: il registry, poi un modulo per gioco (si autoregistrano).
        Stesso elenco del client player: il browser non ha un filesystem da

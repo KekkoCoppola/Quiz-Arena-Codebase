@@ -23,6 +23,8 @@ npm run test:minigames       # registry minigiochi: autoload, contratto, shuffle
 node tools/test-game.js      # smoke test puro della state machine (server/game.js), nessuna rete
 node tools/test-db.js        # smoke test del layer dati SQLite (server/quiz-manager.js)
 node tools/test-audio.js     # smoke test delle decisioni pure del comparto audio (vista sala)
+npm run test:final           # calendario della premiazione finale (puro) + invarianti anti-spoiler
+npm run test:clock           # correzione dello scarto fra orologi server/client (puro)
 node tools/create-host.js    # crea un account host offline (username/password) — unico modo per provisionare un host
 node tools/check-quizzes.js  # valida i quiz di sistema in content/quizzes/ e stampa un referto
 npm run test:quizzes         # schema del quiz + lettura dei file (puro, nessun DB)
@@ -54,6 +56,18 @@ Non aggirare questi confini: nuova logica di gioco va in `game.js` (deve restare
 
 Gli account host **non** si creano via API pubblica: `server/routes/host.js` espone solo login + CRUD quiz. Le credenziali vengono create offline dall'amministratore con `node tools/create-host.js`. Tenerlo a mente prima di aggiungere un endpoint di registrazione: è una scelta di prodotto (evento controllato da un unico host per sessione), non una svista.
 
+### Giocatori di prova (gesto nascosto)
+
+Dieci clic ravvicinati sul logo in cima alla **schermata di partita** del pannello host riempiono la lobby di giocatori finti (default 19). Non quello della sidebar: la sidebar sparisce appena una partita esiste, e finché non esiste non c'è nessuna lobby da riempire — lì il gesto non poteva funzionare in nessun momento. Serve a provare una partita da soli — soprattutto la **premiazione finale**, che con tre persone non si vede: la coda in ritardando, il tetto sulla sua durata e il podio hanno senso solo con una sala piena.
+
+`server/test-bots.js` è il modulo puro (nomi, avatar, "scegli un'opzione a caso"); il cablaggio sta in `game-socket.js`, dove vivono già i timer veri: l'evento host-only `host:spawn-bots` e, dentro `emitQuestion`, un `setTimeout` per bot che risponde a un istante casuale del round. Tre vincoli deliberati:
+
+- **Un bot passa dalla stessa porta di un umano** — `submitAnswer`, poi `game:answer-count` e `maybeCloseEarly`. Un bot che scrivesse nella sessione per una via propria proverebbe un gioco che non esiste.
+- **Solo dalla LOBBY**, come chiunque: a partita iniziata nessuno entra più, bot compresi.
+- **Non hanno socket.** Esistono solo dentro la `GameSession`, quindi `countConnected()` li conta (`p.connected`, non i socket) e il round aspetta anche loro — per questo il ritardo di risposta è limitato al 60% del tempo, altrimenti terrebbero in ostaggio chi gioca davvero. Sopravvivono a `host:restart-game` (rimessi in campo con nuovi id) perché il loro scopo è provare la partita più volte di fila.
+
+Il gesto è nascosto e non un bottone perché non è una funzione del prodotto ma un attrezzo. Il conteggio si azzera dopo 1,5 s di pausa: dieci clic devono essere una raffica sola, così non scatta per sbaglio davanti a una sala. A partita già avviata il gesto non fallisce in silenzio: il rifiuto del server arriva come toast e dice che si entra solo dalla lobby.
+
 ### Autenticazione: due canali paralleli, un solo segreto
 
 - **REST** (`/api/host/*`): JWT in header `Authorization: Bearer <token>`, verificato da `server/middleware/auth.js` (`verifyToken`), che attacca `req.user = { userId, username }`.
@@ -65,7 +79,9 @@ Entrambi i canali condividono `config.jwtSecret` da `server/config.js`. **Nessun
 
 Due room: `players` (tutti i giocatori) e `host` (socket con JWT valido). Gli handler seguono la convenzione `<ruolo>:<azione>` per gli eventi in ingresso (`player:join`, `player:answer`, `host:start-game`, `host:next-question`, `host:insert-minigame`, `host:restart-game`, `host:end-game`) e `game:<evento>` per il broadcast in uscita (`game:lobby-update`, `game:question`, `game:results`, `game:final`, `game:snapshot`, `game:reset`, `game:ended`). Gli ack callback usano sempre la forma `{ ok: true, ...data }` / `{ ok: false, error }` tramite gli helper `ok()`/`fail()` — anche gli eventi senza payload (`host:start-game`, ecc.) mantengono la firma `(payload, cb)` per uniformità lato client. I payload `game:question`/`game:results` includono sempre `kind`/`minigameType` così i client distinguono una domanda vera da un round minigioco.
 
-I timer delle domande sono sincronizzati per timestamp assoluto (`endsAt = Date.now() + time_limit_s * 1000`), non per durata relativa: i client calcolano il countdown localmente da `endsAt`, così la latenza di rete non desincronizza l'host dai player. Questo stesso `endsAt` viene ripresentato in `player:rejoin` per riallineare un client che si riconnette a metà domanda.
+I timer delle domande viaggiano come timestamp assoluto (`endsAt = Date.now() + time_limit_s * 1000`), non come durata relativa, così la latenza di rete non desincronizza l'host dai player. Lo stesso `endsAt` viene ripresentato in `player:rejoin` per riallineare un client che si riconnette a metà domanda.
+
+**Ma un timestamp del server da solo non basta**, ed è stato un difetto vero: ogni client lo confrontava col PROPRIO `Date.now()`, quindi il countdown sbagliava di quanto i due orologi erano distanti — in sala mancavano quattro secondi e sul telefono il tempo era già scaduto. Durante l'evento il Raspberry gira senza rete, quindi senza NTP, mentre i telefoni hanno l'ora della rete cellulare: qualche secondo di scarto è la norma, non l'eccezione. Per questo ogni scadenza viaggia accompagnata dal `serverNow` di chi la manda (`game:question`, `game:results`, `player:rejoin`): la DIFFERENZA fra i due è un intervallo, uguale in qualunque orologio la si misuri, e `client/shared/server-clock.js` la riporta sull'ora locale di chi riceve. Chiunque aggiunga una nuova scadenza assoluta deve mandarci accanto `serverNow` e passare da `ServerClock.localDeadline()`, mai da `endsAt - Date.now()`.
 
 ### Routing HTTP e ordine dei middleware in `server/index.js`
 
@@ -96,6 +112,10 @@ Tutte e tre sono JS vanilla (niente framework, niente build step) servite come f
 **La vista sala non richiede alcun ruolo socket dedicato.** I broadcast di partita in `game-socket.js` sono `io.emit` globali e ogni socket riceve `game:snapshot` al connect: un socket senza token che non emette mai `player:join` riceve già tutto e non può fare nulla, perché gli eventi `host:*` restano dietro `requireHost()`. È anche ciò che rende gratuito il riallineamento se il Pi si riavvia a metà partita.
 
 Il comparto audio vive in `client/sala/`, diviso fra `audio-logic.js` (decisioni pure, senza DOM, testabile in Node con `tools/test-audio.js`) e `audio.js` (motore di riproduzione: SFX via Web Audio, musica via `<audio>` in crossfade). La separazione ricalca quella fra `server/game.js` e `server/game-socket.js`. Sta sulla sala e non su admin-console perché il suono esce dal proiettore collegato al Pi, non dal tablet dell'host — e per lo stesso motivo `arm()` è chiamata **al caricamento della pagina**, non da un gesto utente: sul proiettore non c'è nessuno che clicca. In produzione Chromium va lanciato con `--autoplay-policy=no-user-gesture-required`; sul desktop di sviluppo un ripiego sblocca il contesto al primo click.
+
+La **premiazione finale** è l'altra cosa condivisa fra le due superfici, e l'unica sincronizzata fra loro. `client/shared/final-schedule.js` è il **calendario** della cerimonia (modulo puro, wrapper UMD, testato da `tools/test-final.js`): dice a che istante accade ogni atto — la coda in ritardando dall'ultimo al 4°, il bronzo, l'argento coperto, la proclamazione, la scopertura dell'argento. `client/shared/final-ceremony.css` porta i keyframes e il contratto di classi `.fc-*`, mentre misure e colori restano a ciascuna SPA coi propri token.
+
+**La sincronia NON usa un timestamp assoluto**, a differenza di `endsAt` e `revealAt`. Quelli si confrontano col `Date.now()` di ogni dispositivo: per un countdown lo scarto fra orologi è cosmetico, per una proclamazione è fatale — un telefono avanti di tre secondi urlerebbe il vincitore prima del proiettore. Qui invece `game:final` è un unico `io.emit` e ogni client fa partire la cerimonia **da quando lo riceve**, così lo scarto fra orologi esce dal problema; il telefono aggiunge poi `PLAYER_LAG_MS` a ogni atto, e per arrivare in anticipo dovrebbe ricevere la trasmissione 300 ms prima della sala. Il telefono mostra **solo la propria posizione** (`stepsForRank`), e chi è secondo la scopre insieme alla sala, mai prima: se il suo telefono lo sapesse durante la sospensione, la sua faccia rovinerebbe il finale a tutta la stanza. Entrambi i `renderFinal` accettano `{ animate: false }` per disegnare il fotogramma finale senza cerimonia — serve a `game:snapshot`/`player:rejoin` a premiazione conclusa e al movimento ridotto, perché una media query non ferma dei `setTimeout`.
 
 `client/shared/minigames/` contiene il **registry di presentazione** dei minigiochi, condiviso da vista sala e player e servito su `/shared`. Ogni modulo si autoregistra su `window.Minigames` con lo stesso wrapper UMD di `audio-logic.js`, quindi è caricabile anche in Node per i test. Il contratto (`optionIcon`, `highlightIndex`, `sala.startSuspense`/`stopSuspense`/`reveal`, `player.renderChoice`/`reveal`) è interamente **facoltativo tranne `type` e `label`**: il registry completa il resto con una presentazione generica. `Minigames.get(type)` **non restituisce mai null** — un tipo sconosciuto ottiene il fallback, così un round anomalo degrada invece di rompersi durante un evento dal vivo. Né `sala/app.js` né `player/app.js` nominano un minigioco specifico: chiedono al registry e delegano. Il ramo si chiama `sala` e non `host` perché è la sala a vederlo; `hostStatusText` resta invece con quel nome, perché è davvero la riga di stato del pannello di chi conduce.
 

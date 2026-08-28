@@ -16,7 +16,7 @@
  * (`/shared/minigames/`) e delega.
  */
 
-/* global io, qrcode, Minigames, AudioLogic, SalaAudio */
+/* global io, qrcode, Minigames, AudioLogic, SalaAudio, FinalSchedule, ServerClock */
 
 // ─── Elementi ────────────────────────────────────────────────────────────────
 
@@ -45,7 +45,6 @@ const els = {
   questionHint: document.getElementById('sala-question-hint'),
   questionMedia:document.getElementById('sala-question-media'),
   options:      document.getElementById('sala-options'),
-  answerCount:  document.getElementById('sala-answer-count'),
 
   parade:       document.getElementById('sala-parade'),
   paradeCard:   document.getElementById('sala-parade-card'),
@@ -98,6 +97,11 @@ let phaseToken = 0;
 
 // ─── Utilità di schermata ────────────────────────────────────────────────────
 
+/** Il proiettore non lo chiede quasi mai, ma un desktop di sviluppo può. */
+function reducedMotion() {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+}
+
 /** Mostra un solo pannello alla volta. */
 function showPanel(name) {
   for (const [key, el] of Object.entries(els.panels)) {
@@ -133,6 +137,9 @@ function stopScene() {
   for (const el of document.querySelectorAll('.sala-flying-avatar')) el.remove();
   els.parade.hidden = true;
   els.noAnswer.hidden = true;
+  // I coriandoli della premiazione sopravvivrebbero al cambio di schermata:
+  // durante una serata l'host può far ripartire la partita da qualunque punto.
+  window.Confetti?.stop();
 }
 
 /** setTimeout tracciato, così `stopScene()` può annullarlo. */
@@ -161,10 +168,11 @@ function stopCountdown(reset = true) {
  * Countdown calcolato localmente da un timestamp assoluto: la latenza di rete
  * non desincronizza la sala dall'host e dai telefoni.
  */
-function startCountdown(endsAt) {
+function startCountdown(endsAt, serverNow) {
   stopCountdown();
+  const deadline = ServerClock.localDeadline(endsAt, serverNow);
   const tick = () => {
-    const remaining = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+    const remaining = Math.ceil(ServerClock.remainingMs(deadline) / 1000);
     const m = String(Math.floor(remaining / 60)).padStart(2, '0');
     const s = String(remaining % 60).padStart(2, '0');
     els.timer.textContent = `${m}:${s}`;
@@ -327,9 +335,8 @@ function renderQuestion(q) {
     els.options.appendChild(li);
   });
 
-  els.answerCount.textContent = 'Risposte: 0';
   renderProgress(q.index, q.total);
-  startCountdown(q.endsAt);
+  startCountdown(q.endsAt, q.serverNow);
   showPanel('question');
   SalaAudio.sfx('round-start');
 }
@@ -387,13 +394,33 @@ function flyAvatarToOption(answer, avatarId) {
   const tray = card.querySelector('.sala-option-tray');
   if (!tray) return;
 
-  // Pedina definitiva, inserita subito ma invisibile: così il vassoio ha già la
-  // sua dimensione finale e la destinazione del volo non si sposta a metà strada.
-  const seat = document.createElement('span');
-  seat.className = 'sala-option-seat is-incoming';
-  seat.textContent = avatarOf(avatarId);
-  seat.title = answer.nickname ?? '';
-  tray.appendChild(seat);
+  // Oltre il tetto non si aggiungono pedine: si incrementa un contatore, e
+  // l'avatar vola su quello. Con venti giocatori su una risposta sola le
+  // pedine farebbero crescere la carta oltre il bordo dello schermo, e a
+  // quella dimensione non si distinguono comunque una dall'altra.
+  const seats = tray.querySelectorAll('.sala-option-seat').length;
+  let seat;
+  if (seats >= MAX_OPTION_SEATS) {
+    seat = tray.querySelector('.sala-option-more');
+    if (!seat) {
+      seat = document.createElement('span');
+      seat.className = 'sala-option-more';
+      seat.dataset.extra = '0';
+      tray.appendChild(seat);
+    }
+    const extra = Number(seat.dataset.extra) + 1;
+    seat.dataset.extra = String(extra);
+    seat.textContent = `+${extra}`;
+  } else {
+    // Pedina definitiva, inserita subito ma invisibile: così il vassoio ha già
+    // la sua dimensione finale e la destinazione del volo non si sposta a metà
+    // strada.
+    seat = document.createElement('span');
+    seat.className = 'sala-option-seat is-incoming';
+    seat.textContent = avatarOf(avatarId);
+    seat.title = answer.nickname ?? '';
+    tray.appendChild(seat);
+  }
 
   const from = els.paradeAvatar.getBoundingClientRect();
   const to = seat.getBoundingClientRect();
@@ -557,6 +584,9 @@ function runResultsScene(results, token) {
 // Il "prima" non arriva dal server: si ricava sottraendo i punti del round al
 // punteggio finale. `results` porta già entrambi.
 
+/** Pedine mostrate su una risposta prima di passare al contatore "+N". */
+const MAX_OPTION_SEATS = 12;
+
 const RANK_MEDALS = ['🥇', '🥈', '🥉'];
 const STANDINGS_ROWS = 5;
 const DELTA_IN_MS   = 260;
@@ -684,8 +714,14 @@ function renderOdometer(el, from, to) {
 function rollOdometer(columns, durationMs) {
   for (const { strip, steps } of columns) {
     if (steps === 0) continue;
+    // La percentuale di translateY è relativa alla STRISCIA, non a una cifra:
+    // la striscia è alta `steps + 1` cifre, quindi per portare in finestra
+    // l'ultima si scorre di `steps / (steps + 1)` della propria altezza.
+    // Con `steps * 100%` volava fuori schermo e la finestra restava vuota fino
+    // a `settleOdometer` — le cifre non si vedevano mai girare.
+    const shift = (steps / (steps + 1)) * 100;
     const anim = strip.animate(
-      [{ transform: 'translateY(0)' }, { transform: `translateY(-${steps * 100}%)` }],
+      [{ transform: 'translateY(0)' }, { transform: `translateY(-${shift}%)` }],
       { duration: durationMs, easing: 'cubic-bezier(0.16, 0.8, 0.28, 1)', fill: 'forwards' },
     );
     sceneAnimations.push(anim);
@@ -828,52 +864,312 @@ function renderResults(results, token) {
   renderStandings(results, token);
 }
 
-// ─── Classifica finale ───────────────────────────────────────────────────────
+// ─── Classifica finale: la premiazione ───────────────────────────────────────
+//
+// Non una schermata ma una cerimonia in sette atti, dal fondo verso il podio.
+// I tempi NON stanno qui: li detta `/shared/final-schedule.js`, lo stesso
+// calendario che seguono i telefoni. È ciò che permette di proclamare il
+// vincitore in sala e su ogni telefono nello stesso istante — vedi il commento
+// in testa a quel file per il perché non si usa un timestamp assoluto.
+//
+// Qui c'è solo l'esecuzione: quale atto disegna cosa.
+
+const SPARKLE_COUNT = 14;
+const SPARKLE_GLYPHS = ['✦', '✧', '⭐'];
+
+/** Quante righe della coda restano a schermo insieme, su un proiettore. */
+const TAIL_VISIBLE_ROWS = 7;
+
+/** Un gradino del podio, costruito completo e poi tenuto coperto. */
+function buildPodiumStep(p, rank) {
+  const step = document.createElement('div');
+  step.className = `sala-podium-step rank-${rank} is-slot`;
+
+  const medal = document.createElement('span');
+  medal.className = 'medal';
+  medal.textContent = RANK_MEDALS[rank - 1];
+
+  const av = document.createElement('span');
+  av.className = 'avatar fc-avatar';
+  av.textContent = avatarOf(p.avatar);
+
+  const name = document.createElement('span');
+  name.className = 'name fc-name';
+  name.textContent = p.nickname;
+
+  const points = document.createElement('span');
+  points.className = 'points fc-points';
+  points.textContent = `${p.score} punti`;
+
+  step.append(medal, av, name, points);
+  return step;
+}
+
+/**
+ * Rimpicciolisce i nomi del podio finché stanno su una riga del loro gradino,
+ * e poi porta TUTTI alla stessa scala.
+ *
+ * Si MISURA invece di stimare dalla lunghezza: quanto occupa un nome dipende
+ * anche da quali lettere contiene e da quanto è grande il font a quella
+ * risoluzione, e una soglia a occhio sbagliava proprio nei casi limite.
+ *
+ * La scala è comune perché il gradino d'oro parte più grande degli altri
+ * (×1.15) e quindi tocca il limite per primo: fittandoli uno per uno, un nome
+ * lungo lasciava il vincitore scritto più piccolo del secondo classificato.
+ * Con una scala sola il primo resta il più grande, sempre.
+ *
+ * Va chiamata quando i gradini sono GIÀ nel documento: prima non hanno una
+ * larghezza da misurare.
+ */
+function fitPodiumNames(container) {
+  const names = [...container.querySelectorAll('.sala-podium-step .name')];
+  let common = 1;
+
+  for (const name of names) {
+    if (!name.clientWidth) continue;
+    let scale = 1;
+    name.style.setProperty('--name-scale', '1');
+    // Sotto una certa misura non si legge più da lontano: lì ci si ferma e
+    // l'ellissi fa il resto.
+    while (scale > 0.45 && name.scrollWidth > name.clientWidth) {
+      scale -= 0.05;
+      name.style.setProperty('--name-scale', scale.toFixed(2));
+    }
+    if (scale < common) common = scale;
+  }
+
+  for (const name of names) name.style.setProperty('--name-scale', common.toFixed(2));
+}
+
+/** Una riga della coda (dal 4° in giù). */
+function buildTailRow(p) {
+  const li = document.createElement('li');
+  li.className = 'fc-enter';
+  li.textContent = `${p.rank}. ${avatarOf(p.avatar)} ${p.nickname} — ${p.score} punti`;
+  return li;
+}
+
+/**
+ * Le stelline intorno al vincitore. Posizione e ritardo casuali: due
+ * premiazioni non devono scintillare uguali.
+ */
+function addSparkles(step) {
+  if (reducedMotion()) return;
+  const layer = document.createElement('span');
+  layer.className = 'fc-sparkles';
+  layer.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < SPARKLE_COUNT; i++) {
+    const s = document.createElement('span');
+    s.className = 'fc-sparkle';
+    s.textContent = SPARKLE_GLYPHS[(Math.random() * SPARKLE_GLYPHS.length) | 0];
+    s.style.setProperty('--fc-x', `${Math.random() * 100}%`);
+    s.style.setProperty('--fc-y', `${Math.random() * 100}%`);
+    s.style.setProperty('--fc-delay', `${Math.round(Math.random() * 700)}ms`);
+    s.style.fontSize = `${1 + Math.random() * 1.4}rem`;
+    layer.appendChild(s);
+  }
+  step.appendChild(layer);
+}
+
+/**
+ * Durata dei movimenti condivisi, in millisecondi. Deve combaciare con
+ * /shared/final-ceremony.css — serve solo come scadenza di sicurezza, vedi sotto.
+ */
+const MOTION_MS = { 'fc-pop': 620, 'fc-erupt': 900, 'fc-uncover': 520 };
+
+/**
+ * Il gradino esce dallo stato "pedana vuota" e si mostra, con la sua animazione.
+ *
+ * La classe di movimento si toglie a fine corsa: i keyframes finiscono con
+ * `fill: both`, quindi resterebbero a `rotate(0)` e cancellerebbero la
+ * rotazione da sticker che ogni gradino ha dalla sua regola .rank-N.
+ *
+ * Il "fine corsa" è sia l'evento sia una scadenza a tempo, e non per pignoleria:
+ * se la pagina non sta componendo fotogrammi (proiettore in standby, scheda in
+ * background) l'animazione non parte mai e `animationend` non arriva mai — il
+ * gradino resterebbe per sempre a metà, e l'argento non riceverebbe mai il suo
+ * respiro d'attesa. Stessa regola del contachilometri in `settleOdometer`:
+ * quello che deve finire non può dipendere da un'animazione.
+ *
+ * @param {() => void} [onDone] eseguito quando l'animazione è finita.
+ */
+function revealStep(step, motionClass, onDone) {
+  if (!step) return;
+  step.classList.remove('is-slot');
+  step.classList.add(motionClass);
+
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    step.classList.remove(motionClass);
+    onDone?.();
+  };
+
+  step.addEventListener('animationend', finish, { once: true });
+  sceneWait(finish, (MOTION_MS[motionClass] ?? 620) + 120);
+}
+
+/**
+ * Il fotogramma finale: il solo podio, assestato e vivo. Usato a cerimonia
+ * conclusa, ma anche — senza passare dalla cerimonia — quando la sala si
+ * riallinea da `game:snapshot` a premiazione già avvenuta, o quando il
+ * dispositivo chiede movimento ridotto.
+ */
+function renderFinalFrame(leaderboard) {
+  els.finalList.innerHTML = '';
+  els.podium.innerHTML = '';
+  for (const p of leaderboard.slice(0, 3)) {
+    const step = buildPodiumStep(p, p.rank);
+    step.classList.remove('is-slot');
+    els.podium.appendChild(step);
+  }
+  fitPodiumNames(els.podium);
+  els.podium.classList.add('is-settled');
+}
 
 /**
  * @param {Array} entries classifica. `game:final` la manda già ordinata e con
  *   `rank`; `game:snapshot` porta invece `getPlayers()`, che è grezzo — non
  *   ordinato e senza `rank`. Si normalizza qui una volta sola, così il podio è
  *   corretto da qualunque delle due strade arrivi.
+ * @param {{ animate?: boolean }} [opts] `animate: false` salta la cerimonia e
+ *   disegna direttamente il fotogramma finale.
  */
-function renderFinal(entries) {
-  newPhase();
+function renderFinal(entries, { animate = true } = {}) {
+  const token = newPhase();
   stopCountdown();
+
   const leaderboard = entries
     .slice()
     .sort((a, b) => b.score - a.score)
     .map((p, i) => ({ ...p, rank: i + 1 }));
 
-  const MEDALS = ['🥇', '🥈', '🥉'];
   els.podium.innerHTML = '';
-  leaderboard.slice(0, 3).forEach((p, i) => {
-    const step = document.createElement('div');
-    step.className = `sala-podium-step rank-${i + 1}`;
-    const medal = document.createElement('span');
-    medal.className = 'medal';
-    medal.textContent = MEDALS[i];
-    const av = document.createElement('span');
-    av.className = 'avatar';
-    av.textContent = avatarOf(p.avatar);
-    const name = document.createElement('span');
-    name.className = 'name';
-    name.textContent = p.nickname;
-    const points = document.createElement('span');
-    points.className = 'points';
-    points.textContent = `${p.score} punti`;
-    step.append(medal, av, name, points);
-    els.podium.appendChild(step);
-  });
-
+  els.podium.classList.remove('is-settled', 'is-hidden');
   els.finalList.innerHTML = '';
-  for (const p of leaderboard.slice(3)) {
-    const li = document.createElement('li');
-    li.textContent = `${p.rank}. ${avatarOf(p.avatar)} ${p.nickname} — ${p.score} punti`;
-    els.finalList.appendChild(li);
+  showPanel('final');
+
+  if (leaderboard.length === 0) return;
+
+  // Il movimento ridotto va gestito QUI e non solo nel CSS: la cerimonia è
+  // fatta di setTimeout, che nessuna media query può fermare. Senza questo
+  // ramo la sala resterebbe davanti a uno schermo vuoto per quindici secondi.
+  if (!animate || reducedMotion()) {
+    renderFinalFrame(leaderboard);
+    return;
   }
 
-  showPanel('final');
-  SalaAudio.sfx('final');
+  runCeremony(leaderboard, token);
+}
+
+/** Esegue il calendario condiviso, un atto alla volta. */
+function runCeremony(leaderboard, token) {
+  const byRank = new Map(leaderboard.map((p) => [p.rank, p]));
+  const schedule = FinalSchedule.buildFinalSchedule({ playerCount: leaderboard.length });
+
+  // I gradini nascono tutti insieme come pedane vuote: così il podio ha già la
+  // sua forma definitiva e il bronzo non salta dal centro a destra quando gli
+  // altri due arrivano. Ciò che si alza, un atto alla volta, è il contenuto.
+  const steps = new Map();
+  for (const p of leaderboard.slice(0, 3)) {
+    const step = buildPodiumStep(p, p.rank);
+    steps.set(p.rank, step);
+    els.podium.appendChild(step);
+  }
+  fitPodiumNames(els.podium);
+  // Lo spazio è riservato da subito, la vista no: mostrare i piedistalli già
+  // durante la coda toglierebbe all'ingresso del palco il suo momento.
+  // Senza coda non c'è nessun ingresso da preparare, e il podio parte visibile.
+  const conCoda = schedule.steps.some((b) => b.kind === 'tail');
+  els.podium.classList.toggle('is-hidden', conCoda);
+
+  for (const beat of schedule.steps) {
+    sceneWait(() => {
+      if (AudioLogic.isStale(token, phaseToken)) return;
+      playBeat(beat, byRank, steps);
+    }, beat.at);
+  }
+}
+
+/** Cosa disegna ciascun atto. Un solo posto in cui guardare. */
+function playBeat(beat, byRank, steps) {
+  switch (beat.kind) {
+    // ── La coda, dall'ultimo verso il podio ──
+    case 'tail': {
+      const p = byRank.get(beat.rank);
+      if (p) els.finalList.prepend(buildTailRow(p));
+      // Finestra scorrevole: con venticinque giocatori le prime posizioni
+      // scoperte escono dal fondo mentre arrivano le nuove. A metà coda nessuno
+      // sta più guardando il venticinquesimo, e su un proiettore lo spazio
+      // verticale finisce molto prima dei nomi.
+      // Chi sta già uscendo non conta: altrimenti a ogni riga nuova si
+      // rimarcherebbe lo stesso nodo, ancora a schermo perché in animazione.
+      const staying = [...els.finalList.children].filter((li) => !li.classList.contains('fc-exit'));
+      for (const li of staying.slice(TAIL_VISIBLE_ROWS)) {
+        li.classList.add('fc-exit');
+        sceneWait(() => li.remove(), FinalSchedule.TAIL_EXIT_MS);
+      }
+      SalaAudio.sfx('avatar-land');
+      break;
+    }
+
+    // ── Le righe già viste lasciano il palco ──
+    case 'tail-exit':
+      for (const li of els.finalList.children) li.classList.add('fc-exit');
+      sceneWait(() => {
+        els.finalList.innerHTML = '';
+        els.podium.classList.remove('is-hidden');
+      }, FinalSchedule.TAIL_EXIT_MS);
+      break;
+
+    // ── Il bronzo, rivelato per intero ──
+    case 'podium-3':
+      revealStep(steps.get(3), 'fc-pop');
+      SalaAudio.sfx('reveal');
+      break;
+
+    // ── L'argento: in scena, ma senza nome ──
+    case 'podium-2-covered': {
+      const step = steps.get(2);
+      // `fc-covered` subito (è la copertura, non un movimento), ma il respiro
+      // dell'attesa solo a salita finita: `fc-waiting` anima anch'esso il
+      // transform e vincerebbe sul pop, facendo comparire il gradino di colpo.
+      step?.classList.add('fc-covered');
+      revealStep(step, 'fc-pop', () => step.classList.add('fc-waiting'));
+      SalaAudio.sfx('avatar-land');
+      break;
+    }
+
+    // ── Il vuoto prima della proclamazione ──
+    case 'suspense':
+      SalaAudio.sfx('suspense');
+      break;
+
+    // ── La proclamazione ──
+    case 'winner': {
+      const step = steps.get(1);
+      revealStep(step, 'fc-erupt');
+      if (step) addSparkles(step);
+      window.Confetti?.burst({ count: 140, power: 19 });
+      SalaAudio.sfx('winner');
+      break;
+    }
+
+    // ── E solo ORA si scopre il secondo ──
+    case 'uncover-2': {
+      const step = steps.get(2);
+      step?.classList.remove('fc-covered', 'fc-waiting');
+      revealStep(step, 'fc-uncover');
+      SalaAudio.sfx('reveal');
+      break;
+    }
+
+    // ── Il fotogramma finale: resta il podio, e resta vivo ──
+    case 'settle':
+      els.podium.classList.add('is-settled');
+      break;
+  }
 }
 
 // ─── Socket ──────────────────────────────────────────────────────────────────
@@ -914,7 +1210,10 @@ socket.on('game:snapshot', (snap) => {
     return;
   }
   if (snap.state === 'FINAL_LEADERBOARD') {
-    renderFinal(snap.players ?? []);
+    // Senza cerimonia: se il Raspberry si riavvia a premiazione conclusa, la
+    // sala deve ritrovare il podio subito, non rigiocare quindici secondi di
+    // proclamazione già avvenuta davanti a gente che sta uscendo.
+    renderFinal(snap.players ?? [], { animate: false });
     return;
   }
   els.idleText.textContent = snap.state === 'RESULTS'
@@ -939,10 +1238,6 @@ socket.on('game:lobby-update', ({ players }) => {
 });
 
 socket.on('game:question', renderQuestion);
-
-socket.on('game:answer-count', ({ answered, total }) => {
-  els.answerCount.textContent = `Risposte: ${answered} / ${total}`;
-});
 
 /**
  * Il round è chiuso, ma le quattro opzioni restano a schermo: è su di esse che
@@ -969,7 +1264,7 @@ socket.on('game:results', (results) => {
 
   if (results.revealAt && currentMinigame?.sala.playReveal) {
     currentMinigame.sala.playReveal(minigameEls(), results, currentOptions, {
-      revealAt: results.revealAt,
+      revealAt: ServerClock.localDeadline(results.revealAt, results.serverNow),
       isStale: () => AudioLogic.isStale(token, phaseToken),
       done: startScene,
     });
