@@ -89,3 +89,29 @@ CREATE TABLE IF NOT EXISTS preloaded_quizzes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_preloaded_category ON preloaded_quizzes(category);
+
+-- ─── Tabella: quiz_images ───────────────────────────────────────────────────────
+-- Immagini delle domande, indirizzate dal CONTENUTO.
+--
+-- La chiave primaria e lo SHA-256 esadecimale dei byte stoccati, non un id
+-- progressivo. Tre conseguenze volute:
+--   1. la stessa foto usata in due quiz occupa una riga sola;
+--   2. l URL /api/quiz-image/<hash> non puo mai servire byte diversi, quindi e
+--      cacheabile come "immutable" e ogni dispositivo la scarica una volta sola;
+--   3. un client non puo inventarsi un hash: lo calcola il server dai byte.
+--
+-- I byte sono WebP gia ridimensionato e compresso dal browser dell host (lato
+-- lungo <= 1280px, <= 153.600 byte). Il server non ricomprime: farlo
+-- richiederebbe un modulo nativo, escluso dal vincolo di packaging SEA su ARM.
+--
+-- NESSUNA foreign key verso le domande: una domanda vive dentro il JSON della
+-- colonna `questions`, non in una tabella. Il legame lo ricostruisce
+-- gcOrphanImages() in quiz-manager.js, che gira ad ogni avvio.
+CREATE TABLE IF NOT EXISTS quiz_images (
+    hash        TEXT    PRIMARY KEY,          -- SHA-256 esadecimale minuscolo dei byte
+    mime        TEXT    NOT NULL,
+    bytes       BLOB    NOT NULL,
+    width       INTEGER NOT NULL,
+    height      INTEGER NOT NULL,
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);

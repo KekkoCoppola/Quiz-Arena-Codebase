@@ -356,6 +356,12 @@ class GameSession {
       time_limit_s: r.time_limit_s,
       kind: r.kind,
       minigameType: r.minigameType ?? null,
+      // Un round minigioco non ha immagine: `r.image` è undefined e diventa
+      // null, che è la stessa cosa che dice una domanda senza immagine.
+      // Il campo arriva anche ai telefoni — sono ~90 byte, e non vale un emit
+      // per-room — ma solo la vista sala lo disegna. Vedi la spec
+      // docs/superpowers/specs/2026-08-29-immagini-domande-design.md.
+      image: r.image ?? null,
     };
   }
 

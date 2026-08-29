@@ -16,6 +16,7 @@ const path = require('node:path');
 const fs   = require('node:fs');
 const {
   initDb,
+  getDb,
   closeDb,
   createUser,
   getUserByUsername,
@@ -24,6 +25,9 @@ const {
   createQuiz,
   updateQuiz,
   deleteQuiz,
+  putImage,
+  getImage,
+  gcOrphanImages,
   QuizLimitError,
   NotFoundError,
   DuplicateUsernameError,
@@ -162,6 +166,112 @@ async function run() {
     NotFoundError,
     'deleteQuiz: lancia NotFoundError per ownership errata'
   );
+
+  // ─── Immagini ────────────────────────────────────────────────────────────────
+
+  console.log('\n── quiz_images: stoccaggio indirizzato dal contenuto ──\n');
+
+  const bytesA = Buffer.from('RIFF____WEBPfinta-immagine-A', 'ascii');
+  const bytesB = Buffer.from('RIFF____WEBPfinta-immagine-B', 'ascii');
+
+  const salvataA = putImage(bytesA, 'image/webp', 1280, 720);
+  assert(typeof salvataA.hash === 'string' && salvataA.hash.length === 64, 'putImage restituisce un hash di 64 caratteri');
+  assert(salvataA.width === 1280 && salvataA.height === 720, 'putImage restituisce le dimensioni ricevute');
+
+  const riletta = getImage(salvataA.hash);
+  assert(riletta !== null, 'getImage ritrova la riga appena scritta');
+  assert(Buffer.from(riletta.bytes).equals(bytesA), 'i byte riletti sono identici a quelli scritti');
+  assert(riletta.mime === 'image/webp', 'il mime viene conservato');
+  assert(riletta.width === 1280 && riletta.height === 720, 'le dimensioni vengono conservate');
+
+  assert(getImage('f'.repeat(64)) === null, 'getImage su un hash inesistente restituisce null');
+
+  // Deduplicazione: gli stessi byte non creano una seconda riga.
+  const conteggioImmagini = () =>
+    getDb().prepare('SELECT COUNT(*) AS n FROM quiz_images').get().n;
+
+  const salvataBis = putImage(bytesA, 'image/webp', 1280, 720);
+  assert(salvataBis.hash === salvataA.hash, 'gli stessi byte producono lo stesso hash');
+  assert(conteggioImmagini() === 1, 'gli stessi byte non duplicano la riga');
+
+  // ─── Raccolta degli orfani ───────────────────────────────────────────────────
+
+  console.log('\n── quiz_images: raccolta degli orfani ──\n');
+
+  const salvataB = putImage(bytesB, 'image/webp', 800, 600);
+  assert(conteggioImmagini() === 2, 'due immagini distinte, due righe');
+
+  // Un quiz che referenzia SOLO la prima immagine.
+  const utenteImg = createUser(`img_${Date.now()}`, 'hash-finto-non-usato-per-il-login');
+  createQuiz(utenteImg.id, 'Quiz con immagine', [
+    {
+      text: 'Che animale è questo?',
+      options: ['A', 'B'],
+      correct_index: 0,
+      time_limit_s: 20,
+      image: { hash: salvataA.hash, blur: false },
+    },
+  ]);
+
+  const eliminate = gcOrphanImages();
+  assert(eliminate === 1, "la raccolta elimina esattamente l'immagine orfana");
+  assert(getImage(salvataA.hash) !== null, "l'immagine referenziata da un quiz sopravvive");
+  assert(getImage(salvataB.hash) === null, "l'immagine che nessuno referenzia sparisce");
+
+  assert(gcOrphanImages() === 0, 'la raccolta è idempotente: la seconda passata non elimina nulla');
+
+  // ─── Raccolta degli orfani: copre anche preloaded_quizzes ───────────────────
+
+  console.log('\n── quiz_images: la raccolta scandisce anche preloaded_quizzes ──\n');
+
+  const salvataC = putImage(Buffer.from('RIFF____WEBPfinta-immagine-C', 'ascii'), 'image/webp', 640, 480);
+  assert(conteggioImmagini() === 2, 'immagine C salvata (A sopravvissuta sopra, ora anche C)');
+
+  // Nessuna funzione pubblica scrive in preloaded_quizzes (la tabella è
+  // riallineata da quiz-library.js ad ogni avvio): per il test si inserisce a
+  // mano con una prepared statement grezza, come farebbe la sincronizzazione.
+  getDb()
+    .prepare('INSERT INTO preloaded_quizzes (slug, title, category, questions) VALUES (?, ?, ?, ?)')
+    .run(
+      `quiz-precaricato-test-${Date.now()}`,
+      'Quiz precaricato con immagine',
+      'Test',
+      JSON.stringify([
+        {
+          text: 'Domanda con immagine precaricata',
+          options: ['A', 'B'],
+          correct_index: 0,
+          time_limit_s: 20,
+          image: { hash: salvataC.hash, blur: false },
+        },
+      ])
+    );
+
+  // Se la raccolta non leggesse anche preloaded_quizzes, C sembrerebbe orfana
+  // (nessuna riga di `quizzes` la referenzia) e sparirebbe qui sotto.
+  assert(gcOrphanImages() === 0, "gcOrphanImages: C è referenziata solo da preloaded_quizzes, non è orfana");
+  assert(getImage(salvataC.hash) !== null, "l'immagine referenziata solo da preloaded_quizzes sopravvive alla raccolta");
+
+  // ─── Raccolta degli orfani: una riga con `questions` illeggibile annulla tutto ──
+
+  console.log('\n── quiz_images: una riga con questions illeggibile annulla la raccolta ──\n');
+
+  const salvataD = putImage(Buffer.from('RIFF____WEBPfinta-immagine-D', 'ascii'), 'image/webp', 400, 300);
+  assert(conteggioImmagini() === 3, "immagine D salvata: un'orfana vera, di quelle che la raccolta normalmente eliminerebbe");
+
+  // createQuiz non può mai produrre questo stato: serializza sempre con
+  // JSON.stringify. Si bypassa con una prepared statement grezza, esattamente
+  // come nella riproduzione del difetto: una riga con `questions` non-JSON.
+  getDb()
+    .prepare('INSERT INTO quizzes (user_id, title, questions) VALUES (?, ?, ?)')
+    .run(utenteImg.id, 'Quiz con questions corrotto (test)', '{questo non è JSON valido');
+
+  const eliminateDopoCorruzione = gcOrphanImages();
+  assert(eliminateDopoCorruzione === 0, 'gcOrphanImages: una riga illeggibile annulla la raccolta, zero eliminazioni');
+  assert(getImage(salvataD.hash) !== null, "l'immagine D (un'orfana vera) sopravvive perché la raccolta intera è annullata");
+  assert(getImage(salvataA.hash) !== null, 'anche le immagini regolarmente referenziate (A) restano intatte');
+  assert(getImage(salvataC.hash) !== null, 'anche le immagini regolarmente referenziate (C) restano intatte');
+  assert(conteggioImmagini() === 3, 'nessuna riga di quiz_images viene toccata quando la raccolta è annullata');
 
   // ─── Riepilogo ──────────────────────────────────────────────────────────────────
 

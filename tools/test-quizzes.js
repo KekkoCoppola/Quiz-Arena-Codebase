@@ -16,7 +16,7 @@ const path = require('node:path');
 const fs   = require('node:fs');
 const os   = require('node:os');
 
-const { validateQuiz, MAX_QUESTIONS_PER_QUIZ } = require(path.join(__dirname, '..', 'server', 'quiz-schema'));
+const { validateQuiz, MAX_QUESTIONS_PER_QUIZ, isValidImageHash } = require(path.join(__dirname, '..', 'server', 'quiz-schema'));
 
 // ─── Setup ───────────────────────────────────────────────────────────────────
 
@@ -105,6 +105,38 @@ assert(validateQuiz(mgIndiceAlto) !== null, 'minigioco dopo una domanda inesiste
 
 assert(validateQuiz({ ...base(), minigames: undefined }) === null, 'minigames assente è ammesso');
 assert(validateQuiz({ ...base(), minigames: 'no' }) !== null, 'minigames non-array rifiutato');
+
+// ─── Immagine sulla domanda ──────────────────────────────────────────────────
+
+console.log('\n── quiz-schema: immagine sulla domanda ──\n');
+
+const HASH_OK = 'a1b2c3d4'.repeat(8); // 64 caratteri esadecimali
+
+const conImmagine = (image) => {
+  const q = base();
+  q.questions[0].image = image;
+  return q;
+};
+
+assert(validateQuiz(base()) === null, 'una domanda senza chiave "image" resta valida');
+assert(validateQuiz(conImmagine(null)) === null, '"image": null è valido (nessuna immagine)');
+assert(validateQuiz(conImmagine({ hash: HASH_OK, blur: false })) === null, 'immagine ben formata accettata');
+assert(validateQuiz(conImmagine({ hash: HASH_OK, blur: true })) === null, 'blur true accettato');
+
+assert(validateQuiz(conImmagine({ hash: 'a'.repeat(63), blur: false })) !== null, 'hash di 63 caratteri rifiutato');
+assert(validateQuiz(conImmagine({ hash: 'A'.repeat(64), blur: false })) !== null, 'hash maiuscolo rifiutato');
+assert(validateQuiz(conImmagine({ hash: 'z'.repeat(64), blur: false })) !== null, 'hash non esadecimale rifiutato');
+assert(validateQuiz(conImmagine({ hash: HASH_OK })) !== null, '"blur" mancante rifiutato');
+assert(validateQuiz(conImmagine({ hash: HASH_OK, blur: 'sì' })) !== null, '"blur" non booleano rifiutato');
+assert(validateQuiz(conImmagine({ blur: false })) !== null, '"hash" mancante rifiutato');
+assert(validateQuiz(conImmagine({ hash: HASH_OK, blur: false, extra: 1 })) !== null, 'chiavi estranee rifiutate');
+assert(validateQuiz(conImmagine('/api/quiz-image/x')) !== null, 'una stringa non è un oggetto immagine');
+assert(validateQuiz(conImmagine([HASH_OK])) !== null, 'un array non è un oggetto immagine');
+
+// isValidImageHash, esportata perché la usa anche la route pubblica.
+assert(isValidImageHash(HASH_OK) === true, 'isValidImageHash accetta un hash valido');
+assert(isValidImageHash('../../etc/passwd') === false, 'isValidImageHash rifiuta un percorso');
+assert(isValidImageHash(null) === false, 'isValidImageHash rifiuta null');
 
 // ─── loadQuizFiles ───────────────────────────────────────────────────────────
 

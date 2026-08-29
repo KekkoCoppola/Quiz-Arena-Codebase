@@ -19,6 +19,7 @@
 const fs   = require('node:fs');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
+const { createHash } = require('node:crypto');
 
 // ─── Costanti ────────────────────────────────────────────────────────────────────
 
@@ -139,6 +140,19 @@ function initDb(dbPath) {
   addColumnIfMissing('preloaded_quizzes', 'slug TEXT');
 
   syncPreloadedQuizzes();
+
+  // Raccolta degli orfani: le immagini sono condivise fra domande e fra quiz,
+  // quindi cancellare una domanda non può cancellare il blob — potrebbe servire
+  // altrove. Si ricalcola qui, all'avvio, quali hash sono ancora referenziati.
+  //
+  // Un refcount sarebbe più efficiente e più fragile: un contatore va aggiornato
+  // da ogni percorso che tocca una domanda, e basta dimenticarne uno perché
+  // diventi bugiardo in silenzio. Questa scansione ricalcola la verità invece di
+  // ricordarla, e su un DB di questa taglia costa millisecondi.
+  const orfane = gcOrphanImages();
+  if (orfane > 0) {
+    console.log(`[img] raccolta orfani: ${orfane} immagini eliminate.`);
+  }
 }
 
 /**
@@ -411,6 +425,135 @@ function getPreloadedQuizById(quizId) {
   return parseQuizRow(stmt.get(quizId));
 }
 
+// ─── Immagini delle domande ──────────────────────────────────────────────────
+
+/**
+ * Stocca i byte di un'immagine, indirizzata dal proprio contenuto.
+ *
+ * L'hash lo calcola SEMPRE il server dai byte ricevuti: un client non ha modo
+ * di far entrare un riferimento che non corrisponda a ciò che ha caricato.
+ *
+ * Idempotente: ricaricare la stessa immagine non crea una seconda riga.
+ * `INSERT OR IGNORE` invece di un SELECT preventivo perché la chiave primaria
+ * fa già il lavoro, e in una riga sola.
+ *
+ * @param {Buffer|Uint8Array} bytes byte già compressi (WebP)
+ * @param {string} mime
+ * @param {number} width
+ * @param {number} height
+ * @returns {{ hash: string, width: number, height: number }}
+ */
+function putImage(bytes, mime, width, height) {
+  const database = getDb();
+  const buffer = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
+  const hash = createHash('sha256').update(buffer).digest('hex');
+
+  database
+    .prepare('INSERT OR IGNORE INTO quiz_images (hash, mime, bytes, width, height) VALUES (?, ?, ?, ?, ?)')
+    .run(hash, mime, buffer, width, height);
+
+  return { hash, width, height };
+}
+
+/**
+ * @param {string} hash
+ * @returns {{ hash: string, mime: string, bytes: Uint8Array, width: number, height: number, created_at: string } | null}
+ */
+function getImage(hash) {
+  const database = getDb();
+  const row = database
+    .prepare('SELECT hash, mime, bytes, width, height, created_at FROM quiz_images WHERE hash = ?')
+    .get(hash);
+  return row ?? null;
+}
+
+/**
+ * Tutti gli hash referenziati da almeno una domanda, in entrambe le tabelle.
+ *
+ * Le domande vivono dentro un JSON serializzato, quindi non c'è una JOIN da
+ * fare: si legge e si scandisce. Se una riga ha un `questions` illeggibile
+ * (JSON non valido, o valido ma non un array) la scansione NON può più
+ * garantire di conoscere tutti gli hash vivi. Trattare quella riga come "zero
+ * hash" — l'idea originale di questa funzione — è esattamente sbagliato: fa
+ * *sembrare* orfana un'immagine che invece è ancora referenziata, e chi la
+ * chiama la cancellerebbe per sempre. Per questo la riga rotta non viene
+ * saltata in silenzio: fa fallire l'intera raccolta, rumorosamente.
+ *
+ * @param {import('node:sqlite').DatabaseSync} database
+ * @returns {Set<string> | null} null se almeno una riga non è stata leggibile
+ *   (raccolta annullata, vedi gcOrphanImages)
+ */
+function collectReferencedImageHashes(database) {
+  const referenced = new Set();
+  let raccoltaFallita = false;
+
+  for (const table of ['quizzes', 'preloaded_quizzes']) {
+    for (const row of database.prepare(`SELECT id, questions FROM ${table}`).all()) {
+      let questions;
+      try {
+        questions = JSON.parse(row.questions);
+      } catch {
+        console.error(`[img] ${table}.id=${row.id}: "questions" non è JSON valido, riga ignorata ai fini della raccolta.`);
+        raccoltaFallita = true;
+        continue;
+      }
+      if (!Array.isArray(questions)) {
+        console.error(`[img] ${table}.id=${row.id}: "questions" non è un array, riga ignorata ai fini della raccolta.`);
+        raccoltaFallita = true;
+        continue;
+      }
+
+      for (const q of questions) {
+        const hash = q?.image?.hash;
+        if (typeof hash === 'string') referenced.add(hash);
+      }
+    }
+  }
+
+  return raccoltaFallita ? null : referenced;
+}
+
+/**
+ * Elimina le immagini che nessuna domanda referenzia più.
+ *
+ * Se anche una sola riga di `quizzes`/`preloaded_quizzes` ha un `questions`
+ * illeggibile, questa funzione NON elimina nulla e restituisce 0. L'asimmetria
+ * è deliberata: cancellare un'immagine è irreversibile, mentre non cancellarla
+ * costa solo un po' di spazio su una scheda SD — un file in più non raccolto
+ * si ripresenta al prossimo avvio, un'immagine viva cancellata per errore è
+ * persa per sempre. Stessa filosofia di quiz-library.js (un quiz malformato
+ * viene escluso con un console.error, non fatto passare) e del registry
+ * minigiochi (un modulo malformato blocca l'avvio): qui l'avvio del server
+ * NON si blocca — vedi initDb, che chiama questa funzione ma prosegue comunque
+ * — si salta solo la raccolta, e il problema resta visibile nei log.
+ *
+ * Idempotente quando tutte le righe sono leggibili: eseguirla due volte di
+ * fila non cambia niente, come lo `syncPreloadedQuizzes` accanto a cui gira.
+ *
+ * @returns {number} righe eliminate, 0 se la raccolta è stata annullata
+ */
+function gcOrphanImages() {
+  const database = getDb();
+  const referenced = collectReferencedImageHashes(database);
+
+  if (referenced === null) {
+    // Il dettaglio (tabella + id della riga incriminata) è già stato stampato
+    // da collectReferencedImageHashes; qui si rende visibile solo l'esito.
+    console.error('[img] raccolta orfani annullata: nessuna immagine eliminata in questo avvio.');
+    return 0;
+  }
+
+  if (referenced.size === 0) {
+    // Nessuna domanda referenzia niente: sono orfane tutte.
+    return database.prepare('DELETE FROM quiz_images').run().changes;
+  }
+
+  const placeholders = Array.from(referenced, () => '?').join(', ');
+  return database
+    .prepare(`DELETE FROM quiz_images WHERE hash NOT IN (${placeholders})`)
+    .run(...referenced).changes;
+}
+
 // ─── Exports ────────────────────────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -432,6 +575,10 @@ module.exports = {
   // Preloaded Quizzes (sola lettura)
   getPreloadedQuizzes,
   getPreloadedQuizById,
+  // Immagini delle domande
+  putImage,
+  getImage,
+  gcOrphanImages,
   // Error classes (usate dai route handler per il mapping HTTP status)
   QuizLimitError,
   NotFoundError,

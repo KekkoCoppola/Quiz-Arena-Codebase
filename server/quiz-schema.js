@@ -30,6 +30,18 @@ const MAX_OPTIONS            = 4;
 const MIN_TIME_LIMIT_S       = 5;
 const MAX_TIME_LIMIT_S       = 120;
 
+/**
+ * Un riferimento a immagine è l'esadecimale minuscolo di uno SHA-256.
+ *
+ * NOTA: la stessa regex vive in `client/shared/image-budget.js`. È deliberato —
+ * questo modulo deve restare puro e senza dipendenze da `client/`, e quello è
+ * servito ai browser. Sono i due lati dello stesso contratto.
+ */
+const IMAGE_HASH_RE = /^[0-9a-f]{64}$/;
+
+/** Le uniche chiavi ammesse dentro `image`. */
+const IMAGE_KEYS = ['hash', 'blur'];
+
 // ─── Validazione ─────────────────────────────────────────────────────────────
 
 /**
@@ -84,6 +96,9 @@ function validateQuiz({ title, questions, minigames }) {
     ) {
       return `Domanda ${num}: "time_limit_s" deve essere un intero tra ${MIN_TIME_LIMIT_S} e ${MAX_TIME_LIMIT_S} secondi.`;
     }
+
+    const imageError = validateQuestionImage(q.image, num);
+    if (imageError) return imageError;
   }
 
   if (minigames !== undefined) {
@@ -113,8 +128,56 @@ function validateQuiz({ title, questions, minigames }) {
   return null;
 }
 
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function isValidImageHash(value) {
+  return typeof value === 'string' && IMAGE_HASH_RE.test(value);
+}
+
+/**
+ * Valida la forma di `image` su una domanda.
+ *
+ * Controlla la FORMA, non l'esistenza: che l'hash corrisponda a una riga di
+ * `quiz_images` non si può sapere da qui, perché questo modulo è puro e non ha
+ * un DB. Lo verifica chi ne ha uno — la route di salvataggio per i quiz
+ * dell'editor, `quiz-library.js` per i file di sistema.
+ *
+ * Le chiavi estranee vengono rifiutate invece che ignorate: un `blurred: true`
+ * scritto per errore al posto di `blur` deve dare un errore, non sparire in
+ * silenzio lasciando un'immagine nitida davanti a una sala.
+ *
+ * @param {any} image
+ * @param {number} num numero della domanda (1-based) per il messaggio
+ * @returns {string | null}
+ */
+function validateQuestionImage(image, num) {
+  if (image === undefined || image === null) return null;
+
+  if (typeof image !== 'object' || Array.isArray(image)) {
+    return `Domanda ${num}: "image" deve essere un oggetto { hash, blur } oppure null.`;
+  }
+
+  const extra = Object.keys(image).filter((k) => !IMAGE_KEYS.includes(k));
+  if (extra.length > 0) {
+    return `Domanda ${num}: "image" contiene chiavi non previste (${extra.join(', ')}).`;
+  }
+
+  if (!isValidImageHash(image.hash)) {
+    return `Domanda ${num}: "image.hash" deve essere un SHA-256 esadecimale di 64 caratteri minuscoli.`;
+  }
+
+  if (typeof image.blur !== 'boolean') {
+    return `Domanda ${num}: "image.blur" deve essere true o false.`;
+  }
+
+  return null;
+}
+
 module.exports = {
   validateQuiz,
+  isValidImageHash,
   MAX_QUESTIONS_PER_QUIZ,
   MAX_TITLE_LENGTH,
   MIN_OPTIONS,

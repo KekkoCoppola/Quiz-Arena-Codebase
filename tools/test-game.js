@@ -317,6 +317,47 @@ function run() {
   const finalAfterInsert = g9b.nextQuestion(1000);
   assert(finalAfterInsert.finished === true, 'nextQuestion: la partita termina regolarmente dopo l\'inserimento ad-hoc');
 
+  // ─── Immagine nel round ──────────────────────────────────────────────────────
+
+  console.log("\n── game: l'immagine arriva nel round ──\n");
+
+  const HASH_IMG = 'b'.repeat(64);
+
+  const quizConImmagine = {
+    title: 'Quiz illustrato',
+    questions: [
+      {
+        text: 'Che animale è questo?',
+        options: ['A', 'B'],
+        correct_index: 0,
+        time_limit_s: 20,
+        image: { hash: HASH_IMG, blur: true },
+      },
+      {
+        text: 'Domanda senza immagine',
+        options: ['A', 'B'],
+        correct_index: 1,
+        time_limit_s: 20,
+      },
+    ],
+    minigames: [],
+  };
+
+  const sessioneImg = new GameSession(quizConImmagine);
+  sessioneImg.addPlayer('Tester', 'volpe');
+  sessioneImg.startGame();
+
+  const round0 = sessioneImg.getCurrentRound();
+  assert(round0.image !== null && round0.image !== undefined, 'il round porta il campo image');
+  assert(round0.image.hash === HASH_IMG, "l'hash arriva intatto");
+  assert(round0.image.blur === true, 'il flag blur arriva intatto');
+  assert(round0.correct_index === undefined, 'il round resta sanificato: nessun correct_index');
+
+  sessioneImg.endQuestion();
+  sessioneImg.nextQuestion();
+  const round1 = sessioneImg.getCurrentRound();
+  assert(round1.image === null, 'una domanda senza immagine espone image: null, non undefined');
+
   // ─── Riepilogo ──────────────────────────────────────────────────────────────────
 
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
