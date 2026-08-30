@@ -257,41 +257,65 @@ function renderLobby(players) {
  * scheda sfonderebbe l'altezza dello schermo e le risposte uscirebbero dal
  * campo visivo, che su un proiettore significa perderle del tutto.
  *
- * A decidere è la **presenza della chiave** `image` nel round, non il suo
- * valore: `image: null` significa "domanda con immagine, immagine non ancora
- * caricata" e mostra il segnaposto, mentre una domanda senza immagine la
- * chiave non ce l'ha proprio. Serve perché il campo NON esiste ancora nel
- * modello dati — finché non lo si aggiunge all'editor, il ramo con immagine
- * si attiva solo con un payload che lo porta.
+ * A decidere è il VALORE di `round.image`: un oggetto `{ hash, blur }` attiva
+ * il riquadro, `null` (o l'assenza del campo) la riga di istruzione. Il
+ * riferimento arriva nel payload di `game:question`; i byte no — si scaricano
+ * da `/api/quiz-image/<hash>`, che è cacheabile come immutable e quindi costa
+ * un download solo per dispositivo per tutta la serata.
+ *
+ * L'immagine è mostrata SOLO qui: il telefono riceve il campo (sono ~90 byte,
+ * non vale un emit per-room) ma non lo disegna. Vedi la spec
+ * docs/superpowers/specs/2026-08-29-immagini-domande-design.md.
  *
  * @param {object | null} round payload del round, o null per la variante testo
+ * @param {number} token fase corrente (da `newPhase()`), per scartare un
+ *   `error` che arriva a round già cambiato — stesso idioma di `phaseToken` /
+ *   `AudioLogic.isStale` usato altrove in questo file.
  */
-function renderQuestionMedia(round) {
-  const hasMedia = round !== null && Object.prototype.hasOwnProperty.call(round, 'image');
+function renderQuestionMedia(round, token) {
+  const image = round?.image ?? null;
+  const hasMedia = image !== null && typeof image === 'object' && typeof image.hash === 'string';
+
   els.questionHint.hidden  = hasMedia;
   els.questionMedia.hidden = !hasMedia;
-  if (!hasMedia) return;
-  const image = round.image;
 
-  // Il riquadro resta, col suo segnaposto, finché non arriva un'immagine vera.
+  // Si riparte sempre dal riquadro pulito: l'immagine del round precedente non
+  // deve comparire per un fotogramma sotto la domanda nuova, né la sua
+  // sfocatura restare addosso a un'immagine che non la vuole.
   const existing = els.questionMedia.querySelector('img');
   if (existing) existing.remove();
+  els.questionMedia.classList.remove('is-blurred');
+
   const icon = els.questionMedia.querySelector('.material-symbols-outlined');
-  if (typeof image === 'string' && image !== '') {
-    const img = document.createElement('img');
-    img.src = image;
-    img.alt = '';
-    // Se l'immagine non carica si torna al segnaposto invece di lasciare un buco.
-    img.addEventListener('error', () => { img.remove(); if (icon) icon.hidden = false; });
-    if (icon) icon.hidden = true;
-    els.questionMedia.appendChild(img);
-  } else if (icon) {
-    icon.hidden = false;
+
+  if (!hasMedia) {
+    if (icon) icon.hidden = false;
+    return;
   }
+
+  els.questionMedia.classList.toggle('is-blurred', image.blur === true);
+
+  const img = document.createElement('img');
+  img.src = `/api/quiz-image/${image.hash}`;
+  img.alt = '';
+  img.decoding = 'async';
+  // Se l'immagine non carica si torna al segnaposto invece di lasciare un
+  // buco. Ma un `error` può arrivare dopo che la fase è già cambiata (round
+  // successivo, o minigioco senza immagine): a quel punto questo <img> è già
+  // stato rimosso dal riquadro pulito qui sopra, e l'`icon` che toccheremmo
+  // non è più quella di questa domanda. Si scarta come qualunque reveal in
+  // ritardo.
+  img.addEventListener('error', () => {
+    if (AudioLogic.isStale(token, phaseToken)) return;
+    img.remove();
+    if (icon) icon.hidden = false;
+  });
+  if (icon) icon.hidden = true;
+  els.questionMedia.appendChild(img);
 }
 
 function renderQuestion(q) {
-  newPhase();
+  const token = newPhase();
   currentOptions  = q.options ?? [];
   const isMinigame = q.kind === 'minigame';
   currentMinigame  = isMinigame ? Minigames.get(q.minigameType) : null;
@@ -312,7 +336,7 @@ function renderQuestion(q) {
   }
 
   // Un minigioco non ha immagine: la sua scena la disegna la presentazione.
-  renderQuestionMedia(isMinigame ? null : q);
+  renderQuestionMedia(isMinigame ? null : q, token);
 
   els.options.innerHTML = '';
   els.options.classList.toggle('is-three', currentOptions.length === 3);

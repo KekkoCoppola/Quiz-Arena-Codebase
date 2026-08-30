@@ -390,6 +390,20 @@
   <!-- Correzione dello scarto fra orologi: senza, in sala e sul telefono
        il tempo scade in momenti diversi. -->
   <script src="/shared/server-clock.js"></script>
+
+  <!-- Regole pure di ridimensionamento/compressione immagini (nessun DOM,
+       nessuna rete): stesso modulo usato da tools/test-image.js. -->
+  <script src="/shared/image-budget.js"></script>
+
+  <!-- Input di caricamento condiviso da tutte le domande: quale domanda lo stia
+       usando lo dice state.pendingImageQuestion. Venti input nascosti nel DOM per
+       venti domande sarebbero venti nodi in più per la stessa identica funzione.
+       Deve stare PRIMA di app.js: quello script legge questo elemento con
+       getElementById al caricamento del modulo, non dentro un listener
+       DOMContentLoaded — se questo tag venisse dopo, la lookup tornerebbe null
+       e l'intero caricamento immagini fallirebbe in silenzio. -->
+  <input type="file" id="image-file-input" accept="image/*" hidden>
+
   <script src="app.js"></script>
 </body>
 

@@ -149,9 +149,22 @@ function initDb(dbPath) {
   // da ogni percorso che tocca una domanda, e basta dimenticarne uno perché
   // diventi bugiardo in silenzio. Questa scansione ricalcola la verità invece di
   // ricordarla, e su un DB di questa taglia costa millisecondi.
-  const orfane = gcOrphanImages();
-  if (orfane > 0) {
-    console.log(`[img] raccolta orfani: ${orfane} immagini eliminate.`);
+  //
+  // A differenza dei passi precedenti di initDb (SELECT, PRAGMA, CREATE TABLE
+  // IF NOT EXISTS), la DELETE dentro gcOrphanImages() è una scrittura: su un
+  // DB montato in sola lettura (scheda SD Raspberry degradata), a disco pieno
+  // o con un lock residuo, lancia invece di restituire un conteggio. Prima di
+  // questa raccolta lo stesso scenario avviava comunque il server per
+  // un'intera serata, perché la partita vive in memoria e i quiz servono solo
+  // in lettura: un guasto qui non deve far regredire quel comportamento.
+  // Stessa filosofia di syncPreloadedQuizzes appena sopra.
+  try {
+    const orfane = gcOrphanImages();
+    if (orfane > 0) {
+      console.log(`[img] raccolta orfani: ${orfane} immagini eliminate.`);
+    }
+  } catch (err) {
+    console.error('[img] raccolta orfani fallita, il server si avvia comunque:', err.message);
   }
 }
 
@@ -524,13 +537,24 @@ function collectReferencedImageHashes(database) {
  * persa per sempre. Stessa filosofia di quiz-library.js (un quiz malformato
  * viene escluso con un console.error, non fatto passare) e del registry
  * minigiochi (un modulo malformato blocca l'avvio): qui l'avvio del server
- * NON si blocca — vedi initDb, che chiama questa funzione ma prosegue comunque
- * — si salta solo la raccolta, e il problema resta visibile nei log.
+ * NON si blocca — si salta solo la raccolta, e il problema resta visibile nei
+ * log.
+ *
+ * Questa protezione, però, è tutta interna e copre solo il caso di
+ * `questions` illeggibile. Un errore del driver SQLite sulla DELETE (DB
+ * montato in sola lettura, scheda SD piena, database bloccato) esce da questa
+ * funzione come un'eccezione vera e propria: non è `gcOrphanImages` a
+ * intercettarla, ma il suo chiamante `initDb()`, che avvolge la chiamata in
+ * try/catch. L'avvio del server non si blocca in nessuno dei due casi, ma per
+ * due ragioni diverse: qui perché la raccolta si annulla da sola, in initDb
+ * perché l'errore viene loggato e ignorato.
  *
  * Idempotente quando tutte le righe sono leggibili: eseguirla due volte di
  * fila non cambia niente, come lo `syncPreloadedQuizzes` accanto a cui gira.
  *
  * @returns {number} righe eliminate, 0 se la raccolta è stata annullata
+ * @throws se il driver SQLite fallisce sulla DELETE (es. DB in sola lettura o
+ *   disco pieno) — vedi sopra: a intercettarlo è initDb(), non questa funzione.
  */
 function gcOrphanImages() {
   const database = getDb();

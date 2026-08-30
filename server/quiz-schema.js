@@ -141,8 +141,12 @@ function isValidImageHash(value) {
  *
  * Controlla la FORMA, non l'esistenza: che l'hash corrisponda a una riga di
  * `quiz_images` non si può sapere da qui, perché questo modulo è puro e non ha
- * un DB. Lo verifica chi ne ha uno — la route di salvataggio per i quiz
- * dell'editor, `quiz-library.js` per i file di sistema.
+ * un DB. Per i quiz dell'editor l'esistenza la verifica la route di
+ * salvataggio in `routes/host.js`, che un DB ce l'ha. `quiz-library.js` (i
+ * quiz di sistema) NON fa lo stesso controllo: le immagini nei file di
+ * `content/quizzes/` non sono ancora un percorso supportato — vedi
+ * `_TEMPLATE.json.txt` — quindi un hash che punta al vuoto lì entra senza che
+ * nulla se ne accorga all'avvio.
  *
  * Le chiavi estranee vengono rifiutate invece che ignorate: un `blurred: true`
  * scritto per errore al posto di `blur` deve dare un errore, non sparire in

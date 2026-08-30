@@ -23,6 +23,7 @@ const { Server: SocketServer } = require('socket.io');
 
 const config       = require('./config');
 const db           = require('./quiz-manager');
+const { isValidImageHash } = require('./quiz-schema');
 const hostRouter   = require('./routes/host');
 const playerRouter = require('./routes/player');
 const { lanJoinUrl } = require('./lan-url');
@@ -99,6 +100,42 @@ app.get('/api/health', (_req, res) => {
   res.json({ success: true, data: { status: 'ok', uptime: process.uptime() } });
 });
 
+// ─── Immagini delle domande ───────────────────────────────────────────────────
+// PUBBLICA, senza autenticazione, per la stessa ragione di /api/join-info: la
+// vista sala non ha un token e non può averne uno. Chi è sull'access point e
+// conosce l'hash scarica l'immagine — che è comunque destinata a finire
+// proiettata su un muro davanti a tutta la stanza. L'hash è a 256 bit e non si
+// indovina. È una scelta dichiarata nella spec, non una dimenticanza.
+//
+// DEVE stare prima del fallback /api/* → 404, altrimenti risponderebbe HTML.
+app.get('/api/quiz-image/:hash', (req, res) => {
+  const { hash } = req.params;
+
+  // L'hash finisce in una query parametrizzata, quindi non c'è iniezione da
+  // temere: il controllo serve a rispondere 400 invece di 404 a una richiesta
+  // palesemente malformata, e a non interrogare il DB per niente.
+  if (!isValidImageHash(hash)) {
+    return res.status(400).json({ success: false, error: 'Hash non valido.' });
+  }
+
+  const image = db.getImage(hash);
+  if (!image) {
+    return res.status(404).json({ success: false, error: 'Immagine non trovata.' });
+  }
+
+  // `immutable` non è ottimismo: l'URL contiene l'hash del proprio contenuto,
+  // quindi per costruzione non può mai servire byte diversi. Ogni dispositivo
+  // scarica un'immagine una volta sola per tutta la serata, anche se l'host
+  // rigioca la stessa partita.
+  res.set({
+    'Content-Type':  image.mime,
+    'Cache-Control': 'public, max-age=31536000, immutable',
+    'ETag':          `"${hash}"`,
+  });
+
+  return res.send(Buffer.from(image.bytes));
+});
+
 // ─── 404 per route /api/* non trovate ────────────────────────────────────────
 // Intercetta chiamate API a endpoint inesistenti PRIMA del fallback statico,
 // così restituisce JSON invece di HTML.
@@ -119,8 +156,28 @@ app.use(express.static(path.join(__dirname, '../client/player')));
 // dai middleware normali.
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, _next) => {
-  console.error(`[Server] Errore non gestito su ${req.method} ${req.url}:`, err);
-  res.status(500).json({ success: false, error: 'Errore interno del server.' });
+  // Gli errori dei body-parser (payload troppo grande, JSON malformato)
+  // portano già uno status e un messaggio sensati: rispondere 500 li
+  // trasformerebbe in "errore interno" e il client non saprebbe cosa correggere.
+  const status = Number.isInteger(err?.status) ? err.status : 500;
+
+  if (status >= 500) {
+    console.error(`[Server] Errore non gestito su ${req.method} ${req.url}:`, err);
+    return res.status(500).json({ success: false, error: 'Errore interno del server.' });
+  }
+
+  console.warn(`[Server] Richiesta rifiutata su ${req.method} ${req.url}: ${err.message}`);
+
+  // body-parser rifiuta un body troppo grande con un messaggio in inglese
+  // ("request entity too large"): un host lo leggerebbe crudo in un toast
+  // durante un evento. `type` è il campo che body-parser stesso imposta per
+  // questo caso — più stabile da controllare del testo del messaggio, che
+  // potrebbe cambiare tra versioni della libreria.
+  const message = err?.type === 'entity.too.large'
+    ? 'Il file caricato è troppo grande.'
+    : err.message;
+
+  return res.status(status).json({ success: false, error: message });
 });
 
 // ─── Server HTTP ──────────────────────────────────────────────────────────────

@@ -435,12 +435,15 @@ body {
   border-radius: 0.375rem;
 }
 
-/* Variante CON immagine: riquadro tratteggiato, oggi un segnaposto. */
+/* Variante CON immagine.
+   `position: relative` non è decorativo: senza, l'<img> figlia non ha un
+   contenitore contro cui risolvere `inset: 0` — vedi il commento sotto. */
 .q-media {
+  position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
   /* Il 16:9 vale finché c'è spazio: oltre, l'altezza vince sul rapporto e
-     l'immagine vera si adatta con object-fit invece di sfondare il layout. */
+     l'immagine si adatta con object-fit invece di sfondare il layout. */
   max-height: 34vh;
   margin: 1rem 0 0;
   border: 4px dashed var(--retro-dark);
@@ -451,10 +454,35 @@ body {
   overflow: hidden;
 }
 
+/* L'immagine è posizionata in modo ASSOLUTO, non dimensionata in percentuale.
+   Con `width/height: 100%` su un figlio di questa griglia, il 100% in altezza
+   si misura contro la TRACCIA DI RIGA e non contro il `max-height` del
+   contenitore: degrada ad `auto`, l'immagine tiene il proprio rapporto alla
+   larghezza piena, sfonda in altezza e `overflow: hidden` la ritaglia.
+   Misurato: un'immagine 1254x1254 diventava 696x696 in un riquadro alto 187px.
+   Con `inset: 0` il riquadro è il riferimento, e `object-fit: contain` può
+   finalmente fare il suo lavoro.
+
+   `pointer-events: none` è deliberato: in sala nessun click deve attivare
+   niente, perché il proiettore del Raspberry non ha nessuno che lo tocchi. */
 .q-media img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Sfocatura, decisa per-domanda dall'host in fase di creazione.
+   È una classe e non una seconda copia dell'immagine: un blob solo in DB, e il
+   toggle resta reversibile. Il valore scala con l'altezza dello schermo perché
+   lo stesso blur in px su un proiettore 1080p e su un monitor da sviluppo non
+   nasconde la stessa quantità di soggetto. */
+.q-media.is-blurred img {
+  filter: blur(clamp(8px, 2.2vh, 26px));
 }
 
 .q-media .material-symbols-outlined {

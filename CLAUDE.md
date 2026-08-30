@@ -157,6 +157,19 @@ Le tre regole che tengono in piedi la struttura:
 
 I **quiz personali dell'host** restano invece nel DB, creati dall'editor: li scrive chi non tocca file. Il tetto è `MAX_QUIZZES_PER_USER` (3).
 
+### Immagini nelle domande
+
+Una domanda può portare un'immagine, che compare **solo sulla vista sala**. Il design completo sta in [docs/superpowers/specs/2026-08-29-immagini-domande-design.md](docs/superpowers/specs/2026-08-29-immagini-domande-design.md).
+
+Quattro decisioni da non ribaltare per distrazione:
+
+- **L'immagine non viaggia sul socket.** Nel round c'è solo `image: { hash, blur }`; i byte si scaricano da `GET /api/quiz-image/<hash>`, pubblico come `/api/join-info` perché la sala non ha token. L'URL contiene l'hash del contenuto, quindi è servito con `Cache-Control: immutable` e ogni dispositivo lo scarica una volta sola per tutta la serata. `emitQuestion` è un `io.emit` globale: un base64 nel payload sarebbe ~2,4MB per domanda con venti telefoni sull'access point, senza cache possibile.
+- **La compressione avviene nel browser dell'host**, mai sul server: `client/shared/image-budget.js` (decisioni pure, testabili in Node) più la pipeline Canvas in `client/host/app.js`. Stessa separazione di `audio-logic.js` / `audio.js`. Il motivo non è il gusto ma il vincolo: `sharp` e simili sono moduli nativi, e il progetto li ha eliminati per il packaging SEA su ARM. Il tetto è 150 KiB (`MAX_BYTES`, 153.600 byte), ma è un obiettivo e non una garanzia: la scala di qualità (`QUALITY_LADDER`) si ferma a 0,58, e un file ancora sopra il tetto a quel gradino viene accettato così com'è invece di essere compresso oltre — un 1254×1254 reale è arrivato a 159 KB. Meglio un file un po' più pesante che artefatti proiettati su un muro.
+- **Lo stoccaggio è indirizzato dal contenuto.** `quiz_images.hash` è lo SHA-256 dei byte, calcolato **dal server**, mai dal client. La stessa foto in due quiz occupa una riga sola. Le immagini che nessuna domanda referenzia più vengono eliminate da `gcOrphanImages()` a ogni avvio — non c'è refcount da tenere coerente, si ricalcola la verità invece di ricordarla.
+- **Il blur è una classe CSS, non una seconda copia.** Un blob per immagine, e il toggle resta reversibile. Che l'originale sia nel DOM è irrilevante: in sala c'è un Chromium in kiosk collegato a un proiettore, senza nessuno che lo tocchi — ed è lo stesso motivo per cui l'`<img>` ha `pointer-events: none`.
+
+**Il player non mostra le immagini.** Il campo `image` arriva anche ai telefoni (sono ~90 byte, non vale un emit per-room) ma `client/player/app.js` non lo legge. È una scelta di prodotto, non un limite tecnico: il telefono renderizza già testo e opzioni, quindi una domanda visiva resta rispondibile solo guardando il proiettore — che è l'oggetto comune del gioco, come per l'audio. Cambiare idea costa un `<img>`.
+
 ### Vincolo cross-platform
 
 Tutto il codice applicativo (server + client) deve restare eseguibile senza modifiche sia su Windows (sviluppo) sia su Linux/Raspberry Pi (produzione), grazie alla natura cross-platform di Node.js e `node:sqlite`. L'unica eccezione nota è la futura compilazione in binario singolo via Node.js SEA, che dovrà avvenire sull'architettura ARM target.

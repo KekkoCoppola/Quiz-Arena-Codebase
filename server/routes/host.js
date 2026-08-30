@@ -19,7 +19,8 @@
  *   Errore   → { success: false, error: "Messaggio descrittivo" }
  */
 
-const router   = require('express').Router();
+const express  = require('express');
+const router   = express.Router();
 const bcryptjs = require('bcryptjs');
 const jwt      = require('jsonwebtoken');
 
@@ -38,11 +39,38 @@ const {
   deleteQuiz,
   getPreloadedQuizzes,
   getPreloadedQuizById,
+  putImage,
+  getImage,
   QuizLimitError,
   NotFoundError,
   MAX_QUIZZES_PER_USER,
   MAX_QUESTIONS_PER_QUIZ,
 } = require('../quiz-manager');
+
+/**
+ * Tetto del body accettato dall'endpoint di caricamento.
+ *
+ * Più alto del tetto che il client si impone (153.600 byte, in
+ * client/shared/image-budget.js): la compressione lato browser è
+ * un'OTTIMIZZAZIONE, non un controllo di sicurezza, e questo margine copre un
+ * client vecchio o una foto che non si comprime bene senza aprire la porta a
+ * un upload arbitrario.
+ */
+const MAX_IMAGE_UPLOAD_BYTES = 400 * 1024;
+
+/** Limite di sanità sulle dimensioni dichiarate. */
+const MAX_IMAGE_SIDE = 4096;
+
+/**
+ * I primi dodici byte di un file WebP: "RIFF", quattro byte di lunghezza,
+ * "WEBP". Un header `Content-Type` è un'affermazione del client; questi no.
+ */
+function isWebpBuffer(buf) {
+  return Buffer.isBuffer(buf)
+    && buf.length >= 12
+    && buf.toString('ascii', 0, 4) === 'RIFF'
+    && buf.toString('ascii', 8, 12) === 'WEBP';
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────────
 
@@ -61,6 +89,37 @@ function sendError(res, status, message) {
 // valere anche per i quiz che non passano dall'HTTP (quelli di sistema, letti
 // da content/quizzes/). Chiusa dentro questo file lasciava scoperta l'altra
 // strada, e un quiz malformato arrivava intatto fino alla sala.
+
+/**
+ * Verifica che ogni domanda con un'immagine referenzi un hash che esiste
+ * davvero in `quiz_images`. `quiz-schema.js` non può farlo: è un modulo puro,
+ * senza DB (vedi il commento su `validateQuestionImage` lì dentro) — quella
+ * validazione controlla solo la FORMA dell'hash, non la sua esistenza. Questa
+ * route un DB ce l'ha, quindi il controllo sta qui.
+ *
+ * Il caso reale che questo intercetta: l'host carica un'immagine (il blob
+ * finisce subito nel DB, non referenziato da nessun quiz finché non si salva)
+ * → il server si riavvia in quella finestra (--watch in sviluppo, o un
+ * riavvio in produzione) → `gcOrphanImages()` non distingue un caricamento in
+ * sospeso da un'immagine davvero orfana e la elimina → l'host salva il quiz
+ * con un hash ormai nel vuoto. Senza questo controllo il salvataggio
+ * risponderebbe successo e la domanda degraderebbe in silenzio a segnaposto
+ * davanti alla sala, la sera dell'evento.
+ *
+ * @param {Array<object>} questions - già validate da validateQuiz: qui si
+ *   assume che ogni `image`, se presente, abbia la forma corretta.
+ * @returns {string | null} messaggio di errore (con il numero della domanda),
+ *   o null se tutte le immagini referenziate esistono.
+ */
+function findMissingImageError(questions) {
+  for (let i = 0; i < questions.length; i++) {
+    const hash = questions[i]?.image?.hash;
+    if (typeof hash === 'string' && !getImage(hash)) {
+      return `Domanda ${i + 1}: l'immagine caricata non è più disponibile. Ricaricala e salva di nuovo.`;
+    }
+  }
+  return null;
+}
 
 // ─── POST /login ─────────────────────────────────────────────────────────────────
 
@@ -166,6 +225,11 @@ router.post('/quizzes', verifyToken, (req, res) => {
       return sendError(res, 400, validationError);
     }
 
+    const imageError = findMissingImageError(questions);
+    if (imageError) {
+      return sendError(res, 400, imageError);
+    }
+
     const quiz = createQuiz(req.user.userId, title.trim(), questions, minigames ?? []);
     return res.status(201).json({ success: true, data: { quiz } });
   } catch (err) {
@@ -233,6 +297,11 @@ router.put('/quizzes/:id', verifyToken, (req, res) => {
       return sendError(res, 400, validationError);
     }
 
+    const imageError = findMissingImageError(questions);
+    if (imageError) {
+      return sendError(res, 400, imageError);
+    }
+
     const updated = updateQuiz(quizId, req.user.userId, title.trim(), questions, minigames);
     return res.status(200).json({ success: true, data: { quiz: updated } });
   } catch (err) {
@@ -270,6 +339,54 @@ router.delete('/quizzes/:id', verifyToken, (req, res) => {
     return sendError(res, 500, 'Errore interno del server.');
   }
 });
+
+// ─── POST /quiz-image ────────────────────────────────────────────────────────────
+
+/**
+ * Carica l'immagine di una domanda.
+ *
+ * Body: byte WebP grezzi (Content-Type: image/webp), già ridimensionati e
+ * compressi dal browser dell'host.
+ * Query: width, height — le dimensioni reali dell'immagine compressa.
+ * Risposta: { success: true, data: { hash, width, height } }
+ *
+ * Il server NON ricomprime: servirebbe un modulo nativo, escluso dal vincolo di
+ * packaging SEA su ARM. Ma non si fida nemmeno: verifica taglia, magic bytes e
+ * dimensioni, e calcola lui l'hash dai byte ricevuti — un riferimento che il
+ * client si fosse inventato non ha modo di entrare nel DB.
+ */
+router.post(
+  '/quiz-image',
+  verifyToken,
+  express.raw({ type: 'image/webp', limit: MAX_IMAGE_UPLOAD_BYTES }),
+  (req, res) => {
+    try {
+      const bytes = req.body;
+
+      if (!Buffer.isBuffer(bytes) || bytes.length === 0) {
+        return sendError(res, 400, 'Corpo della richiesta vuoto. Attesi byte WebP con Content-Type: image/webp.');
+      }
+
+      if (!isWebpBuffer(bytes)) {
+        return sendError(res, 415, "Il file caricato non è un'immagine WebP.");
+      }
+
+      const width  = Number.parseInt(req.query.width, 10);
+      const height = Number.parseInt(req.query.height, 10);
+      const validSide = (n) => Number.isInteger(n) && n >= 1 && n <= MAX_IMAGE_SIDE;
+
+      if (!validSide(width) || !validSide(height)) {
+        return sendError(res, 400, `Dimensioni mancanti o fuori range (1-${MAX_IMAGE_SIDE}).`);
+      }
+
+      const saved = putImage(bytes, 'image/webp', width, height);
+      return res.status(201).json({ success: true, data: saved });
+    } catch (err) {
+      console.error('[host/quiz-image]', err);
+      return sendError(res, 500, 'Errore interno del server.');
+    }
+  }
+);
 
 // ─── GET /minigames ───────────────────────────────────────────────────────────────
 

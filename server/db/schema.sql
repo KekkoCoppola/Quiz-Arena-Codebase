@@ -100,9 +100,14 @@ CREATE INDEX IF NOT EXISTS idx_preloaded_category ON preloaded_quizzes(category)
 --      cacheabile come "immutable" e ogni dispositivo la scarica una volta sola;
 --   3. un client non puo inventarsi un hash: lo calcola il server dai byte.
 --
--- I byte sono WebP gia ridimensionato e compresso dal browser dell host (lato
--- lungo <= 1280px, <= 153.600 byte). Il server non ricomprime: farlo
--- richiederebbe un modulo nativo, escluso dal vincolo di packaging SEA su ARM.
+-- I byte sono WebP ridimensionato e compresso dal browser dell host, che PROVA
+-- a restare entro lato lungo 1280px e 153.600 byte: e un obiettivo lato
+-- client, non una garanzia su cosa e stoccato qui. La scala di qualita ha un
+-- pavimento (0.58) e accetta un file piu pesante pur di non degradare oltre
+-- (un caso reale, 1254x1254, e arrivato a 159 KB); il server dal canto suo
+-- accetta fino a MAX_IMAGE_SIDE lato e 400 KB di body. Il server non
+-- ricomprime: farlo richiederebbe un modulo nativo, escluso dal vincolo di
+-- packaging SEA su ARM.
 --
 -- NESSUNA foreign key verso le domande: una domanda vive dentro il JSON della
 -- colonna `questions`, non in una tabella. Il legame lo ricostruisce

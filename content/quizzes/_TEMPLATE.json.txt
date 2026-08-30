@@ -40,6 +40,24 @@ REGOLE (le stesse che il server controlla all'avvio):
                                   valere 0, 1, 2 o 3. È l'errore più facile da
                                   fare e rende la domanda non vincibile.
                    time_limit_s   da 5 a 120 secondi
+                   image          facoltativo. Riferimento a un'immagine già
+                                  caricata: { "hash": "<64 caratteri esadecimali>",
+                                  "blur": false }. Oppure null.
+
+                                  ATTENZIONE: oggi le immagini si caricano SOLO
+                                  dall'editor del pannello host, che le comprime
+                                  e le stocca nel database. Un file di sistema
+                                  PUÒ referenziare un hash che non è nel DB: a
+                                  differenza degli altri errori di questo
+                                  elenco, questo non viene controllato all'avvio
+                                  e il quiz NON viene escluso. La domanda gioca
+                                  normalmente e in sala compare solo il
+                                  segnaposto, senza nessun errore in console. In
+                                  pratica: nei quiz di sistema, per ora, lascia
+                                  perdere questo campo.
+
+                                  L'immagine compare solo sullo schermo della
+                                  SALA, mai sul telefono dei giocatori.
   minigames      facoltativi. afterQuestionIndex è l'indice della domanda DOPO
                  la quale inserire il minigioco (0 = dopo la prima).
                  type: "random" per farlo estrarre a sorte, oppure il tipo
