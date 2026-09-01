@@ -59,17 +59,35 @@
   const HOLD_MS = 2000;
 
   /**
+   * Scala della ruota al primo fotogramma della rotazione, in frazione della
+   * sua dimensione finale. Da qui cresce fino a 1 nell'istante in cui si ferma.
+   *
+   * Non parte da zero di proposito: una ruota che nasce da un punto è un
+   * effetto di apertura, mentre qui la crescita deve dire "sta per succedere
+   * qualcosa" — la mossa dev'essere riconoscibile fin dal primo giro, altrimenti
+   * la sala vede solo un puntino che si allarga e non capisce che sta girando.
+   */
+  const GROW_FROM = 0.42;
+
+  /**
    * Ruota decelerante condivisa da sala e player. Fa scorrere le tre mosse con
    * scatti sempre più radi, si ferma su `machineChoice`, la tiene ferma per
    * `HOLD_MS` e solo allora chiama `ctx.done()`. L'istante di atterraggio è
    * calcolato da `ctx.revealAt`, che è lo stesso su ogni schermo.
    *
-   * Ogni frame ridisegna l'icona tramite `paint(index)`; `onLand` viene chiamata
-   * una sola volta, all'atterraggio (è lì che vanno pop, etichetta e coriandoli).
-   * Se il round viene superato (`ctx.isStale()`) l'animazione si interrompe.
+   * Ogni frame ridisegna l'icona tramite `paint(index, progress)`; `onLand` viene
+   * chiamata una sola volta, all'atterraggio (è lì che vanno pop, etichetta e
+   * coriandoli). Se il round viene superato (`ctx.isStale()`) l'animazione si
+   * interrompe.
+   *
+   * `progress` è il tempo trascorso (0→1) LINEARE, non passato per
+   * `easeOutCubic`: chi lo usa per far crescere la ruota vuole una crescita
+   * costante fino all'ultimo scatto. Con la curva della decelerazione la
+   * dimensione sarebbe quasi al massimo già a metà rotazione, e l'ultimo tratto
+   * — quello in cui il pubblico guarda davvero — sembrerebbe fermo.
    *
    * @param {number} machineChoice mossa finale (0-2)
-   * @param {(index: number) => void} paint disegna la mossa `index`
+   * @param {(index: number, progress: number) => void} paint disegna la mossa `index`
    * @param {{ revealAt: number, isStale: () => boolean, done: () => void }} ctx
    * @param {() => void} [onLand] chiamata all'atterraggio, prima della pausa
    */
@@ -92,7 +110,7 @@
     const land = () => {
       if (landed) return;
       landed = true;
-      paint(machineChoice);
+      paint(machineChoice, 1);
       if (onLand) onLand();
     };
 
@@ -110,7 +128,7 @@
       }
 
       const t = spinMs > 0 ? Math.min(1, (now - startAt) / spinMs) : 1;
-      paint(Math.floor(easeOutCubic(t) * totalTicks) % ASSETS.length);
+      paint(Math.floor(easeOutCubic(t) * totalTicks) % ASSETS.length, t);
       revealRaf = requestAnimationFrame(frame);
     };
 
@@ -199,11 +217,26 @@
         const verdict = document.createElement('p');
         verdict.className = 'mg-morra-cinese-verdict';
         stage.append(img, verdict);
+        // Scala iniziale scritta PRIMA di attaccare la scena: senza, il primo
+        // fotogramma dipinto dal browser userebbe il default della variabile
+        // (1, cioè piena grandezza) e la ruota comparirebbe già enorme per poi
+        // rimpicciolirsi — l'opposto della crescita che si vuole raccontare.
+        stage.style.setProperty('--mg-mc-grow', String(GROW_FROM));
         els.questionText.appendChild(stage);
 
-        const paint = (index) => {
+        // `grow` (0→1) è il tempo di rotazione trascorso. La scala vive in una
+        // variabile CSS invece che in `img.style.transform` perché
+        // all'atterraggio è il `@keyframes` del rimbalzo a prendere il comando
+        // del transform: un transform inline verrebbe ignorato durante
+        // l'animazione e tornerebbe a valere alla fine, facendo saltare la
+        // mossa appena assestata. La misura resta così tutta nel CSS.
+        const paint = (index, grow = 1) => {
           img.src = ASSETS[index] ?? '';
           img.alt = LABELS[index] ?? '';
+          stage.style.setProperty(
+            '--mg-mc-grow',
+            String(GROW_FROM + (1 - GROW_FROM) * grow)
+          );
         };
 
         spinWheel(results.machineChoice, paint, ctx, () => {
