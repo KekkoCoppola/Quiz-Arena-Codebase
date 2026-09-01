@@ -913,6 +913,50 @@ body {
   margin-bottom: 0.5rem;
 }
 
+/* ─── Ultimo round: classifica sigillata ─────────────────────────────────────
+   Occupa la stessa cella della classifica, mai insieme a lei. Deve leggersi da
+   in fondo alla sala come un cartello, non come un messaggio di sistema: è
+   l'ultimo fotogramma prima della premiazione, e il suo lavoro è far salire
+   l'attesa invece di spegnerla. */
+
+.sala-sealed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2.5rem 2rem;
+  background: var(--ticket-ochre);
+  color: var(--ink);
+  border: var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--block);
+  transform: rotate(-1.5deg);
+  text-align: center;
+}
+
+.sala-sealed-seal {
+  font-size: 4.5rem;
+  line-height: 1;
+  animation: sealed-throb 2.4s ease-in-out infinite;
+}
+
+.sala-sealed-title {
+  font-size: var(--display-lg);
+  line-height: var(--display-lg-lh);
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.sala-sealed-sub {
+  font-size: var(--headline-md);
+  font-weight: 700;
+}
+
+@keyframes sealed-throb {
+  0%, 100% { transform: scale(1)    rotate(-5deg); }
+  50%      { transform: scale(1.09) rotate(5deg);  }
+}
+
 .sala-standings-list, .sala-final-list {
   list-style: none;
   display: flex;

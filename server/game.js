@@ -254,6 +254,24 @@ class GameSession {
     return this.rounds[this.currentRoundIndex] ?? null;
   }
 
+  /**
+   * True se il round corrente è l'ultimo in programma.
+   *
+   * Serve a due cose che devono restare d'accordo: `nextQuestion`, per decidere
+   * se chiudere la partita, e il payload di `endQuestion`, per dire ai client
+   * che dopo questi risultati viene la premiazione — così sala e telefoni
+   * possono NON mostrare la classifica, che a quel punto proclamerebbe il
+   * vincitore prima della cerimonia. È la stessa domanda: una condizione sola,
+   * non due copie libere di divergere.
+   *
+   * Non è una promessa definitiva: l'host può ancora inserire un minigioco
+   * ad-hoc da RESULTS, e allora l'ultimo round diventa un altro. Il prezzo è
+   * una classifica nascosta a vuoto per un pannello, non un errore.
+   */
+  get isLastRound() {
+    return this.currentRoundIndex >= this.rounds.length - 1;
+  }
+
   // ─── Lobby ──────────────────────────────────────────────────────────────────────
 
   /**
@@ -483,6 +501,9 @@ class GameSession {
       correctIndex: round.kind === 'minigame' ? null : round.correct_index,
       machineChoice,
       revealMs,
+      // Dopo questi risultati viene la premiazione: i client sigillano la
+      // classifica invece di mostrarla (vedi il getter `isLastRound`).
+      isLastRound: this.isLastRound,
       distribution,
       answers: Array.from(this.currentAnswers.entries()).map(([playerId, a]) => ({
         playerId,
@@ -507,8 +528,7 @@ class GameSession {
   nextQuestion(now = Date.now()) {
     this._assertState(STATES.RESULTS, 'nextQuestion');
 
-    const isLastRound = this.currentRoundIndex >= this.rounds.length - 1;
-    if (isLastRound) {
+    if (this.isLastRound) {
       this.state = STATES.FINAL_LEADERBOARD;
       this.roundStartedAt = null;
       return { finished: true, leaderboard: this.getLeaderboard() };

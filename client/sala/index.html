@@ -119,9 +119,19 @@
       <section class="sala-panel" id="sala-results" hidden>
         <p class="sala-reveal" id="sala-reveal"></p>
         <div class="sala-results-grid">
-          <div class="sala-standings">
+          <div class="sala-standings" id="sala-standings-box">
             <h3 class="sala-standings-title">Classifica</h3>
             <ol class="sala-standings-list" id="sala-standings"></ol>
+          </div>
+
+          <!-- Ultimo round: la premiazione prende il posto della classifica.
+               Mostrarla qui proclamerebbe il vincitore un minuto prima della
+               cerimonia, cioè l'unica cosa che la cerimonia ha da dare.
+               Prende il posto della classifica, non le si aggiunge. -->
+          <div class="sala-sealed" id="sala-sealed" hidden>
+            <span class="sala-sealed-seal" aria-hidden="true">🏆</span>
+            <p class="sala-sealed-title">Classifica sigillata</p>
+            <p class="sala-sealed-sub">È il momento della premiazione</p>
           </div>
         </div>
       </section>

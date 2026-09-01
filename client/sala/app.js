@@ -54,6 +54,8 @@ const els = {
 
   reveal:       document.getElementById('sala-reveal'),
   standings:    document.getElementById('sala-standings'),
+  standingsBox: document.getElementById('sala-standings-box'),
+  sealed:       document.getElementById('sala-sealed'),
 
   podium:       document.getElementById('sala-podium'),
   finalList:    document.getElementById('sala-final-list'),
@@ -885,6 +887,20 @@ function renderResults(results, token) {
   // Nessun effetto al cambio pannello: il momento del reveal è già passato,
   // sulle opzioni, quando la risposta giusta si è accesa.
   showPanel('results');
+
+  // Dopo l'ultimo round la classifica non si mostra: la sala saprebbe chi ha
+  // vinto un minuto prima della premiazione, e la cerimonia — la coda in
+  // ritardando, il secondo posto tenuto coperto, la proclamazione — non
+  // avrebbe più niente da svelare. Il reveal della risposta resta: quello si
+  // può sapere, ed è la chiusura che l'ultima domanda merita.
+  const sealed = Boolean(results.isLastRound);
+  els.standingsBox.hidden = sealed;
+  els.sealed.hidden = !sealed;
+  if (sealed) {
+    els.standings.innerHTML = '';   // niente righe del round prima, in attesa
+    return;
+  }
+
   renderStandings(results, token);
 }
 

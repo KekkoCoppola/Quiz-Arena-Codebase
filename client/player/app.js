@@ -65,6 +65,7 @@ const feedbackText      = document.getElementById('feedback-text');
 const feedbackPoints    = document.getElementById('feedback-points');
 const feedbackScore     = document.getElementById('feedback-score');
 const feedbackRank      = document.getElementById('feedback-rank');
+const feedbackWaiting   = document.getElementById('feedback-waiting');
 const finalPodium       = document.getElementById('final-podium');
 const finalRest         = document.getElementById('final-rest');
 const finalMe           = document.getElementById('final-me');
@@ -274,6 +275,19 @@ function submitAnswer(optionIndex, btn) {
 
 function ordinale(n) { return `${n}°`; }
 
+// Dopo l'ultimo round il telefono NON dice la posizione. Chi è primo lo
+// scoprirebbe qui, da solo, un minuto prima che la sala lo proclami — e la sua
+// faccia rovinerebbe il finale a tutta la stanza, che è esattamente ciò che il
+// secondo posto tenuto coperto durante la cerimonia esiste per evitare.
+// Il punteggio resta: è solo il proprio, e da solo non dice dove si è arrivati.
+const WAIT_NEXT  = 'In attesa della prossima domanda…';
+const WAIT_FINAL = 'Attendi la premiazione 🏆';
+
+/** Riga d'attesa in fondo al feedback: prossima domanda o premiazione. */
+function setWaiting(isLastRound) {
+  feedbackWaiting.textContent = isLastRound ? WAIT_FINAL : WAIT_NEXT;
+}
+
 /**
  * @param {object} p
  * @param {object|null} p.mine la mia risposta, null se non ho risposto in tempo
@@ -281,8 +295,12 @@ function ordinale(n) { return `${n}°`; }
  * @param {string} [p.kind] 'question' | 'minigame'
  * @param {object|null} [p.results] payload game:results completo, passato tale
  *   e quale al minigioco: è lui a sapere quali campi gli servono
+ * @param {boolean} [p.isLastRound] dopo questi risultati viene la premiazione:
+ *   la posizione in classifica resta coperta
  */
-function renderFeedback({ mine, leaderboard, kind = 'question', results = null }) {
+function renderFeedback({
+  mine, leaderboard, kind = 'question', results = null, isLastRound = false,
+}) {
   feedbackSticker.classList.remove('is-correct', 'is-wrong', 'is-neutral');
 
   if (kind === 'minigame') {
@@ -312,9 +330,14 @@ function renderFeedback({ mine, leaderboard, kind = 'question', results = null }
 
   const me = leaderboard.find((p) => p.id === playerId);
   feedbackScore.textContent = me ? me.score : '—';
-  feedbackRank.textContent = me
-    ? `Sei ${ordinale(me.rank)} su ${leaderboard.length}`
-    : '';
+  if (isLastRound) {
+    feedbackRank.textContent = 'Classifica sigillata';
+  } else {
+    feedbackRank.textContent = me
+      ? `Sei ${ordinale(me.rank)} su ${leaderboard.length}`
+      : '';
+  }
+  setWaiting(isLastRound);
   show('feedback');
 }
 
@@ -594,6 +617,7 @@ socket.on('game:results', (results) => {
     leaderboard: results.leaderboard,
     kind: results.kind,
     results,
+    isLastRound: Boolean(results.isLastRound),
   });
 
   // Minigioco con sospensione sincronizzata: si TRATTIENE l'esito fino a
@@ -612,6 +636,7 @@ socket.on('game:results', (results) => {
     feedbackSticker.classList.add('is-neutral');
     feedbackScore.textContent = '—';
     feedbackRank.textContent = '';
+    setWaiting(Boolean(results.isLastRound));
     show('feedback');
 
     if (presentation.player.playReveal) {
@@ -691,7 +716,14 @@ function tryRejoin(session) {
       feedbackText.textContent = 'Bentornato!';
       feedbackPoints.textContent = '';
       feedbackScore.textContent = me ? me.score : res.score;
-      feedbackRank.textContent = me ? `Sei ${ordinale(me.rank)} su ${leaderboard.length}` : '';
+      // Rientrare fra l'ultima domanda e la premiazione non è una scorciatoia
+      // per sapere come è andata: vale lo stesso silenzio di chi è rimasto.
+      if (res.isLastRound) {
+        feedbackRank.textContent = 'Classifica sigillata';
+      } else {
+        feedbackRank.textContent = me ? `Sei ${ordinale(me.rank)} su ${leaderboard.length}` : '';
+      }
+      setWaiting(Boolean(res.isLastRound));
       show('feedback');
     }
   });

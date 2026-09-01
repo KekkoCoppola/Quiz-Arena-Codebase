@@ -288,6 +288,9 @@ function attachGameHandlers(io) {
         state: currentSession.state,
         question: null,
         leaderboard: null,
+        // Chi rientra fra l'ultima domanda e la premiazione non deve leggere
+        // la propria posizione: la scoprirà dalla cerimonia, come tutti.
+        isLastRound: false,
       };
       if (currentSession.state === STATES.QUESTION) {
         data.question = {
@@ -301,6 +304,8 @@ function attachGameHandlers(io) {
         currentSession.state === STATES.FINAL_LEADERBOARD
       ) {
         data.leaderboard = currentSession.getLeaderboard();
+        data.isLastRound =
+          currentSession.state === STATES.RESULTS && currentSession.isLastRound;
       }
 
       ok(cb, data);

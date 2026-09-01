@@ -134,6 +134,7 @@ function run() {
   assert(alice.score === resAlice.pointsAwarded, 'endQuestion: punteggio Alice aggiornato sul player');
   assert(bob.score === 0, 'endQuestion: punteggio Bob invariato (0)');
   assert(results1.leaderboard[0].nickname === 'Alice', 'endQuestion: leaderboard ordinata correttamente');
+  assert(results1.isLastRound === false, 'endQuestion: isLastRound false a metà partita');
 
   assertThrows(() => game.submitAnswer(alice.id, 0, 11500), InvalidStateError, 'submitAnswer: bloccato fuori da QUESTION');
 
@@ -149,6 +150,9 @@ function run() {
   const results2 = game.endQuestion(22000); // tempo scaduto, Bob non ha risposto
   assert(results2.answers.length === 1, 'endQuestion: solo le risposte pervenute sono incluse');
   assert(bob.score === 0, 'endQuestion: Bob senza risposta resta a 0 punti');
+  // Il flag che dice ai client di NON mostrare la classifica: dopo questi
+  // risultati viene la premiazione, e mostrarla proclamerebbe il vincitore.
+  assert(results2.isLastRound === true, 'endQuestion: isLastRound true sull\'ultimo round');
 
   // 6. Fine partita
   console.log('\n  🏆  Fase 6: Fine partita');
@@ -309,6 +313,10 @@ function run() {
     ['win', 'draw', 'lose'].includes(insertedResults.answers.find((a) => a.playerId === eve.id).outcome),
     'endQuestion: il minigioco ad-hoc assegna un esito valido'
   );
+  // Il sigillo si ricalcola sulla sequenza reale, non sul piano iniziale: il
+  // minigioco inserito a mano ha allungato la partita, quindi qui la classifica
+  // torna a essere mostrabile.
+  assert(insertedResults.isLastRound === false, 'endQuestion: isLastRound false dopo un inserimento ad-hoc a metà partita');
   const afterInsertedMinigame = g9b.nextQuestion(1000);
   assert(afterInsertedMinigame.finished === false, 'nextQuestion: dopo il minigioco ad-hoc avanza alla domanda successiva pianificata');
 
