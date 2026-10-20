@@ -47,6 +47,19 @@ const state = {
   // GET /minigames — generato dal registry server. L'editor non elenca mai i
   // tipi a mano: un minigioco nuovo compare qui da solo.
   minigames:     [],
+
+  /**
+   * Peso in KB delle immagini caricate, per hash.
+   *
+   * Sta QUI e non dentro `q.image` perché `validateQuiz` rifiuta le chiavi
+   * estranee dentro `image`: un `_kb` lì dentro farebbe fallire il salvataggio.
+   * È informazione da interfaccia, non da modello dati.
+   * @type {Record<string, number>}
+   */
+  imageWeights: {},
+
+  /** Indice della domanda che sta aspettando un file, o null. */
+  pendingImageQuestion: null,
 };
 
 /** Voce sempre presente nel menù minigioco dell'editor. */
@@ -428,7 +441,7 @@ function renderPreloadedSection() {
     empty.className = 'empty-state';
     empty.innerHTML = `
       <span class="empty-icon" aria-hidden="true"><i class="fas fa-box-open"></i></span>
-      <p>Nessun quiz precaricato trovato.<br>Esegui <code>node tools/seed-preloaded.js</code> per aggiungerli.</p>
+      <p>Nessun quiz di sistema trovato.<br>Aggiungi un file in <code>content/quizzes/</code> e riavvia il server.</p>
     `;
     preloadedGrid.appendChild(empty);
     return;
@@ -630,6 +643,7 @@ function createEmptyQuestion() {
     options:         ['', '', '', ''],
     correct_index:   0,
     time_limit_s:    20,
+    image:           null,
     _minigameAfter:  null,
   };
 }
@@ -731,6 +745,31 @@ function buildQuestionItem(q, idx) {
     `<option value="${t}" ${q.time_limit_s === t ? 'selected' : ''}>${t}s</option>`
   ).join('');
 
+  // Blocco immagine: bottone se non c'è, pannello con anteprima se c'è.
+  // Una domanda senza immagine non paga pixel per una funzione che non usa.
+  const weight = q.image ? state.imageWeights[q.image.hash] : null;
+  const imageHtml = q.image
+    ? `
+      <div class="q-image-panel">
+        <div class="q-image-preview ${q.image.blur ? 'is-blurred' : ''}" data-role="image-preview" data-q="${idx}">
+          <img src="/api/quiz-image/${escapeHtml(q.image.hash)}" alt="">
+        </div>
+        <div class="q-image-actions">
+          <label class="q-image-toggle">
+            <input type="checkbox" data-role="image-blur" data-q="${idx}" ${q.image.blur ? 'checked' : ''}>
+            <span>Sfoca immagine</span>
+          </label>
+          ${weight ? `<span class="q-image-weight">${weight} KB</span>` : ''}
+          <button type="button" class="btn btn-danger btn-sm" data-role="image-remove" data-q="${idx}" title="Rimuovi l'immagine da questa domanda">
+            <i class="fas fa-trash"></i> Rimuovi
+          </button>
+        </div>
+      </div>`
+    : `
+      <button type="button" class="btn btn-secondary btn-sm q-image-add" data-role="image-add" data-q="${idx}">
+        <i class="fas fa-image"></i> Aggiungi immagine
+      </button>`;
+
   item.innerHTML = `
     <div class="question-item-header" data-role="drag-handle">
       <span class="drag-handle" aria-hidden="true"><i class="fas fa-grip-vertical"></i></span>
@@ -752,6 +791,7 @@ function buildQuestionItem(q, idx) {
           aria-label="Testo domanda ${idx + 1}"
         >${escapeHtml(q.text)}</textarea>
       </div>
+      ${imageHtml}
       <div class="form-group">
         <label class="form-label">Opzioni di risposta <span class="form-hint">(clicca il cerchio per segnare la risposta corretta)</span></label>
         <div class="options-grid">
@@ -908,6 +948,217 @@ function removeQuestion(idx) {
   renderQuestionList();
 }
 
+/* ── Immagini ── */
+
+/**
+ * Ridimensiona e comprime un file immagine in WebP, sotto il tetto di byte.
+ *
+ * Tutto avviene nel browser: il server non ricomprime perché servirebbe un
+ * modulo nativo, escluso dal vincolo di packaging SEA su ARM. La CPU che paga è
+ * quella del tablet di chi crea il quiz, in un momento tranquillo, non quella
+ * del Raspberry davanti a una sala.
+ *
+ * @param {File} file
+ * @returns {Promise<{ blob: Blob, width: number, height: number }>}
+ */
+async function compressImage(file) {
+  if (file.size > ImageBudget.MAX_INPUT_BYTES) {
+    const mb = Math.round(ImageBudget.MAX_INPUT_BYTES / (1024 * 1024));
+    throw new Error(`L'immagine supera ${mb} MB.`);
+  }
+
+  // `imageOrientation: 'from-image'` NON è opzionale: le foto da telefono
+  // arrivano quasi sempre ruotate via EXIF, e senza questo flag finirebbero di
+  // lato — un difetto che si manifesta solo con file veri, mai con quelli di
+  // prova.
+  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+
+  // Nessun ritaglio: si scala il lato lungo e si preserva il rapporto, così
+  // verticale e orizzontale entrano entrambi. In sala ci pensa object-fit.
+  const { width, height } = ImageBudget.targetDimensions(bitmap.width, bitmap.height);
+
+  const canvas = document.createElement('canvas');
+  canvas.width  = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
+
+  let quality = ImageBudget.QUALITY_LADDER[0];
+  let blob = await canvasToBlob(canvas, quality);
+
+  // Un browser che non sa produrre WebP restituisce un PNG senza dirlo: il
+  // server lo rifiuterebbe con un 415 poco spiegabile, meglio dirlo qui.
+  if (blob.type !== 'image/webp') {
+    throw new Error('Questo browser non sa produrre immagini WebP.');
+  }
+
+  while (blob.size > ImageBudget.MAX_BYTES) {
+    const next = ImageBudget.nextQuality(quality);
+    if (next === null) break; // pavimento: meglio un file più grande che poltiglia
+    quality = next;
+    blob = await canvasToBlob(canvas, quality);
+  }
+
+  return { blob, width, height };
+}
+
+/** `canvas.toBlob` come promessa. */
+function canvasToBlob(canvas, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("Codifica dell'immagine fallita."))),
+      'image/webp',
+      quality
+    );
+  });
+}
+
+/**
+ * Carica i byte compressi e restituisce il riferimento da mettere sulla domanda.
+ *
+ * `apiFetch` mette `Content-Type: application/json` di default, ma le opzioni
+ * passate vincono sulla base: qui serve `image/webp`, altrimenti
+ * `express.raw({ type: 'image/webp' })` lascerebbe il body vuoto.
+ *
+ * @returns {Promise<{ hash: string, width: number, height: number }>}
+ */
+async function uploadImage(blob, width, height) {
+  const payload = await apiFetch(`/quiz-image?width=${width}&height=${height}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'image/webp' },
+    body: blob,
+  });
+
+  if (!payload.success) {
+    throw new Error(payload.error ?? "Caricamento dell'immagine fallito.");
+  }
+  return payload.data;
+}
+
+// Input di file unico e condiviso da tutte le domande (in fondo al body
+// dell'HTML, prima di questo script). Quale domanda lo stia usando lo dice
+// state.pendingImageQuestion.
+const imageFileInput = document.getElementById('image-file-input');
+
+// Non esisteva già un punto di delega dei click/change per la lista domande —
+// le altre azioni per domanda (rimuovi, risposta corretta, ecc.) sono cablate
+// una per una in attachQuestionEvents. Per l'immagine ne registriamo uno
+// nuovo, una sola volta: nessun bottone/checkbox aggiunge il proprio listener
+// a ogni render, e sopravvive a renderQuestionList() senza bisogno di essere
+// ricollegato.
+questionsList.addEventListener('click', (e) => {
+  const target = e.target;
+
+  // Apre il selettore di file per la domanda che ha chiesto un'immagine.
+  const addBtn = target.closest('[data-role="image-add"]');
+  if (addBtn) {
+    state.pendingImageQuestion = Number(addBtn.dataset.q);
+    imageFileInput.value = ''; // così ricaricare lo stesso file riscatena `change`
+    imageFileInput.click();
+    return;
+  }
+
+  const removeBtn = target.closest('[data-role="image-remove"]');
+  if (removeBtn) {
+    const idx = Number(removeBtn.dataset.q);
+    // Il blob resta in DB: potrebbe servire a un'altra domanda. Lo eliminerà la
+    // raccolta degli orfani al prossimo avvio, se davvero non lo usa nessuno.
+    state.questions[idx].image = null;
+    renderQuestionList();
+    return;
+  }
+});
+
+questionsList.addEventListener('change', (e) => {
+  const target = e.target;
+
+  const blurToggle = target.closest('[data-role="image-blur"]');
+  if (blurToggle) {
+    const idx = Number(blurToggle.dataset.q);
+    if (state.questions[idx].image) {
+      state.questions[idx].image.blur = blurToggle.checked;
+      // Si aggiorna solo l'anteprima invece di ridisegnare la lista: un
+      // renderQuestionList() qui rifarebbe venti schede e farebbe perdere il
+      // testo in corso di scrittura in un'altra domanda.
+      const preview = questionsList.querySelector(`[data-role="image-preview"][data-q="${idx}"]`);
+      if (preview) preview.classList.toggle('is-blurred', blurToggle.checked);
+    }
+    return;
+  }
+});
+
+imageFileInput.addEventListener('change', async () => {
+  const file = imageFileInput.files?.[0];
+  const idx  = state.pendingImageQuestion;
+  state.pendingImageQuestion = null;
+  if (!file || idx === null || !state.questions[idx]) return;
+
+  // Riferimento all'OGGETTO domanda, non al suo indice `idx`. Da qui in poi ci
+  // sono due `await` (compressione + upload) che su un file grande durano
+  // secondi, e in quella finestra l'host può trascinare le domande
+  // (attachDragEvents → splice+splice) o eliminarne una (removeQuestion →
+  // splice): entrambe spostano o rimuovono elementi dall'array senza che
+  // nulla qui lo sappia. Un indice catturato ora, a giochi finiti, potrebbe
+  // puntare a una domanda diversa (riordino) o a niente (rimozione). L'oggetto
+  // invece è lo stesso identico riferimento ovunque `state.questions` lo
+  // sposti: uno `splice` cambia le posizioni, non clona gli elementi.
+  // L'identità sopravvive al riordino, la posizione no.
+  const question = state.questions[idx];
+
+  // Il bottone diventa inerte: ridimensionare un file da 20MB richiede qualche
+  // secondo su un tablet, e senza un segnale l'host clicca di nuovo.
+  const btn = questionsList.querySelector(`[data-role="image-add"][data-q="${idx}"]`);
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Elaborazione…';
+  }
+
+  try {
+    const { blob, width, height } = await compressImage(file);
+    const saved = await uploadImage(blob, width, height);
+
+    // Si cerca l'oggetto per identità, non l'indice per posizione: se nel
+    // frattempo la domanda è stata rimossa, `question` non è più dentro
+    // l'array (a prescindere da cosa sia finito all'indice `idx` ora) e non va
+    // toccato nulla. Senza questo controllo l'immagine finirebbe sulla
+    // domanda sbagliata (se un riordino ha messo un'altra domanda su `idx`) o
+    // andrebbe persa in silenzio (se `idx` è fuori range).
+    if (!state.questions.includes(question)) {
+      showToast("La domanda è stata rimossa mentre l'immagine veniva caricata.", 'error');
+      renderQuestionList();
+      return;
+    }
+
+    question.image = { hash: saved.hash, blur: false };
+    state.imageWeights[saved.hash] = Math.round(blob.size / 1024);
+    renderQuestionList();
+    showToast('Immagine caricata.', 'success');
+  } catch (err) {
+    // Stessa verifica di identità sul fallimento: senza, riassegnare tramite
+    // `state.questions[idx]` su una domanda già rimossa lancerebbe qui dentro,
+    // FUORI da qualunque try — una promise rejection non gestita che non
+    // mostra alcun toast, smentendo il "nessuno stato a metà" sotto. Con
+    // `question` la scrittura è sull'oggetto, quindi non lancia mai; la si
+    // esegue solo se la domanda è ancora quella del quiz. Nessuno stato a
+    // metà: la domanda, se esiste ancora, resta senza immagine.
+    if (state.questions.includes(question)) {
+      question.image = null;
+    }
+    renderQuestionList();
+    // `fetch` lancia un TypeError generico "Failed to fetch" quando la
+    // richiesta non arriva a destinazione (server riavviato a metà
+    // caricamento, Pi momentaneamente irraggiungibile): un host non deve
+    // leggere un messaggio in inglese pensato per una console di debug. Gli
+    // altri errori (415 dal server, quiz pieno, ecc.) arrivano già con un
+    // messaggio in italiano e restano intatti.
+    const message = err instanceof TypeError && err.message === 'Failed to fetch'
+      ? 'Impossibile raggiungere il server. Controlla la connessione e riprova.'
+      : err.message;
+    showToast(message, 'error');
+  }
+});
+
 /* ── Salva quiz ── */
 function setSaveLoading(loading) {
   editorSaveBtn.disabled = loading;
@@ -1049,7 +1300,7 @@ const minigameEls = () => ({
 
 /** Ferma un'eventuale animazione di attesa. Idempotente, sicura da chiamare sempre. */
 function stopMinigameSuspense() {
-  currentMinigame?.host.stopSuspense();
+  currentMinigame?.sala.stopSuspense();
 }
 
 // Mappa avatar: id stabile → emoji TEMPORANEA (identica al client player).
@@ -1095,10 +1346,11 @@ function stopGameCountdown() {
   gameTimerBadge.textContent = '00:00';
 }
 
-function startGameCountdown(endsAt) {
+function startGameCountdown(endsAt, serverNow) {
+  const deadline = ServerClock.localDeadline(endsAt, serverNow);
   stopGameCountdown();
   const tick = () => {
-    const remaining = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+    const remaining = Math.ceil(ServerClock.remainingMs(deadline) / 1000);
     const m = String(Math.floor(remaining / 60)).padStart(2, '0');
     const s = String(remaining % 60).padStart(2, '0');
     gameTimerBadge.textContent = `${m}:${s}`;
@@ -1163,7 +1415,7 @@ function connectGameSocket(quiz, type) {
     // Minigioco: il titolo è affidato alla sua animazione di attesa; la domanda
     // vera mostra semplicemente il proprio testo.
     if (isMinigame) {
-      currentMinigame.host.startSuspense(minigameEls(), q);
+      currentMinigame.sala.startSuspense(minigameEls(), q);
     } else {
       gameQuestionText.textContent = q.text;
     }
@@ -1189,7 +1441,7 @@ function connectGameSocket(quiz, type) {
       gameOptionsList.appendChild(li);
     });
     gameAnswerCount.textContent = 'Risposte: 0 / ?';
-    startGameCountdown(q.endsAt);
+    startGameCountdown(q.endsAt, q.serverNow);
     showGameBox(gameQuestionBox);
     gameStartBtn.disabled = true;
     gameNextBtn.disabled = true;
@@ -1216,7 +1468,7 @@ function connectGameSocket(quiz, type) {
       : results.correctIndex;
 
     if (isMinigame) {
-      currentMinigame.host.reveal(minigameEls(), results, currentQuestionOptions);
+      currentMinigame.sala.reveal(minigameEls(), results, currentQuestionOptions);
     } else {
       gameCorrectAnswer.textContent =
         `Risposta corretta: ${currentQuestionOptions[results.correctIndex] ?? '—'}`;
@@ -1313,6 +1565,54 @@ function disconnectGameSocket() {
     gameSocket.disconnect();
     gameSocket = null;
   }
+}
+
+// ─── Giocatori di prova (gesto nascosto) ─────────────────────────────────────
+//
+// Dieci clic sul logo in cima alla schermata di partita riempiono la lobby di
+// giocatori finti. Serve a provare una partita — e soprattutto la premiazione,
+// che con tre persone non si vede davvero — senza radunare venti amici.
+//
+// Il logo è QUESTO e non quello della sidebar: la sidebar sparisce appena una
+// partita esiste, e finché non esiste non c'è nessuna lobby da riempire. Il
+// gesto stava quindi in un punto dove non poteva mai funzionare. Il logo della
+// schermata di partita invece è a schermo esattamente quando serve.
+//
+// Nascosto e non un bottone perché non è una funzione del prodotto: è un
+// attrezzo. Dieci clic ravvicinati non capitano per sbaglio, e chi non sa che
+// esiste non lo troverà mai.
+
+const BOT_GESTURE_CLICKS = 10;
+/** Oltre questa pausa il conteggio riparte: dieci clic devono essere UNA raffica. */
+const BOT_GESTURE_GAP_MS = 1500;
+
+let botGestureCount = 0;
+let botGestureLast = 0;
+
+document.querySelector('.game-logo-wrapper')?.addEventListener('click', () => {
+  const now = Date.now();
+  botGestureCount = now - botGestureLast > BOT_GESTURE_GAP_MS ? 1 : botGestureCount + 1;
+  botGestureLast = now;
+  if (botGestureCount < BOT_GESTURE_CLICKS) return;
+  botGestureCount = 0;
+  spawnTestPlayers();
+});
+
+function spawnTestPlayers() {
+  // Rete di sicurezza: il logo vive dentro la schermata di partita, quindi un
+  // socket c'è sempre. Se la partita è già iniziata è il server a rifiutare,
+  // spiegando che si entra solo dalla lobby.
+  if (!gameSocket) {
+    showToast('Apri prima una partita: i giocatori di prova entrano in lobby.', 'info');
+    return;
+  }
+  gameSocket.emit('host:spawn-bots', null, (res) => {
+    if (!res?.ok) {
+      showToast(res?.error ?? 'Impossibile aggiungere i giocatori di prova.', 'error');
+      return;
+    }
+    showToast(`${res.added} giocatori di prova aggiunti — ${res.total} in lobby.`, 'success');
+  });
 }
 
 function renderGameLobby(players) {

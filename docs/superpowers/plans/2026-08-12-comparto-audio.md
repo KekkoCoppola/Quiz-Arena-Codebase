@@ -1,5 +1,15 @@
 # Comparto Audio Host — Implementation Plan
 
+> ⚠️ **Documento storico — i percorsi qui dentro non sono più validi.**
+> Il piano è stato eseguito quando il pannello host era anche lo schermo
+> proiettato. Dal 2026-08-17 le viste sono tre e il comparto audio vive nella
+> vista sala: ovunque qui si legga `client/host/audio-logic.js` o
+> `client/host/audio.js`, oggi sono in `client/sala/`, e l'oggetto globale si
+> chiama `SalaAudio`. Il piano è lasciato com'era di proposito, come registro
+> di ciò che fu deciso allora. Per lo stato attuale vedere
+> `docs/superpowers/specs/2026-08-12-comparto-audio-design.md` (§8 e §9
+> riscritte) e `docs/superpowers/specs/2026-08-17-vista-sala-design.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Dotare il pannello host di musica (letto + tensione sincronizzata al countdown), voce narrante e effetti sonori, guidati da un manifest editabile dall'utente senza toccare il codice.

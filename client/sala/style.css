@@ -1,0 +1,1376 @@
+@charset "UTF-8";
+
+/**
+ * client/sala/style.css
+ *
+ * Vista sala — lo schermo proiettato. Ricalca il mockup "Quizzata Retro-Chunky"
+ * fornito dall'utente e il DESIGN.md che lo accompagna.
+ *
+ * Tre differenze deliberate rispetto al mockup, tutte imposte dal contesto:
+ *
+ *  1. Niente Tailwind, niente CDN. Il mockup carica Tailwind, Google Fonts e
+ *     Material Symbols dalla rete; qui è tutto CSS scritto a mano e font
+ *     vendorati, perché durante l'evento il Raspberry è offline.
+ *  2. Le risposte non sono <button>. Sulla sala nessuno clicca: sono schede di
+ *     sola lettura, quindi niente stati hover/active e niente cursore.
+ *  3. Lo sfondo è la carta a pois, non lo split ochre/teal. È ciò che il mockup
+ *     produce davvero: le sue `.grid-bg-left/right` usano `theme()` dentro un
+ *     <style> semplice, che il CDN di Tailwind non risolve, quindi restano
+ *     trasparenti. Della divisione resta la riga verticale centrale, che il
+ *     mockup disegna col bordo destro della metà sinistra.
+ */
+
+/* ─── Font vendorati ────────────────────────────────────────────────────── */
+
+@font-face {
+  font-family: 'Quicksand';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/resources/fonts/quicksand-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Quicksand';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/resources/fonts/quicksand-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Quicksand';
+  font-style: normal;
+  font-weight: 700 900;
+  font-display: swap;
+  src: url('/resources/fonts/quicksand-700.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: block;
+  src: url('/resources/fonts/material-symbols-outlined.woff2') format('woff2');
+}
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Token ─────────────────────────────────────────────────────────────── */
+/* Valori presi dal DESIGN.md del mockup. Dove divergono da client/host/
+   (paper-base, primary-container) vince questo file: la sala è la superficie
+   che il mockup descrive. */
+
+:root {
+  --paper-base:      #f4e8d1;
+  /* Inchiostro di DESIGN.md, identico a quello del client player: è il colore
+     di OGNI bordo strutturale del sistema, quindi deve essere lo stesso su
+     entrambi gli schermi. Prima era #2A2A2A, un grigio leggermente diverso:
+     bastava a far sembrare i due schermi due prodotti diversi. */
+  --retro-dark:      #201b0d;
+  --retro-ochre:     #F2A65A;
+  --retro-teal:      #008080;
+  --retro-terracotta:#E05A47;
+
+  /* ─── Palette delle risposte, condivisa con il client player ───────────────
+     Stessi nomi e stessi valori di client/player/style.css: le opzioni di
+     risposta sono la cosa che host e giocatore guardano CONTEMPORANEAMENTE,
+     quindi devono essere lo stesso oggetto, non due interpretazioni. */
+  --insert-coin-yellow: #f7d708;
+  --primary-ink:        #4f4000;
+  --arcade-teal:        #90efef;
+  --arcade-teal-deep:   #006a6a;
+  --ticket-ochre:       #f2a65a;
+  --paper-white:        #ffffff;
+  --ink:                #201b0d;
+
+  --primary-container: #ffed00;
+  --surface-container: #eceef0;
+  --surface-dim:       #d8dadc;
+  --white:             #ffffff;
+
+  --font-family: 'Quicksand', system-ui, sans-serif;
+
+  /* Tipografia del DESIGN.md */
+  --display-lg:        48px;
+  --display-lg-lh:     56px;
+  --display-lg-mobile: 32px;
+  --headline-md:       24px;
+  --body-lg:           20px;
+
+  /* Ombre a blocco: offset pieno, mai sfocatura */
+  --block:      8px 8px 0px 0px var(--retro-dark);
+  --block-sm:   4px 4px 0px 0px var(--retro-dark);
+  --border:     4px solid var(--retro-dark);
+
+  --radius:      1rem;
+  --radius-lg:   2rem;
+  --radius-full: 9999px;
+}
+
+/* ─── Reset e base ──────────────────────────────────────────────────────── */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body { height: 100%; }
+
+body {
+  font-family: var(--font-family);
+  font-weight: 700;
+  color: var(--retro-dark);
+  background-color: var(--paper-base);
+  /* Due griglie di pois sfalsate: è la trama del mockup. */
+  background-image:
+    radial-gradient(var(--retro-dark) 1px, transparent 1px),
+    radial-gradient(var(--retro-dark) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: 0 0, 20px 20px;
+  overflow: hidden;   /* nessuno scrolla un proiettore */
+  cursor: none;       /* il puntatore non deve comparire in sala */
+  -webkit-font-smoothing: antialiased;
+}
+
+[hidden] { display: none !important; }
+
+/* ─── Sfondo: divisione centrale e adesivi ──────────────────────────────── */
+
+.sala-bg-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* La riga che divide il campo in due metà. */
+.sala-bg-split {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 4px;
+  transform: translateX(-2px);
+  background: var(--retro-dark);
+}
+
+.sala-sticker {
+  position: absolute;
+  opacity: 0.8;
+  filter: drop-shadow(4px 4px 0px var(--retro-dark));
+}
+
+.sala-sticker--1 { top: 2.5rem;  left: 2.5rem;  width: 6rem;  height: 6rem;  color: var(--retro-terracotta); transform: rotate(-15deg); }
+.sala-sticker--2 { bottom: 5rem; right: 2.5rem; width: 8rem;  height: 8rem;  color: var(--primary-container); transform: rotate(20deg); }
+.sala-sticker--3 { top: 33%;     left: 1rem;    width: 4rem;  height: 4rem;  color: var(--retro-ochre); transform: rotate(45deg); }
+.sala-sticker--4 { bottom: 33%;  right: 25%;    width: 5rem;  height: 5rem;  color: var(--white); transform: rotate(-30deg); }
+
+/* ─── Impalcatura ───────────────────────────────────────────────────────── */
+
+.sala-shell {
+  position: relative;
+  z-index: 10;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Barra superiore ───────────────────────────────────────────────────── */
+
+.sala-top-bar {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 50;
+  margin: 1rem;
+  padding: 1rem;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--block);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Traccia di avanzamento: cerchi disegnati e barrette alternati. */
+.sala-progress {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow: hidden;
+}
+
+.sala-progress .dot {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  border: var(--border);
+  background: var(--surface-dim);
+  /* "Drawn circle": raggi asimmetrici, per l'effetto disegnato a mano. */
+  border-radius: 50% 40% 60% 30% / 40% 60% 30% 50%;
+}
+
+.sala-progress .bar {
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 0.5rem;
+  border: var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface-dim);
+}
+
+.sala-progress .is-done { background: var(--retro-terracotta); }
+
+.sala-progress .is-current {
+  width: 1.5rem;
+  height: 1.5rem;
+  background: var(--primary-container);
+  display: grid;
+  place-items: center;
+}
+
+.sala-progress .is-current::after {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--retro-dark);
+}
+
+/* Logo: sporge sopra la barra ed è ruotato, come un adesivo appiccicato. */
+.sala-logo-wrap {
+  flex: 0 0 auto;
+  margin-top: -2rem;
+  padding: 0.5rem;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--block);
+  transform: rotate(-5deg);
+  display: flex;
+}
+
+.sala-logo-wrap img {
+  width: 4rem;
+  height: 4rem;
+  object-fit: contain;
+}
+
+.sala-timer-wrap {
+  flex: 1 1 0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.sala-timer-badge {
+  /* Il countdown è, con la domanda, la cosa che la sala guarda di più: stava a
+     --headline-md, cioè più piccolo del testo delle risposte. */
+  font-size: var(--display-lg-mobile);
+  font-weight: 900;
+  line-height: 1.3;
+  padding: 0.5rem 1rem;
+  color: var(--white);
+  background: var(--retro-teal);
+  border: var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--block-sm);
+  transform: rotate(3deg);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ultimi secondi: in sala il colore fa il lavoro che il suono da solo non fa. */
+.sala-timer-badge.is-urgent {
+  background: var(--retro-terracotta);
+  animation: sala-pulse 700ms steps(2, jump-none) infinite;
+}
+
+@keyframes sala-pulse {
+  from { transform: rotate(3deg) scale(1); }
+  to   { transform: rotate(3deg) scale(1.08); }
+}
+
+/* ─── Palco ─────────────────────────────────────────────────────────────── */
+
+.sala-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  padding: 0 1rem 1.5rem;
+}
+
+.sala-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  /* Contesto per il palco della parata, ancorato in basso al centro. */
+  position: relative;
+}
+
+.sala-panel-title {
+  /* Un titolo di sezione non può misurare quanto il testo di una risposta. */
+  font-size: var(--display-lg);
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.sala-count-bubble {
+  background: var(--primary-container);
+  border: var(--border);
+  border-radius: var(--radius-full);
+  padding: 0.05em 0.45em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Attesa ────────────────────────────────────────────────────────────── */
+
+#sala-idle { justify-content: center; }
+
+.sala-idle-text {
+  font-size: var(--display-lg);
+  line-height: var(--display-lg-lh);
+  font-weight: 900;
+  text-align: center;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--block);
+  padding: 2rem 3rem;
+  transform: rotate(-1deg);
+}
+
+/* ─── Scheda domanda ────────────────────────────────────────────────────── */
+
+/* Il pannello domanda ha tre fasce: scheda, risposte, contatore. Le risposte
+   NON devono mai uscire dallo schermo — con overflow:hidden verrebbero tagliate
+   in silenzio, e su un proiettore significa perderle del tutto. Per questo la
+   scheda è l'unica fascia che cede spazio. */
+#sala-question {
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+/* Terzo elemento della distribuzione, senza un div vuoto nel markup.
+   Riserva la fascia in fondo dove atterra la parata degli avatar a round
+   chiuso: senza, le risposte scivolano contro il bordo inferiore e la parata
+   ci finisce sopra. Il posto era occupato dal contatore "Risposte: 0", che
+   però quell'informazione non la mostrava mai (il server la manda solo alla
+   room host) — tolto il contatore, resta il compito che svolgeva. */
+#sala-question::after {
+  content: '';
+  flex: 0 0 auto;
+  height: 3.5rem;
+}
+
+.q-card-wrap {
+  width: 92%;
+  max-width: 48rem;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+.q-card {
+  position: relative;
+  background: var(--white);
+  border: var(--border);
+  box-shadow: var(--block);
+  padding: 2rem 3rem;
+  text-align: center;
+  transform: rotate(-1deg);
+}
+
+/* Badge categoria "a nastro adesivo": sporge dall'angolo, bordi tagliati storti. */
+.q-tape {
+  position: absolute;
+  top: -1rem;
+  left: -1rem;
+  padding: 0.5rem 1.5rem;
+  background: var(--primary-container);
+  color: var(--retro-dark);
+  border: 2px solid var(--retro-dark);
+  box-shadow: var(--block-sm);
+  font-size: var(--headline-md);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transform: rotate(-5deg);
+  clip-path: polygon(0 0, 100% 5%, 95% 100%, 5% 95%);
+}
+
+.q-text {
+  font-size: var(--display-lg);
+  line-height: var(--display-lg-lh);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  margin-bottom: 1rem;
+  /* Ombra secondaria terracotta: stacca il titolo dallo sfondo. */
+  filter: drop-shadow(2px 2px 0px var(--retro-terracotta));
+}
+
+/* Variante SENZA immagine: la riga di istruzione sotto il titolo. */
+.q-hint {
+  display: inline-block;
+  font-size: var(--body-lg);
+  font-weight: 700;
+  padding: 0.25rem 1rem;
+  background: var(--surface-container);
+  border: var(--border);
+  border-radius: 0.375rem;
+}
+
+/* Variante CON immagine.
+   `position: relative` non è decorativo: senza, l'<img> figlia non ha un
+   contenitore contro cui risolvere `inset: 0` — vedi il commento sotto. */
+.q-media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  /* Il 16:9 vale finché c'è spazio: oltre, l'altezza vince sul rapporto e
+     l'immagine si adatta con object-fit invece di sfondare il layout. */
+  max-height: 34vh;
+  margin: 1rem 0 0;
+  border: 4px dashed var(--retro-dark);
+  border-radius: var(--radius-lg);
+  background: rgba(216, 218, 220, 0.3);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+/* L'immagine è posizionata in modo ASSOLUTO, non dimensionata in percentuale.
+   Con `width/height: 100%` su un figlio di questa griglia, il 100% in altezza
+   si misura contro la TRACCIA DI RIGA e non contro il `max-height` del
+   contenitore: degrada ad `auto`, l'immagine tiene il proprio rapporto alla
+   larghezza piena, sfonda in altezza e `overflow: hidden` la ritaglia.
+   Misurato: un'immagine 1254x1254 diventava 696x696 in un riquadro alto 187px.
+   Con `inset: 0` il riquadro è il riferimento, e `object-fit: contain` può
+   finalmente fare il suo lavoro.
+
+   `pointer-events: none` è deliberato: in sala nessun click deve attivare
+   niente, perché il proiettore del Raspberry non ha nessuno che lo tocchi. */
+.q-media img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Sfocatura, decisa per-domanda dall'host in fase di creazione.
+   È una classe e non una seconda copia dell'immagine: un blob solo in DB, e il
+   toggle resta reversibile. Il valore scala con l'altezza dello schermo perché
+   lo stesso blur in px su un proiettore 1080p e su un monitor da sviluppo non
+   nasconde la stessa quantità di soggetto. */
+.q-media.is-blurred img {
+  filter: blur(clamp(8px, 2.2vh, 26px));
+}
+
+.q-media .material-symbols-outlined {
+  font-size: 3.75rem;
+  color: rgba(42, 42, 42, 0.2);
+}
+
+/* Puntina decorativa in alto a destra. */
+.q-pin {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--radius-full);
+  background: var(--retro-terracotta);
+  border: var(--border);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+.q-pin span {
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* ─── Risposte ──────────────────────────────────────────────────────────── */
+
+.sala-options {
+  list-style: none;
+  width: 100%;
+  max-width: 64rem;
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2rem;
+  padding: 0 1rem;
+}
+
+.sala-options.is-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* ═══ Le risposte sono lo STESSO oggetto su proiettore e telefono ═══════════
+   Forma, colori e pesi qui sotto ricalcano `.answer-btn` di
+   client/player/style.css: cambia solo la scala, perché la sala si guarda da
+   lontano e il telefono da 30 cm. Ogni volta che si tocca una delle due
+   regole va toccata anche l'altra — un giocatore vede i due schermi
+   contemporaneamente e coglie subito qualunque differenza.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.sala-option-card {
+  /* Due bande sovrapposte, non tre colonne: sopra lettera + testo, sotto gli
+     avatar. Con venti giocatori il vecchio layout a flex li accumulava di
+     fianco al testo, che veniva schiacciato fino a spezzare "Sasso" in
+     "Sa/ss/o". Anche mettendoli in una colonna a larghezza fissa il testo
+     spariva quando le opzioni sono tre e le carte si stringono: solo bande
+     separate garantiscono che una zona non possa mai restringere l'altra. */
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "letter label"
+    "tray   tray";
+  align-items: center;
+  column-gap: 1rem;
+  row-gap: 0.9rem;
+  padding: 1.5rem;
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--block);
+  font-size: var(--display-lg-mobile);
+  /* 700, non 900, e nessun maiuscolo: identico al telefono. */
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  min-width: 0;
+  /* Contesto per la X del verdetto, che si sovrappone all'intera carta. */
+  position: relative;
+}
+
+.sala-option-label {
+  grid-area: label;
+  min-width: 0;
+  /* `anywhere` spezzava le parole a metà appena lo spazio si stringeva. Ora lo
+     spazio è garantito dalla griglia, quindi si va a capo sulle parole e si
+     spezza solo una parola che da sola non ci starebbe mai. */
+  overflow-wrap: break-word;
+}
+
+.sala-option-letter {
+  grid-area: letter;
+  width: 3rem;
+  height: 3rem;
+  display: grid;
+  place-items: center;
+  background: var(--paper-white);
+  border: 3px solid var(--ink);
+  /* Sempre tonda. Prima ogni posizione aveva una forma diversa (pillola,
+     smussata, blob organico): a fianco del telefono, dove sono tutte tonde,
+     sembrava un altro prodotto. */
+  border-radius: var(--radius-full);
+  color: var(--ink);
+  font-size: var(--display-lg-mobile);
+  font-weight: 900;
+}
+
+/* Ciclo di quattro colori, identico a quello del telefono:
+   giallo gettone → teal arcade → ocra biglietto → carta bianca. */
+.sala-option-card:nth-child(4n+1) { background: var(--insert-coin-yellow); color: var(--primary-ink); }
+.sala-option-card:nth-child(4n+2) { background: var(--arcade-teal); color: var(--arcade-teal-deep); }
+.sala-option-card:nth-child(4n+3) { background: var(--ticket-ochre); }
+.sala-option-card:nth-child(4n)   { background: var(--paper-white); }
+
+/* ─── Scena dei risultati sulle opzioni ──────────────────────────────────────
+   A round chiuso le opzioni restano a schermo: gli avatar dei giocatori vanno a
+   posarsi su quella che hanno scelto, poi le sbagliate vengono timbrate.
+   ------------------------------------------------------------------------- */
+
+/* Vassoio: le pedine dei giocatori atterrate su questa risposta. */
+.sala-option-tray {
+  /* Banda propria, tutta la larghezza della carta: non contende spazio al
+     testo, e a vassoio vuoto scompare del tutto — durante la domanda la carta
+     è identica a prima. */
+  grid-area: tray;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: flex-start;
+  gap: 0.3rem;
+}
+
+.sala-option-tray:empty { display: none; }
+
+/* Oltre il tetto di pedine si conta invece di accumulare: su un proiettore
+   venti cerchietti da 2rem non si distinguono comunque uno dall'altro, e
+   farebbero crescere la carta oltre lo schermo. */
+.sala-option-more {
+  display: grid;
+  place-items: center;
+  min-width: 2.1rem;
+  height: 2.1rem;
+  padding: 0 0.4rem;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1;
+  background: var(--ink);
+  color: var(--paper-white);
+  border-radius: var(--radius-full);
+}
+
+.sala-option-seat {
+  width: 2.1rem;
+  height: 2.1rem;
+  display: grid;
+  place-items: center;
+  font-size: 1.3rem;
+  line-height: 1;
+  background: var(--paper-white);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-full);
+  transition: opacity 160ms ease-out, transform 160ms ease-out;
+}
+
+/* In volo: il posto è già occupato (così il vassoio non cambia dimensione a
+   metà traiettoria) ma non si vede ancora. */
+.sala-option-seat.is-incoming { opacity: 0; transform: scale(0.4); }
+
+/* L'avatar mentre attraversa lo schermo: staccato dal flusso, non sposta nulla. */
+.sala-flying-avatar {
+  position: fixed;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  font-size: 2.6rem;
+  line-height: 1;
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* Palco della parata, in basso al centro. */
+.sala-parade {
+  position: absolute;
+  left: 50%;
+  bottom: 2.5rem;
+  transform: translateX(-50%);
+  z-index: 50;
+  pointer-events: none;
+}
+
+.sala-parade-card {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.6rem 1.4rem;
+  background: var(--paper-white);
+  border: var(--border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--block-sm);
+  font-size: var(--headline-md);
+  font-weight: 900;
+  color: var(--ink);
+}
+
+.sala-parade-avatar { font-size: 2.6rem; line-height: 1; }
+
+/* Il nome resta il tempo di leggerlo, poi sfuma: a quel punto parte l'avatar. */
+.sala-parade-card.is-running { animation: sala-parade-in 220ms ease-out both; }
+.sala-parade-card.is-running .sala-parade-name { animation: sala-parade-name 520ms ease-in both; }
+
+@keyframes sala-parade-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.94); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes sala-parade-name {
+  0%, 45% { opacity: 1; max-width: 20ch; }
+  100%    { opacity: 0; max-width: 0; }
+}
+
+.sala-parade-name { overflow: hidden; white-space: nowrap; }
+
+.sala-no-answer {
+  margin-top: 0.75rem;
+  font-size: var(--body-lg);
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+/* Verdetto — risposta giusta: resta accesa e dà un colpo di scena. */
+.sala-option-card.is-right {
+  animation: sala-option-right 620ms cubic-bezier(0.2, 1.5, 0.4, 1) both;
+  z-index: 2;
+}
+
+@keyframes sala-option-right {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.06); box-shadow: 12px 12px 0 0 var(--ink); }
+  100% { transform: scale(1.03); box-shadow: 12px 12px 0 0 var(--ink); }
+}
+
+/* Verdetto — risposte sbagliate: la carta si spegne e affonda nella propria
+   ombra, poi ci sbatte sopra la X. */
+.sala-option-card.is-out {
+  animation: sala-option-out 420ms ease-out both;
+}
+
+@keyframes sala-option-out {
+  from { filter: none; transform: translate(0, 0); }
+  to   { filter: grayscale(0.9) brightness(0.78); transform: translate(6px, 6px); box-shadow: none; }
+}
+
+.sala-option-x {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 5rem;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--game-over-red, #ab3425);
+  -webkit-text-stroke: 4px var(--ink);
+  paint-order: stroke fill;
+  pointer-events: none;
+  animation: sala-option-stamp 360ms cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+/* La X "timbra": arriva grande e storta, si assesta con un colpo secco. */
+@keyframes sala-option-stamp {
+  0%   { opacity: 0; transform: scale(2.4) rotate(-24deg); }
+  60%  { opacity: 1; transform: scale(0.92) rotate(-8deg); }
+  100% { opacity: 1; transform: scale(1) rotate(-11deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sala-flying-avatar,
+  .sala-parade-card.is-running,
+  .sala-parade-card.is-running .sala-parade-name,
+  .sala-option-card.is-right,
+  .sala-option-card.is-out,
+  .sala-option-x {
+    animation-duration: 1ms;
+  }
+  .sala-option-card.is-out { filter: grayscale(0.9) brightness(0.78); }
+}
+
+/* Accento del round minigioco: il nastro cambia colore, il resto no. */
+.sala-panel.is-minigame .q-tape { background: var(--retro-ochre); }
+
+/* ─── Lobby ─────────────────────────────────────────────────────────────── */
+
+#sala-lobby { justify-content: center; }
+
+.sala-lobby-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 3rem;
+  align-items: center;
+  padding: 0 2rem;
+}
+
+.sala-join-card {
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--block);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  transform: rotate(-1.5deg);
+}
+
+.sala-join-kicker {
+  font-size: var(--headline-md);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: var(--primary-container);
+  border: 2px solid var(--retro-dark);
+  box-shadow: var(--block-sm);
+  padding: 0.25rem 1rem;
+  transform: rotate(-2deg);
+  clip-path: polygon(0 0, 100% 5%, 95% 100%, 5% 95%);
+}
+
+.sala-qr {
+  width: 100%;
+  max-width: 20rem;
+  aspect-ratio: 1;
+  background: var(--white);
+  border: var(--border);
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  display: flex;
+}
+
+.sala-qr svg { width: 100%; height: 100%; display: block; }
+
+.sala-join-url {
+  font-size: var(--body-lg);
+  font-weight: 900;
+  word-break: break-all;
+  text-align: center;
+}
+
+.sala-lobby-players { min-width: 0; }
+
+.sala-player-grid {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  max-height: 55vh;
+  overflow: hidden;
+  align-content: flex-start;
+}
+
+.sala-player-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: var(--body-lg);
+  font-weight: 900;
+  padding: 0.35em 0.8em;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--block-sm);
+  animation: sala-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.sala-player-chip .avatar { font-size: 1.4em; line-height: 1; }
+.sala-player-chip.is-disconnected { opacity: 0.45; }
+
+/* L'ingresso di un giocatore è metà dello spettacolo d'apertura: si vede. */
+@keyframes sala-pop {
+  from { transform: scale(0.4) rotate(-8deg); opacity: 0; }
+  to   { transform: scale(1) rotate(0deg);    opacity: 1; }
+}
+
+.sala-lobby-empty {
+  font-size: var(--body-lg);
+  margin-top: 1rem;
+}
+
+/* ─── Risultati ─────────────────────────────────────────────────────────── */
+
+#sala-results { justify-content: center; gap: 1.5rem; }
+
+.sala-reveal {
+  font-size: var(--display-lg-mobile);
+  font-weight: 900;
+  padding: 0.5rem 1.5rem;
+  background: var(--primary-container);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--block);
+  transform: rotate(-1deg);
+  text-align: center;
+}
+
+/* Una sola colonna: da quando la distribuzione si legge sulle opzioni, qui
+   resta la sola classifica, che merita tutta la larghezza. */
+.sala-results-grid {
+  width: 100%;
+  max-width: 48rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 3rem;
+  padding: 0 2rem;
+  min-height: 0;
+}
+
+/* Le barre di distribuzione vivevano qui. Sono state rimosse quando la scena dei
+   risultati ha iniziato a posare gli avatar dei giocatori sulle opzioni: quella
+   È la distribuzione delle risposte, mostrata con le persone invece che con le
+   percentuali. Tenere entrambe significava dire due volte la stessa cosa, la
+   seconda peggio. */
+
+.sala-standings-title {
+  font-size: var(--headline-md);
+  font-weight: 900;
+  margin-bottom: 0.5rem;
+}
+
+/* ─── Ultimo round: classifica sigillata ─────────────────────────────────────
+   Occupa la stessa cella della classifica, mai insieme a lei. Deve leggersi da
+   in fondo alla sala come un cartello, non come un messaggio di sistema: è
+   l'ultimo fotogramma prima della premiazione, e il suo lavoro è far salire
+   l'attesa invece di spegnerla. */
+
+.sala-sealed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2.5rem 2rem;
+  background: var(--ticket-ochre);
+  color: var(--ink);
+  border: var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--block);
+  transform: rotate(-1.5deg);
+  text-align: center;
+}
+
+.sala-sealed-seal {
+  font-size: 4.5rem;
+  line-height: 1;
+  animation: sealed-throb 2.4s ease-in-out infinite;
+}
+
+.sala-sealed-title {
+  font-size: var(--display-lg);
+  line-height: var(--display-lg-lh);
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.sala-sealed-sub {
+  font-size: var(--headline-md);
+  font-weight: 700;
+}
+
+@keyframes sealed-throb {
+  0%, 100% { transform: scale(1)    rotate(-5deg); }
+  50%      { transform: scale(1.09) rotate(5deg);  }
+}
+
+.sala-standings-list, .sala-final-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: var(--body-lg);
+  font-weight: 900;
+}
+
+.sala-standings-list li, .sala-final-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.3em 0.9em;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--block-sm);
+}
+
+/* ─── Classifica del round: assegnazione punti e sorpassi ────────────────────
+   Struttura della riga: medaglia · avatar · nome · +X · punteggio.
+   Il punteggio è un contachilometri a cifre che scorrono; le righe si scambiano
+   di posto animando il tragitto, così il sorpasso si vede accadere.
+   ------------------------------------------------------------------------- */
+
+.sala-rank-row {
+  /* Le colonne sono fisse: i punteggi restano incolonnati anche mentre scorrono,
+     e i nomi lunghi non spostano le cifre. */
+  display: grid !important;
+  grid-template-columns: 2.6rem 2.6rem minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.75rem !important;
+  padding: 0.35rem 1rem !important;
+}
+
+.sala-rank-badge {
+  display: grid;
+  place-items: center;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+/* Le medaglie sono glifi, non numeri: niente cerchietto attorno. */
+.sala-rank-badge:not(.is-medal) {
+  font-size: var(--body-lg);
+  color: var(--ink);
+  opacity: 0.65;
+}
+
+.sala-rank-avatar { font-size: 1.9rem; line-height: 1; }
+
+.sala-rank-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+/* Il "+X" non occupa spazio finché non serve, così le cifre non ballano. */
+.sala-rank-delta {
+  justify-self: end;
+  padding: 0.05em 0.6em;
+  border: 3px solid var(--ink);
+  border-radius: var(--radius-full);
+  background: var(--insert-coin-yellow);
+  color: var(--primary-ink);
+  font-size: 0.85em;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 220ms ease-out, transform 220ms cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+
+.sala-standings-list.show-delta .has-delta .sala-rank-delta {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Assorbimento: il +X viene "risucchiato" dentro il totale mentre le cifre
+   partono. Chi non ha preso punti non ha mai avuto un badge da assorbire. */
+.sala-standings-list.counting .sala-rank-delta {
+  opacity: 0;
+  transform: scale(0.4) translateX(1.2em);
+}
+
+.sala-rank-score {
+  justify-self: end;
+  display: flex;
+  font-variant-numeric: tabular-nums;
+  min-width: 4.5ch;
+  justify-content: flex-end;
+}
+
+/* Una colonna per cifra: mostra solo la finestra alta una riga, dentro cui
+   scorre la striscia dei numeri. */
+.sala-odo-col {
+  display: block;
+  height: 1.25em;
+  overflow: hidden;
+}
+
+.sala-odo-strip { display: block; }
+.sala-odo-digit { display: block; height: 1.25em; line-height: 1.25em; }
+
+/* Il totale si accende mentre cresce. */
+.sala-standings-list.counting .sala-rank-score { color: var(--arcade-teal-deep); }
+
+/* Riga in movimento durante un sorpasso: passa sopra le altre, così si legge
+   chi sta scavalcando chi. */
+.sala-rank-row.is-moving {
+  position: relative;
+  z-index: 3;
+  box-shadow: var(--block);
+}
+
+/* Chi esce dai primi posti lascia la scena invece di sparire di colpo. */
+.sala-rank-row.is-dropped {
+  animation: sala-rank-drop 420ms ease-in both;
+}
+
+@keyframes sala-rank-drop {
+  to { opacity: 0; transform: translateY(10px) scale(0.94); }
+}
+
+/* ─── Podio: il metallo delle prime tre posizioni ────────────────────────────
+   Le prime tre righe non sono bianche come le altre: hanno il colore del loro
+   metallo e una luce che ci passa sopra a intervalli, come un premio sotto i
+   riflettori di una sala giochi.
+
+   Il fondo resta FISSO e la luce è un passaggio breve: far "respirare" il colore
+   avrebbe fatto oscillare il contrasto del testo, che qui deve restare leggibile
+   dal fondo della sala (DESIGN.md, WCAG AA). Si anima la luce, non la leggibilità.
+   Bordi e ombre restano Ink, come ogni superficie del sistema.
+   ------------------------------------------------------------------------- */
+
+.sala-rank-row.is-rank-1,
+.sala-rank-row.is-rank-2,
+.sala-rank-row.is-rank-3 {
+  position: relative;
+  overflow: hidden;
+  transition: background-color 420ms ease-out, color 420ms ease-out;
+}
+
+.sala-rank-row.is-rank-1 { background: var(--insert-coin-yellow); color: var(--primary-ink); }
+.sala-rank-row.is-rank-2 { background: var(--arcade-teal);        color: var(--arcade-teal-deep); }
+.sala-rank-row.is-rank-3 { background: var(--ticket-ochre);       color: var(--ink); }
+
+/* La lama di luce che attraversa la riga. */
+.sala-rank-row.is-rank-1::after,
+.sala-rank-row.is-rank-2::after,
+.sala-rank-row.is-rank-3::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -60%;
+  width: 45%;
+  pointer-events: none;
+  transform: skewX(-22deg);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.7) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: sala-rank-shine 2.6s ease-in-out infinite;
+}
+
+/* Sfasate di proposito: se lampeggiassero all'unisono sembrerebbe un errore,
+   così invece il podio è vivo. L'oro passa più spesso dell'argento, l'argento
+   più del bronzo. */
+.sala-rank-row.is-rank-2::after { animation-duration: 3.4s; animation-delay: 0.5s; opacity: 0.75; }
+.sala-rank-row.is-rank-3::after { animation-duration: 4.2s; animation-delay: 1.1s; opacity: 0.55; }
+
+@keyframes sala-rank-shine {
+  /* La luce passa in fretta e poi lascia la riga in pace per il resto del giro. */
+  0%        { left: -60%; }
+  28%, 100% { left: 115%; }
+}
+
+/* La medaglia si dondola appena: il premio non sta mai del tutto fermo. */
+.sala-rank-row.is-rank-1 .sala-rank-badge.is-medal { animation: sala-medal-tilt 2.6s ease-in-out infinite; }
+.sala-rank-row.is-rank-2 .sala-rank-badge.is-medal { animation: sala-medal-tilt 3.4s ease-in-out infinite 0.5s; }
+.sala-rank-row.is-rank-3 .sala-rank-badge.is-medal { animation: sala-medal-tilt 4.2s ease-in-out infinite 1.1s; }
+
+@keyframes sala-medal-tilt {
+  0%, 70%, 100% { transform: rotate(0deg) scale(1); }
+  78%           { transform: rotate(-11deg) scale(1.14); }
+  86%           { transform: rotate(8deg) scale(1.1); }
+}
+
+/* Il "+X" su fondo giallo perderebbe di stacco: sul podio si inverte. */
+.sala-rank-row.is-rank-1 .sala-rank-delta {
+  background: var(--ink);
+  color: var(--insert-coin-yellow);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sala-rank-delta,
+  .sala-rank-row.is-dropped { transition: none; animation-duration: 1ms; }
+  /* Il colore del podio resta, il movimento no. */
+  .sala-rank-row.is-rank-1::after,
+  .sala-rank-row.is-rank-2::after,
+  .sala-rank-row.is-rank-3::after { animation: none; opacity: 0; }
+  .sala-rank-row .sala-rank-badge.is-medal { animation: none; }
+}
+
+/* ─── Podio ─────────────────────────────────────────────────────────────── */
+
+#sala-final { justify-content: center; }
+
+.sala-podium {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 1.5rem;
+}
+
+.sala-podium-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  /* Il fianco è stretto apposta: ogni rem tolto qui è spazio che il nome
+     guadagna prima di dover rimpicciolire. */
+  padding: 1.5rem 1.25rem;
+  /* Larghezza UGUALE per tutti e tre: un podio si distingue per altezza e
+     colore, non perché a qualcuno è toccato un nickname lungo. Senza,
+     "KEKKOCOPPOLA" stirava la carta d'oro fino a schiacciare le altre due, e le
+     basi restavano comunque di misure diverse fra loro. È il nome ad adattarsi
+     al gradino (vedi --name-scale), mai il contrario. */
+  width: 21rem;
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--block);
+  font-weight: 900;
+}
+
+/* Gerarchia del podio: comanda il NOME, non la decorazione. Prima l'avatar era
+   3.5rem e il nome 24px: l'emoji urlava più forte della persona premiata. */
+.sala-podium-step .medal  { font-size: 2.4rem; line-height: 1; }
+.sala-podium-step .avatar { font-size: 3rem;   line-height: 1; }
+.sala-podium-step .name   {
+  /* --name-scale lo imposta il JS in base a quanto è lungo il nickname: è
+     l'unico modo per far stare nomi di lunghezza qualunque nella stessa carta. */
+  font-size: calc(var(--display-lg) * var(--name-scale, 1));
+  /* L'interlinea NON scala col font: l'altezza della riga — e quindi quella del
+     gradino — deve restare la stessa qualunque sia la misura del nome, altrimenti
+     un nickname lungo abbassa il gradino e l'oro finisce sotto l'argento.
+     L'altezza del podio la decidono i padding di .rank-N, nient'altro. */
+  line-height: calc(var(--display-lg) * 1.15);
+  text-transform: uppercase;
+  max-width: 100%;
+  /* Una riga sola: se il nome andasse a capo cambierebbe l'ALTEZZA del
+     gradino, e il podio perderebbe il suo ordine — con "Beatrice" il bronzo
+     diventava più alto dell'argento. A restringersi è il testo (--name-scale,
+     misurato dal JS), mai la forma del podio. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sala-podium-step .points { font-size: var(--headline-md); }
+
+/* Il primo si stacca anche in scala, non solo in altezza e colore. */
+.sala-podium-step.rank-1 .name   {
+  font-size: calc(var(--display-lg) * 1.15 * var(--name-scale, 1));
+  line-height: calc(var(--display-lg) * 1.15 * 1.15);
+}
+.sala-podium-step.rank-1 .avatar { font-size: 3.6rem; }
+
+.sala-podium-step.rank-1 { background: var(--primary-container);  order: 2; padding-bottom: 3.5rem; transform: rotate(-1deg); }
+.sala-podium-step.rank-2 { background: var(--retro-teal); color: var(--white); order: 1; padding-bottom: 2rem; transform: rotate(1.5deg); }
+.sala-podium-step.rank-3 { background: var(--retro-ochre); order: 3; padding-bottom: 1.25rem; transform: rotate(-2deg); }
+
+.sala-final-list { margin-top: 1.5rem; max-height: 25vh; overflow: hidden; }
+
+/* ─── Premiazione: la cerimonia in sala ───────────────────────────────────────
+   Il movimento sta in /shared/final-ceremony.css, identico a quello dei
+   telefoni. Qui c'è solo come si veste su un proiettore.
+   ------------------------------------------------------------------------- */
+
+/* Le stelline del vincitore escono dal gradino: niente overflow da queste parti
+   (è anche il motivo per cui il podio non riusa lo "shine" della classifica di
+   round, che vorrebbe un overflow:hidden e taglierebbe le scintille). */
+.sala-podium-step { position: relative; }
+
+/* La coda della premiazione cresce verso l'ALTO da una base fissa: le righe già
+   scoperte non vengono spinte in basso a ogni nuovo arrivo, e il movimento
+   racconta una scalata invece di un elenco che si allunga. */
+#sala-final .sala-final-list {
+  margin-top: 0;
+  /* Prende esattamente lo spazio che avanza sotto il podio, invece di
+     un'altezza fissa: su un proiettore 720p un min-height spingerebbe l'ultima
+     riga sotto il bordo dello schermo. Le righe si impilano dal basso e, se
+     sono troppe, è la più vecchia in cima a essere tagliata — quella che a
+     quel punto della cerimonia non guarda più nessuno. */
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  justify-content: flex-end;
+  /* Il ritaglio verticale serve (le righe più vecchie escono dall'alto), ma
+     tagliava anche di lato: nel pop la riga cresce dell'2% e sbordava di 8px
+     per parte. Il respiro orizzontale glielo dà il padding, e la larghezza lo
+     compensa perché le righe restino della misura di prima. */
+  padding-inline: 0.75rem;
+  width: min(49.5rem, 92vw);
+  margin-inline: auto;
+}
+
+/* A coda esaurita la lista non deve continuare a occupare metà schermo: il
+   podio è l'unica cosa rimasta e si prende il centro. */
+#sala-final .sala-final-list:empty {
+  flex: 0 0 auto;
+  min-height: 0;
+  padding: 0;
+}
+
+/* Il podio occupa il suo posto fin dal primo istante — così il bronzo non salta
+   dal centro a destra quando arrivano gli altri due, e la coda ha un'altezza
+   stabile — ma si vede solo quando la coda gli lascia il palco. */
+.sala-podium.is-hidden { visibility: hidden; }
+
+/* ── La pedana vuota ────────────────────────────────────────────────────────
+   Deve stare DOPO le regole .rank-N: stessa specificità, vince l'ultima.
+   Il gradino esiste già a misura definitiva, così il bronzo non salta dal
+   centro a destra quando arrivano gli altri due. Quello che manca è chi ci
+   sale sopra. */
+.sala-podium-step.is-slot {
+  background: transparent;
+  border-style: dashed;
+  box-shadow: none;
+  transform: none;
+  opacity: 0.45;
+}
+
+.sala-podium-step.is-slot > * { visibility: hidden; }
+
+.sala-podium-step.is-slot::after {
+  content: '?';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 4rem;
+  font-weight: 900;
+  color: var(--ink);
+  opacity: 0.5;
+}
+
+/* ── Il fotogramma finale ───────────────────────────────────────────────────
+   Il podio resta proiettato a fine serata e non deve sembrare congelato: le
+   medaglie si dondolano appena, sfasate fra loro, riusando il keyframe già
+   scritto per la classifica di round. */
+.sala-podium.is-settled .rank-1 .medal { animation: sala-medal-tilt 2.6s ease-in-out infinite; }
+.sala-podium.is-settled .rank-2 .medal { animation: sala-medal-tilt 3.4s ease-in-out infinite 0.5s; }
+.sala-podium.is-settled .rank-3 .medal { animation: sala-medal-tilt 4.2s ease-in-out infinite 1.1s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sala-podium.is-settled .medal { animation: none; }
+}
+
+/* ─── Schermi bassi ─────────────────────────────────────────────────────── */
+/* Un proiettore 720p, o una finestra non a schermo intero, non regge le
+   misure del mockup: la scheda domanda spingerebbe le risposte oltre il bordo.
+   Si stringe tutto in blocco, invece di lasciar tagliare la fascia che conta
+   di più. */
+
+@media (max-height: 900px) {
+  :root {
+    --display-lg:        34px;
+    --display-lg-lh:     40px;
+    --display-lg-mobile: 24px;
+    --headline-md:       19px;
+    --body-lg:           17px;
+  }
+  .sala-top-bar    { margin: 0.6rem 1rem; padding: 0.6rem 1rem; }
+  .sala-logo-wrap  { margin-top: -1.4rem; }
+  .sala-logo-wrap img { width: 2.75rem; height: 2.75rem; }
+  .sala-stage      { padding: 0 1rem 0.75rem; }
+  .q-card          { padding: 1.1rem 1.75rem; }
+  .q-text          { margin-bottom: 0.6rem; }
+  .q-media         { max-height: 26vh; margin-top: 0.6rem; }
+  .sala-options    { gap: 0.9rem; }
+  .sala-option-card{ padding: 0.75rem 1rem; gap: 0.7rem; }
+  .sala-option-letter { width: 2.4rem; height: 2.4rem; }
+  .sala-panel      { gap: 0.75rem; }
+}
+
+/* ─── Schermi molto grandi ──────────────────────────────────────────────── */
+/* Il mockup è tarato su un desktop. Su un proiettore in fondo a una sala i
+   48px del titolo diventano piccoli, quindi oltre il full HD si scala tutto in
+   blocco invece di ritoccare le singole regole: le proporzioni restano quelle
+   approvate. */
+
+@media (min-width: 1920px) {
+  :root {
+    --display-lg:        64px;
+    --display-lg-lh:     72px;
+    --display-lg-mobile: 42px;
+    --headline-md:       30px;
+    --body-lg:           26px;
+  }
+  .sala-option-letter { width: 4rem; height: 4rem; }
+  .sala-logo-wrap img { width: 5rem; height: 5rem; }
+}
+
+/* ─── Accessibilità del movimento ───────────────────────────────────────── */
+/* PRODUCT.md lo richiede. In sala il movimento è decorativo: si toglie. */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

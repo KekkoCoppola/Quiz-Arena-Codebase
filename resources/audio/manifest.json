@@ -1,5 +1,36 @@
 {
-  "music": {},
+  "music": {
+    "bed": { "file": "music/bed.ogg", "gain": 1.0 }
+  },
   "vo": {},
-  "sfx": {}
+  "sfx": {
+    "player-joined": [
+      { "file": "sfx/player-joined-01.wav", "gain": 1.0 }
+    ],
+    "suspense": [
+      { "file": "sfx/suspense-01.wav", "gain": 0.7 }
+    ],
+    "avatar-call": [
+      { "file": "sfx/avatar-call-01.wav", "gain": 0.8 },
+      { "file": "sfx/avatar-call-02.wav", "gain": 0.8 },
+      { "file": "sfx/avatar-call-03.wav", "gain": 0.8 }
+    ],
+    "avatar-land": [
+      { "file": "sfx/avatar-land-01.wav", "gain": 0.9 },
+      { "file": "sfx/avatar-land-02.wav", "gain": 0.9 },
+      { "file": "sfx/avatar-land-03.wav", "gain": 0.9 }
+    ],
+    "stamp-wrong": [
+      { "file": "sfx/stamp-wrong-01.wav", "gain": 1.0 }
+    ],
+    "reveal": [
+      { "file": "sfx/reveal-01.wav", "gain": 1.0 }
+    ],
+    "score-count": [
+      { "file": "sfx/score-count-01.wav", "gain": 0.6 }
+    ],
+    "overtake": [
+      { "file": "sfx/overtake-01.wav", "gain": 0.85 }
+    ]
+  }
 }

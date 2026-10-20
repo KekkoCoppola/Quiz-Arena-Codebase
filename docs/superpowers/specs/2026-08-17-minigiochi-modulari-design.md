@@ -81,11 +81,11 @@ Lo stesso principio nell'editor: un tipo assente dal catalogo viene mantenuto e 
 
 ### Tutto facoltativo tranne `type` e `label`
 
-Il registry client completa una presentazione parziale con i default, un livello alla volta (un modulo che definisce solo `host.reveal` conserva `host.startSuspense` generico). Un minigioco nuovo è giocabile con ~15 righe e si arricchisce dopo.
+Il registry client completa una presentazione parziale con i default, un livello alla volta (un modulo che definisce solo `sala.reveal` conserva `sala.startSuspense` generico). Un minigioco nuovo è giocabile con ~15 righe e si arricchisce dopo.
 
 ### Niente DOM al caricamento dei moduli client
 
-`document` compare solo dentro le funzioni. Permette a `tools/test-minigames.js` di caricare i moduli in Node e verificarne il contratto senza jsdom, ed è la cucitura che permetterà in futuro a un `host.reveal()` di disegnare in 3D senza toccare nient'altro.
+`document` compare solo dentro le funzioni. Permette a `tools/test-minigames.js` di caricare i moduli in Node e verificarne il contratto senza jsdom, ed è la cucitura che permetterà in futuro a un `sala.reveal()` di disegnare in 3D senza toccare nient'altro.
 
 ### `/shared` separato da `/resources`
 

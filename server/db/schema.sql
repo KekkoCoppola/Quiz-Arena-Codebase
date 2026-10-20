@@ -58,8 +58,18 @@ CREATE TABLE IF NOT EXISTS quizzes (
 CREATE INDEX IF NOT EXISTS idx_quizzes_user_id ON quizzes(user_id);
 
 -- ─── Tabella: preloaded_quizzes ──────────────────────────────────────────────────
--- Quiz precaricati di sistema (non modificabili dagli host).
--- Vengono popolati tramite tools/seed-preloaded.js.
+-- Quiz precaricati di sistema (non modificabili dagli host dal pannello).
+--
+-- ATTENZIONE — questa tabella e una COPIA DERIVATA, non la fonte di verita.
+-- I quiz di sistema vivono come file in content/quizzes/, uno per quiz, e
+-- server/quiz-library.js riallinea questa tabella ad ogni avvio: inserisce i
+-- nuovi, aggiorna quelli cambiati, elimina quelli il cui file e sparito.
+-- Modificare le righe a mano non serve a niente: al riavvio successivo vengono
+-- sovrascritte. Per cambiare un quiz si modifica il suo file.
+--
+-- "slug" e l identita stabile e corrisponde al nome del file senza estensione
+-- (il-mondo-degli-animali.json -> "il-mondo-degli-animali"). Non e il titolo:
+-- cosi rinominare il titolo aggiorna il quiz invece di crearne un doppione.
 --
 -- La struttura di `questions` è identica alla tabella `quizzes`:
 --   {
@@ -70,6 +80,7 @@ CREATE INDEX IF NOT EXISTS idx_quizzes_user_id ON quizzes(user_id);
 --   }
 CREATE TABLE IF NOT EXISTS preloaded_quizzes (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug        TEXT    UNIQUE,
     title       TEXT    NOT NULL,
     category    TEXT    NOT NULL DEFAULT 'Generale',
     questions   TEXT    NOT NULL DEFAULT '[]',
@@ -78,3 +89,34 @@ CREATE TABLE IF NOT EXISTS preloaded_quizzes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_preloaded_category ON preloaded_quizzes(category);
+
+-- ─── Tabella: quiz_images ───────────────────────────────────────────────────────
+-- Immagini delle domande, indirizzate dal CONTENUTO.
+--
+-- La chiave primaria e lo SHA-256 esadecimale dei byte stoccati, non un id
+-- progressivo. Tre conseguenze volute:
+--   1. la stessa foto usata in due quiz occupa una riga sola;
+--   2. l URL /api/quiz-image/<hash> non puo mai servire byte diversi, quindi e
+--      cacheabile come "immutable" e ogni dispositivo la scarica una volta sola;
+--   3. un client non puo inventarsi un hash: lo calcola il server dai byte.
+--
+-- I byte sono WebP ridimensionato e compresso dal browser dell host, che PROVA
+-- a restare entro lato lungo 1280px e 153.600 byte: e un obiettivo lato
+-- client, non una garanzia su cosa e stoccato qui. La scala di qualita ha un
+-- pavimento (0.58) e accetta un file piu pesante pur di non degradare oltre
+-- (un caso reale, 1254x1254, e arrivato a 159 KB); il server dal canto suo
+-- accetta fino a MAX_IMAGE_SIDE lato e 400 KB di body. Il server non
+-- ricomprime: farlo richiederebbe un modulo nativo, escluso dal vincolo di
+-- packaging SEA su ARM.
+--
+-- NESSUNA foreign key verso le domande: una domanda vive dentro il JSON della
+-- colonna `questions`, non in una tabella. Il legame lo ricostruisce
+-- gcOrphanImages() in quiz-manager.js, che gira ad ogni avvio.
+CREATE TABLE IF NOT EXISTS quiz_images (
+    hash        TEXT    PRIMARY KEY,          -- SHA-256 esadecimale minuscolo dei byte
+    mime        TEXT    NOT NULL,
+    bytes       BLOB    NOT NULL,
+    width       INTEGER NOT NULL,
+    height      INTEGER NOT NULL,
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);

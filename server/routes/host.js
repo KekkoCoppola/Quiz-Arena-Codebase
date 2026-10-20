@@ -19,14 +19,16 @@
  *   Errore   → { success: false, error: "Messaggio descrittivo" }
  */
 
-const router   = require('express').Router();
+const express  = require('express');
+const router   = express.Router();
 const bcryptjs = require('bcryptjs');
 const jwt      = require('jsonwebtoken');
-const os       = require('node:os');
 
 const config                                          = require('../config');
 const { verifyToken }                                 = require('../middleware/auth');
-const { isValidSlotType, listForUi: listMinigamesForUi } = require('../minigames');
+const { lanJoinUrl }                                  = require('../lan-url');
+const { listForUi: listMinigamesForUi }               = require('../minigames');
+const { validateQuiz }                                = require('../quiz-schema');
 const {
   getUserByUsername,
   getUserById,
@@ -37,11 +39,38 @@ const {
   deleteQuiz,
   getPreloadedQuizzes,
   getPreloadedQuizById,
+  putImage,
+  getImage,
   QuizLimitError,
   NotFoundError,
   MAX_QUIZZES_PER_USER,
   MAX_QUESTIONS_PER_QUIZ,
 } = require('../quiz-manager');
+
+/**
+ * Tetto del body accettato dall'endpoint di caricamento.
+ *
+ * Più alto del tetto che il client si impone (153.600 byte, in
+ * client/shared/image-budget.js): la compressione lato browser è
+ * un'OTTIMIZZAZIONE, non un controllo di sicurezza, e questo margine copre un
+ * client vecchio o una foto che non si comprime bene senza aprire la porta a
+ * un upload arbitrario.
+ */
+const MAX_IMAGE_UPLOAD_BYTES = 400 * 1024;
+
+/** Limite di sanità sulle dimensioni dichiarate. */
+const MAX_IMAGE_SIDE = 4096;
+
+/**
+ * I primi dodici byte di un file WebP: "RIFF", quattro byte di lunghezza,
+ * "WEBP". Un header `Content-Type` è un'affermazione del client; questi no.
+ */
+function isWebpBuffer(buf) {
+  return Buffer.isBuffer(buf)
+    && buf.length >= 12
+    && buf.toString('ascii', 0, 4) === 'RIFF'
+    && buf.toString('ascii', 8, 12) === 'WEBP';
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────────
 
@@ -56,77 +85,39 @@ function sendError(res, status, message) {
 }
 
 // ─── Validazione Input Quiz ───────────────────────────────────────────────────────
+// La validazione NON vive più qui: sta in server/quiz-schema.js, perché deve
+// valere anche per i quiz che non passano dall'HTTP (quelli di sistema, letti
+// da content/quizzes/). Chiusa dentro questo file lasciava scoperta l'altra
+// strada, e un quiz malformato arrivava intatto fino alla sala.
 
 /**
- * Valida il body di una richiesta di creazione/aggiornamento quiz.
- * @param {{ title: any, questions: any, minigames?: any }} input
- * @returns {string | null} Messaggio di errore, o null se tutto è valido
+ * Verifica che ogni domanda con un'immagine referenzi un hash che esiste
+ * davvero in `quiz_images`. `quiz-schema.js` non può farlo: è un modulo puro,
+ * senza DB (vedi il commento su `validateQuestionImage` lì dentro) — quella
+ * validazione controlla solo la FORMA dell'hash, non la sua esistenza. Questa
+ * route un DB ce l'ha, quindi il controllo sta qui.
+ *
+ * Il caso reale che questo intercetta: l'host carica un'immagine (il blob
+ * finisce subito nel DB, non referenziato da nessun quiz finché non si salva)
+ * → il server si riavvia in quella finestra (--watch in sviluppo, o un
+ * riavvio in produzione) → `gcOrphanImages()` non distingue un caricamento in
+ * sospeso da un'immagine davvero orfana e la elimina → l'host salva il quiz
+ * con un hash ormai nel vuoto. Senza questo controllo il salvataggio
+ * risponderebbe successo e la domanda degraderebbe in silenzio a segnaposto
+ * davanti alla sala, la sera dell'evento.
+ *
+ * @param {Array<object>} questions - già validate da validateQuiz: qui si
+ *   assume che ogni `image`, se presente, abbia la forma corretta.
+ * @returns {string | null} messaggio di errore (con il numero della domanda),
+ *   o null se tutte le immagini referenziate esistono.
  */
-function validateQuizInput({ title, questions, minigames }) {
-  if (typeof title !== 'string' || title.trim().length === 0 || title.length > 100) {
-    return 'Il titolo deve essere una stringa tra 1 e 100 caratteri.';
-  }
-  if (!Array.isArray(questions) || questions.length === 0) {
-    return 'Il quiz deve contenere almeno una domanda.';
-  }
-  if (questions.length > MAX_QUESTIONS_PER_QUIZ) {
-    return `Il quiz può contenere al massimo ${MAX_QUESTIONS_PER_QUIZ} domande.`;
-  }
+function findMissingImageError(questions) {
   for (let i = 0; i < questions.length; i++) {
-    const q = questions[i];
-    const num = i + 1;
-
-    if (!q || typeof q.text !== 'string' || q.text.trim().length === 0) {
-      return `Domanda ${num}: il campo "text" è obbligatorio.`;
-    }
-    if (!Array.isArray(q.options) || q.options.length < 2 || q.options.length > 4) {
-      return `Domanda ${num}: "options" deve essere un array di 2-4 stringhe.`;
-    }
-    if (q.options.some((o) => typeof o !== 'string' || o.trim().length === 0)) {
-      return `Domanda ${num}: ogni opzione deve essere una stringa non vuota.`;
-    }
-    if (
-      typeof q.correct_index !== 'number' ||
-      !Number.isInteger(q.correct_index) ||
-      q.correct_index < 0 ||
-      q.correct_index >= q.options.length
-    ) {
-      return `Domanda ${num}: "correct_index" deve essere un intero valido (0-${q.options.length - 1}).`;
-    }
-    if (
-      typeof q.time_limit_s !== 'number' ||
-      !Number.isInteger(q.time_limit_s) ||
-      q.time_limit_s < 5 ||
-      q.time_limit_s > 120
-    ) {
-      return `Domanda ${num}: "time_limit_s" deve essere un intero tra 5 e 120 secondi.`;
+    const hash = questions[i]?.image?.hash;
+    if (typeof hash === 'string' && !getImage(hash)) {
+      return `Domanda ${i + 1}: l'immagine caricata non è più disponibile. Ricaricala e salva di nuovo.`;
     }
   }
-
-  if (minigames !== undefined) {
-    if (!Array.isArray(minigames)) {
-      return '"minigames" deve essere un array.';
-    }
-    for (let i = 0; i < minigames.length; i++) {
-      const m = minigames[i];
-      const num = i + 1;
-      if (
-        !m ||
-        typeof m.afterQuestionIndex !== 'number' ||
-        !Number.isInteger(m.afterQuestionIndex) ||
-        m.afterQuestionIndex < 0 ||
-        m.afterQuestionIndex >= questions.length
-      ) {
-        return `Minigioco ${num}: "afterQuestionIndex" deve essere un intero valido (0-${questions.length - 1}).`;
-      }
-      // `isValidSlotType` accetta i tipi registrati e il segnaposto "random":
-      // così aggiungere un minigioco non richiede di toccare questa validazione.
-      if (typeof m.type !== 'string' || !isValidSlotType(m.type)) {
-        return `Minigioco ${num}: "type" non riconosciuto.`;
-      }
-    }
-  }
-
   return null;
 }
 
@@ -229,9 +220,14 @@ router.post('/quizzes', verifyToken, (req, res) => {
   try {
     const { title, questions, minigames } = req.body ?? {};
 
-    const validationError = validateQuizInput({ title, questions, minigames });
+    const validationError = validateQuiz({ title, questions, minigames });
     if (validationError) {
       return sendError(res, 400, validationError);
+    }
+
+    const imageError = findMissingImageError(questions);
+    if (imageError) {
+      return sendError(res, 400, imageError);
     }
 
     const quiz = createQuiz(req.user.userId, title.trim(), questions, minigames ?? []);
@@ -296,9 +292,14 @@ router.put('/quizzes/:id', verifyToken, (req, res) => {
     const questions = req.body?.questions !== undefined ? req.body.questions : existing.questions;
     const minigames = req.body?.minigames !== undefined ? req.body.minigames : existing.minigames;
 
-    const validationError = validateQuizInput({ title, questions, minigames });
+    const validationError = validateQuiz({ title, questions, minigames });
     if (validationError) {
       return sendError(res, 400, validationError);
+    }
+
+    const imageError = findMissingImageError(questions);
+    if (imageError) {
+      return sendError(res, 400, imageError);
     }
 
     const updated = updateQuiz(quizId, req.user.userId, title.trim(), questions, minigames);
@@ -338,6 +339,54 @@ router.delete('/quizzes/:id', verifyToken, (req, res) => {
     return sendError(res, 500, 'Errore interno del server.');
   }
 });
+
+// ─── POST /quiz-image ────────────────────────────────────────────────────────────
+
+/**
+ * Carica l'immagine di una domanda.
+ *
+ * Body: byte WebP grezzi (Content-Type: image/webp), già ridimensionati e
+ * compressi dal browser dell'host.
+ * Query: width, height — le dimensioni reali dell'immagine compressa.
+ * Risposta: { success: true, data: { hash, width, height } }
+ *
+ * Il server NON ricomprime: servirebbe un modulo nativo, escluso dal vincolo di
+ * packaging SEA su ARM. Ma non si fida nemmeno: verifica taglia, magic bytes e
+ * dimensioni, e calcola lui l'hash dai byte ricevuti — un riferimento che il
+ * client si fosse inventato non ha modo di entrare nel DB.
+ */
+router.post(
+  '/quiz-image',
+  verifyToken,
+  express.raw({ type: 'image/webp', limit: MAX_IMAGE_UPLOAD_BYTES }),
+  (req, res) => {
+    try {
+      const bytes = req.body;
+
+      if (!Buffer.isBuffer(bytes) || bytes.length === 0) {
+        return sendError(res, 400, 'Corpo della richiesta vuoto. Attesi byte WebP con Content-Type: image/webp.');
+      }
+
+      if (!isWebpBuffer(bytes)) {
+        return sendError(res, 415, "Il file caricato non è un'immagine WebP.");
+      }
+
+      const width  = Number.parseInt(req.query.width, 10);
+      const height = Number.parseInt(req.query.height, 10);
+      const validSide = (n) => Number.isInteger(n) && n >= 1 && n <= MAX_IMAGE_SIDE;
+
+      if (!validSide(width) || !validSide(height)) {
+        return sendError(res, 400, `Dimensioni mancanti o fuori range (1-${MAX_IMAGE_SIDE}).`);
+      }
+
+      const saved = putImage(bytes, 'image/webp', width, height);
+      return res.status(201).json({ success: true, data: saved });
+    } catch (err) {
+      console.error('[host/quiz-image]', err);
+      return sendError(res, 500, 'Errore interno del server.');
+    }
+  }
+);
 
 // ─── GET /minigames ───────────────────────────────────────────────────────────────
 
@@ -396,17 +445,11 @@ router.get('/preloaded-quizzes/:id', verifyToken, (req, res) => {
 /**
  * GET /api/host/game/join-info
  * Restituisce l'URL LAN a cui i giocatori si collegano (per QR code in lobby).
- * Prende il primo indirizzo IPv4 non-loopback; fallback localhost se assente.
+ * Il calcolo vive in server/lan-url.js perché lo condivide con /api/join-info,
+ * la versione pubblica usata dalla vista sala, che non ha un token.
  */
 router.get('/game/join-info', verifyToken, (_req, res) => {
-  let ip = null;
-  for (const addresses of Object.values(os.networkInterfaces())) {
-    for (const net of addresses ?? []) {
-      if (net.family === 'IPv4' && !net.internal) { ip = net.address; break; }
-    }
-    if (ip) break;
-  }
-  res.json({ success: true, data: { url: `http://${ip ?? 'localhost'}:${config.port}` } });
+  res.json({ success: true, data: { url: lanJoinUrl() } });
 });
 
 module.exports = router;

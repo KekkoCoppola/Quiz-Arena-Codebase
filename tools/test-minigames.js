@@ -350,13 +350,13 @@ section('Registry di presentazione lato client, caricato senza DOM');
 
   const morra = Minigames.get('morra_cinese');
   assert(morra.label === 'Morra Cinese', 'get() restituisce la presentazione registrata');
-  assert(typeof morra.host.reveal === 'function', 'la presentazione host espone reveal()');
+  assert(typeof morra.sala.reveal === 'function', 'la presentazione host espone reveal()');
   assert(typeof morra.player.reveal === 'function', 'la presentazione player espone reveal()');
 
   const fallback = Minigames.get('tipo_mai_visto');
   assert(fallback !== null && fallback !== undefined, 'get() su un tipo sconosciuto non restituisce null');
   assert(
-    typeof fallback.host.reveal === 'function' && typeof fallback.player.reveal === 'function',
+    typeof fallback.sala.reveal === 'function' && typeof fallback.player.reveal === 'function',
     'il fallback espone il contratto completo: uno schermo generico, mai uno rotto'
   );
 

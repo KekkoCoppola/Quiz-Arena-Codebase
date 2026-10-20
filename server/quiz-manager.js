@@ -19,6 +19,7 @@
 const fs   = require('node:fs');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
+const { createHash } = require('node:crypto');
 
 // ─── Costanti ────────────────────────────────────────────────────────────────────
 
@@ -29,7 +30,9 @@ const MAX_QUIZZES_PER_USER = 3;
  * Numero massimo di domande per quiz.
  * Deve restare allineato a `MAX_QUESTIONS` in client/host/app.js (limite lato UI).
  */
-const MAX_QUESTIONS_PER_QUIZ = 20;
+// Riesportata da quiz-schema.js, che è dove la forma di un quiz è definita:
+// due copie di questo numero divergerebbero al primo cambio.
+const { MAX_QUESTIONS_PER_QUIZ } = require('./quiz-schema');
 
 // ─── Errori Custom ───────────────────────────────────────────────────────────────
 
@@ -129,6 +132,82 @@ function initDb(dbPath) {
   // si ottiene ignorando l'errore "duplicate column name" su una seconda esecuzione.
   addColumnIfMissing('quizzes', "minigames TEXT NOT NULL DEFAULT '[]'");
   addColumnIfMissing('preloaded_quizzes', "minigames TEXT NOT NULL DEFAULT '[]'");
+
+  // Migrazione Fase Quiz-come-file: identita stabile dei quiz di sistema,
+  // corrispondente al nome del file in content/quizzes/. Senza UNIQUE perche
+  // ALTER TABLE ADD COLUMN non lo consente su SQLite; l unicita e garantita da
+  // quiz-library.js, unico modulo che scrive in questa tabella.
+  addColumnIfMissing('preloaded_quizzes', 'slug TEXT');
+
+  syncPreloadedQuizzes();
+
+  // Raccolta degli orfani: le immagini sono condivise fra domande e fra quiz,
+  // quindi cancellare una domanda non può cancellare il blob — potrebbe servire
+  // altrove. Si ricalcola qui, all'avvio, quali hash sono ancora referenziati.
+  //
+  // Un refcount sarebbe più efficiente e più fragile: un contatore va aggiornato
+  // da ogni percorso che tocca una domanda, e basta dimenticarne uno perché
+  // diventi bugiardo in silenzio. Questa scansione ricalcola la verità invece di
+  // ricordarla, e su un DB di questa taglia costa millisecondi.
+  //
+  // A differenza dei passi precedenti di initDb (SELECT, PRAGMA, CREATE TABLE
+  // IF NOT EXISTS), la DELETE dentro gcOrphanImages() è una scrittura: su un
+  // DB montato in sola lettura (scheda SD Raspberry degradata), a disco pieno
+  // o con un lock residuo, lancia invece di restituire un conteggio. Prima di
+  // questa raccolta lo stesso scenario avviava comunque il server per
+  // un'intera serata, perché la partita vive in memoria e i quiz servono solo
+  // in lettura: un guasto qui non deve far regredire quel comportamento.
+  // Stessa filosofia di syncPreloadedQuizzes appena sopra.
+  try {
+    const orfane = gcOrphanImages();
+    if (orfane > 0) {
+      console.log(`[img] raccolta orfani: ${orfane} immagini eliminate.`);
+    }
+  } catch (err) {
+    console.error('[img] raccolta orfani fallita, il server si avvia comunque:', err.message);
+  }
+}
+
+/**
+ * Riallinea i quiz di sistema ai file in content/quizzes/.
+ *
+ * Chiamata ad ogni avvio: i file sono la fonte di verita, il DB una copia.
+ * Un quiz malformato viene **escluso, non blocca l'avvio** — e la differenza
+ * con i minigiochi, dove un modulo rotto impedisce il boot: li e un bug di
+ * codice, qui e un refuso di contenuto, e fermare tutta la serata perche una
+ * domanda ha un indice sbagliato sarebbe sproporzionato.
+ *
+ * Il prezzo di quella scelta e che l'esclusione va **vista**: per questo gli
+ * errori escono con console.error e non con un log discreto. Sono il momento
+ * in cui ci si accorge del refuso, e deve capitare in fase di avvio invece
+ * che davanti a una sala piena.
+ */
+function syncPreloadedQuizzes() {
+  const { syncToDatabase } = require('./quiz-library');
+  let esito;
+  try {
+    esito = syncToDatabase(_db);
+  } catch (err) {
+    // Nemmeno un guasto della libreria deve impedire l'avvio: senza quiz di
+    // sistema il gioco resta utilizzabile con quelli personali.
+    console.error('[quiz] sincronizzazione fallita, i quiz di sistema restano quelli in DB:', err.message);
+    return;
+  }
+
+  for (const errore of esito.errors) {
+    console.error('  \u274C  QUIZ ESCLUSO  ' + errore);
+  }
+  if (esito.errors.length > 0) {
+    console.error('[quiz] ' + esito.errors.length + ' quiz esclusi: correggi i file in content/quizzes/ e riavvia.');
+  }
+
+  const mosse = [];
+  if (esito.inserted) mosse.push(esito.inserted + ' aggiunti');
+  if (esito.updated)  mosse.push(esito.updated + ' aggiornati');
+  if (esito.removed)  mosse.push(esito.removed + ' rimossi');
+  if (mosse.length) {
+    console.log('[quiz] quiz di sistema: ' + mosse.join(', ') + '.');
+  }
 }
 
 /**
@@ -359,6 +438,146 @@ function getPreloadedQuizById(quizId) {
   return parseQuizRow(stmt.get(quizId));
 }
 
+// ─── Immagini delle domande ──────────────────────────────────────────────────
+
+/**
+ * Stocca i byte di un'immagine, indirizzata dal proprio contenuto.
+ *
+ * L'hash lo calcola SEMPRE il server dai byte ricevuti: un client non ha modo
+ * di far entrare un riferimento che non corrisponda a ciò che ha caricato.
+ *
+ * Idempotente: ricaricare la stessa immagine non crea una seconda riga.
+ * `INSERT OR IGNORE` invece di un SELECT preventivo perché la chiave primaria
+ * fa già il lavoro, e in una riga sola.
+ *
+ * @param {Buffer|Uint8Array} bytes byte già compressi (WebP)
+ * @param {string} mime
+ * @param {number} width
+ * @param {number} height
+ * @returns {{ hash: string, width: number, height: number }}
+ */
+function putImage(bytes, mime, width, height) {
+  const database = getDb();
+  const buffer = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
+  const hash = createHash('sha256').update(buffer).digest('hex');
+
+  database
+    .prepare('INSERT OR IGNORE INTO quiz_images (hash, mime, bytes, width, height) VALUES (?, ?, ?, ?, ?)')
+    .run(hash, mime, buffer, width, height);
+
+  return { hash, width, height };
+}
+
+/**
+ * @param {string} hash
+ * @returns {{ hash: string, mime: string, bytes: Uint8Array, width: number, height: number, created_at: string } | null}
+ */
+function getImage(hash) {
+  const database = getDb();
+  const row = database
+    .prepare('SELECT hash, mime, bytes, width, height, created_at FROM quiz_images WHERE hash = ?')
+    .get(hash);
+  return row ?? null;
+}
+
+/**
+ * Tutti gli hash referenziati da almeno una domanda, in entrambe le tabelle.
+ *
+ * Le domande vivono dentro un JSON serializzato, quindi non c'è una JOIN da
+ * fare: si legge e si scandisce. Se una riga ha un `questions` illeggibile
+ * (JSON non valido, o valido ma non un array) la scansione NON può più
+ * garantire di conoscere tutti gli hash vivi. Trattare quella riga come "zero
+ * hash" — l'idea originale di questa funzione — è esattamente sbagliato: fa
+ * *sembrare* orfana un'immagine che invece è ancora referenziata, e chi la
+ * chiama la cancellerebbe per sempre. Per questo la riga rotta non viene
+ * saltata in silenzio: fa fallire l'intera raccolta, rumorosamente.
+ *
+ * @param {import('node:sqlite').DatabaseSync} database
+ * @returns {Set<string> | null} null se almeno una riga non è stata leggibile
+ *   (raccolta annullata, vedi gcOrphanImages)
+ */
+function collectReferencedImageHashes(database) {
+  const referenced = new Set();
+  let raccoltaFallita = false;
+
+  for (const table of ['quizzes', 'preloaded_quizzes']) {
+    for (const row of database.prepare(`SELECT id, questions FROM ${table}`).all()) {
+      let questions;
+      try {
+        questions = JSON.parse(row.questions);
+      } catch {
+        console.error(`[img] ${table}.id=${row.id}: "questions" non è JSON valido, riga ignorata ai fini della raccolta.`);
+        raccoltaFallita = true;
+        continue;
+      }
+      if (!Array.isArray(questions)) {
+        console.error(`[img] ${table}.id=${row.id}: "questions" non è un array, riga ignorata ai fini della raccolta.`);
+        raccoltaFallita = true;
+        continue;
+      }
+
+      for (const q of questions) {
+        const hash = q?.image?.hash;
+        if (typeof hash === 'string') referenced.add(hash);
+      }
+    }
+  }
+
+  return raccoltaFallita ? null : referenced;
+}
+
+/**
+ * Elimina le immagini che nessuna domanda referenzia più.
+ *
+ * Se anche una sola riga di `quizzes`/`preloaded_quizzes` ha un `questions`
+ * illeggibile, questa funzione NON elimina nulla e restituisce 0. L'asimmetria
+ * è deliberata: cancellare un'immagine è irreversibile, mentre non cancellarla
+ * costa solo un po' di spazio su una scheda SD — un file in più non raccolto
+ * si ripresenta al prossimo avvio, un'immagine viva cancellata per errore è
+ * persa per sempre. Stessa filosofia di quiz-library.js (un quiz malformato
+ * viene escluso con un console.error, non fatto passare) e del registry
+ * minigiochi (un modulo malformato blocca l'avvio): qui l'avvio del server
+ * NON si blocca — si salta solo la raccolta, e il problema resta visibile nei
+ * log.
+ *
+ * Questa protezione, però, è tutta interna e copre solo il caso di
+ * `questions` illeggibile. Un errore del driver SQLite sulla DELETE (DB
+ * montato in sola lettura, scheda SD piena, database bloccato) esce da questa
+ * funzione come un'eccezione vera e propria: non è `gcOrphanImages` a
+ * intercettarla, ma il suo chiamante `initDb()`, che avvolge la chiamata in
+ * try/catch. L'avvio del server non si blocca in nessuno dei due casi, ma per
+ * due ragioni diverse: qui perché la raccolta si annulla da sola, in initDb
+ * perché l'errore viene loggato e ignorato.
+ *
+ * Idempotente quando tutte le righe sono leggibili: eseguirla due volte di
+ * fila non cambia niente, come lo `syncPreloadedQuizzes` accanto a cui gira.
+ *
+ * @returns {number} righe eliminate, 0 se la raccolta è stata annullata
+ * @throws se il driver SQLite fallisce sulla DELETE (es. DB in sola lettura o
+ *   disco pieno) — vedi sopra: a intercettarlo è initDb(), non questa funzione.
+ */
+function gcOrphanImages() {
+  const database = getDb();
+  const referenced = collectReferencedImageHashes(database);
+
+  if (referenced === null) {
+    // Il dettaglio (tabella + id della riga incriminata) è già stato stampato
+    // da collectReferencedImageHashes; qui si rende visibile solo l'esito.
+    console.error('[img] raccolta orfani annullata: nessuna immagine eliminata in questo avvio.');
+    return 0;
+  }
+
+  if (referenced.size === 0) {
+    // Nessuna domanda referenzia niente: sono orfane tutte.
+    return database.prepare('DELETE FROM quiz_images').run().changes;
+  }
+
+  const placeholders = Array.from(referenced, () => '?').join(', ');
+  return database
+    .prepare(`DELETE FROM quiz_images WHERE hash NOT IN (${placeholders})`)
+    .run(...referenced).changes;
+}
+
 // ─── Exports ────────────────────────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -376,9 +595,14 @@ module.exports = {
   createQuiz,
   updateQuiz,
   deleteQuiz,
+  syncPreloadedQuizzes,
   // Preloaded Quizzes (sola lettura)
   getPreloadedQuizzes,
   getPreloadedQuizById,
+  // Immagini delle domande
+  putImage,
+  getImage,
+  gcOrphanImages,
   // Error classes (usate dai route handler per il mapping HTTP status)
   QuizLimitError,
   NotFoundError,

@@ -20,6 +20,12 @@ module.exports = {
   description: 'Sasso, carta o forbice contro il computer: chi indovina la mossa vincente fa punti.',
 
   defaultTimeLimitS: 8,
+  // Durata della sospensione/reveal DOPO la chiusura del round: la sala fa girare
+  // la "ruota" delle mosse e la rallenta fino a fermarsi sulla mossa del computer.
+  // È un valore di timing noto al server (come defaultTimeLimitS) perché serve a
+  // sincronizzare l'istante di atterraggio fra sala e telefoni (vedi revealAt in
+  // game-socket.js).
+  revealMs: 10000,
   prompt: 'Sasso, Carta o Forbice?',
 
   // L'indice è l'identità della mossa: 0 = Sasso, 1 = Carta, 2 = Forbice.

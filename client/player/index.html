@@ -9,6 +9,9 @@
   <title>Quiz-Zata! — Gioca</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="/shared/minigames/minigames.css">
+  <!-- Movimento della premiazione, identico in sala: le due superfici
+       proclamano lo stesso vincitore nello stesso istante. -->
+  <link rel="stylesheet" href="/shared/final-ceremony.css">
 </head>
 <body>
   <header class="player-header">
@@ -58,16 +61,22 @@
       <p class="score-line">Punteggio: <strong id="feedback-score">0</strong></p>
       <p class="rank-line" id="feedback-rank"></p>
     </div>
-    <p class="waiting-text">In attesa della prossima domanda…</p>
+    <!-- Il testo cambia dopo l'ultimo round: lì non c'è nessuna prossima
+         domanda, c'è la premiazione. Lo scrive app.js. -->
+    <p class="waiting-text" id="feedback-waiting">In attesa della prossima domanda…</p>
   </section>
 
   <!-- FINAL -->
   <section id="screen-final" class="screen" hidden>
     <h1 class="screen-title">Classifica finale</h1>
-    <div id="final-podium" class="podium"></div>
+    <!-- La propria posizione, scoperta nello stesso istante in cui la sala la
+         proclama. Durante la cerimonia è l'unica cosa a schermo: la classifica
+         completa arriva solo alla fine, per non anticipare nulla. -->
+    <div id="final-me-card" class="me-card"></div>
+    <div id="final-podium" class="podium" hidden></div>
     <div id="final-me" class="me-rank" hidden></div>
-    <ol id="final-rest" class="final-list"></ol>
-    <p class="waiting-text">Grazie per aver giocato!</p>
+    <ol id="final-rest" class="final-list" hidden></ol>
+    <p class="waiting-text" id="final-waiting">Grazie per aver giocato!</p>
   </section>
 
   <!-- MESSAGE -->
@@ -84,6 +93,19 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
+
+  <!-- Effetto coriandoli, condiviso con la vista sala. Facoltativo: chi lo usa
+       controlla `window.Confetti` prima di chiamarlo. -->
+  <script src="/shared/confetti.js"></script>
+
+  <!-- Calendario della premiazione, lo stesso file che carica la vista sala:
+       è ciò che fa scoprire la propria posizione sul telefono nell'istante in
+       cui viene proclamata in sala. -->
+  <script src="/shared/final-schedule.js"></script>
+
+  <!-- Correzione dello scarto fra orologi: senza, in sala e sul telefono
+       il tempo scade in momenti diversi. -->
+  <script src="/shared/server-clock.js"></script>
 
   <!-- Minigiochi: il registry, poi un modulo per gioco (si autoregistrano).
        Aggiungere un minigioco = aggiungere una riga qui e in client/host/index.html.

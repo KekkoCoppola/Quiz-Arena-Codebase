@@ -1775,6 +1775,61 @@ body.sidebar-collapsed .sidebar-toggle-arrow .material-symbols-outlined {
   background: var(--on-background);
 }
 
+/* ── Immagine della domanda ─────────────────────────────────────────────── */
+
+.q-image-panel {
+  margin-top: 0.75rem;
+}
+
+/* Stesso rapporto e stesso object-fit del riquadro in sala: quello che l'host
+   vede qui è quello che vedrà la stanza. Se i due divergono, l'anteprima mente. */
+.q-image-preview {
+  position: relative;
+  width: 100%;
+  max-width: 22rem;
+  aspect-ratio: 16 / 9;
+  border: 3px solid var(--on-background);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.q-image-preview img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Il blur mostrato all'host è lo stesso che vedrà la sala: se non si vede
+   l'effetto, non si può decidere se è quello giusto. Il valore è più basso
+   perché l'anteprima è molto più piccola del riquadro proiettato. */
+.q-image-preview.is-blurred img {
+  filter: blur(10px);
+}
+
+.q-image-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.q-image-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.q-image-weight {
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    GAME VIEW (Neo-Brutalist Split Background)
    ═══════════════════════════════════════════════════════════════════════════ */

@@ -129,10 +129,12 @@ function run() {
   const results1 = game.endQuestion(11000);
   assert(game.state === STATES.RESULTS, 'endQuestion: transizione a RESULTS');
   assert(results1.correctIndex === 0, 'endQuestion: correctIndex esposto correttamente');
+  assert(results1.revealMs === 0, 'endQuestion: domanda normale senza sospensione (revealMs 0)');
   assert(results1.distribution[0] === 1 && results1.distribution[1] === 1, 'endQuestion: distribuzione risposte corretta');
   assert(alice.score === resAlice.pointsAwarded, 'endQuestion: punteggio Alice aggiornato sul player');
   assert(bob.score === 0, 'endQuestion: punteggio Bob invariato (0)');
   assert(results1.leaderboard[0].nickname === 'Alice', 'endQuestion: leaderboard ordinata correttamente');
+  assert(results1.isLastRound === false, 'endQuestion: isLastRound false a metà partita');
 
   assertThrows(() => game.submitAnswer(alice.id, 0, 11500), InvalidStateError, 'submitAnswer: bloccato fuori da QUESTION');
 
@@ -148,6 +150,9 @@ function run() {
   const results2 = game.endQuestion(22000); // tempo scaduto, Bob non ha risposto
   assert(results2.answers.length === 1, 'endQuestion: solo le risposte pervenute sono incluse');
   assert(bob.score === 0, 'endQuestion: Bob senza risposta resta a 0 punti');
+  // Il flag che dice ai client di NON mostrare la classifica: dopo questi
+  // risultati viene la premiazione, e mostrarla proclamerebbe il vincitore.
+  assert(results2.isLastRound === true, 'endQuestion: isLastRound true sull\'ultimo round');
 
   // 6. Fine partita
   console.log('\n  🏆  Fase 6: Fine partita');
@@ -252,6 +257,7 @@ function run() {
     Number.isInteger(minigameResults.machineChoice) && minigameResults.machineChoice >= 0 && minigameResults.machineChoice <= 2,
     'endQuestion: machineChoice è una mossa valida (0-2)'
   );
+  assert(minigameResults.revealMs === 10000, 'endQuestion: minigioco espone revealMs (durata sospensione) 10000');
 
   // Verifica deterministica anche con randomness: ricalcolo l'esito atteso dalla
   // mossa macchina rivelata e assertisco la coerenza esito ↔ punti (500/100/0).
@@ -307,6 +313,10 @@ function run() {
     ['win', 'draw', 'lose'].includes(insertedResults.answers.find((a) => a.playerId === eve.id).outcome),
     'endQuestion: il minigioco ad-hoc assegna un esito valido'
   );
+  // Il sigillo si ricalcola sulla sequenza reale, non sul piano iniziale: il
+  // minigioco inserito a mano ha allungato la partita, quindi qui la classifica
+  // torna a essere mostrabile.
+  assert(insertedResults.isLastRound === false, 'endQuestion: isLastRound false dopo un inserimento ad-hoc a metà partita');
   const afterInsertedMinigame = g9b.nextQuestion(1000);
   assert(afterInsertedMinigame.finished === false, 'nextQuestion: dopo il minigioco ad-hoc avanza alla domanda successiva pianificata');
 
@@ -314,6 +324,47 @@ function run() {
   g9b.endQuestion(1000);
   const finalAfterInsert = g9b.nextQuestion(1000);
   assert(finalAfterInsert.finished === true, 'nextQuestion: la partita termina regolarmente dopo l\'inserimento ad-hoc');
+
+  // ─── Immagine nel round ──────────────────────────────────────────────────────
+
+  console.log("\n── game: l'immagine arriva nel round ──\n");
+
+  const HASH_IMG = 'b'.repeat(64);
+
+  const quizConImmagine = {
+    title: 'Quiz illustrato',
+    questions: [
+      {
+        text: 'Che animale è questo?',
+        options: ['A', 'B'],
+        correct_index: 0,
+        time_limit_s: 20,
+        image: { hash: HASH_IMG, blur: true },
+      },
+      {
+        text: 'Domanda senza immagine',
+        options: ['A', 'B'],
+        correct_index: 1,
+        time_limit_s: 20,
+      },
+    ],
+    minigames: [],
+  };
+
+  const sessioneImg = new GameSession(quizConImmagine);
+  sessioneImg.addPlayer('Tester', 'volpe');
+  sessioneImg.startGame();
+
+  const round0 = sessioneImg.getCurrentRound();
+  assert(round0.image !== null && round0.image !== undefined, 'il round porta il campo image');
+  assert(round0.image.hash === HASH_IMG, "l'hash arriva intatto");
+  assert(round0.image.blur === true, 'il flag blur arriva intatto');
+  assert(round0.correct_index === undefined, 'il round resta sanificato: nessun correct_index');
+
+  sessioneImg.endQuestion();
+  sessioneImg.nextQuestion();
+  const round1 = sessioneImg.getCurrentRound();
+  assert(round1.image === null, 'una domanda senza immagine espone image: null, non undefined');
 
   // ─── Riepilogo ──────────────────────────────────────────────────────────────────
 

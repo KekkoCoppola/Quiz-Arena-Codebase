@@ -24,7 +24,7 @@
 
 /* ─── morra_cinese ──────────────────────────────────────────────────────────
    Icone SVG delle mosse (sasso/carta/forbice), in tre taglie:
-   - base    → dentro la casella opzione dell'host
+   - base    → dentro la casella opzione in sala
    - inline  → in mezzo a una frase ("il PC ha scelto ✂")
    - hero    → il grande reveal proiettato in sala
    - choice  → il pulsante rotondo sul telefono del giocatore
@@ -46,11 +46,175 @@
 
 .mg-morra-cinese-move-inline { width: 1.3em; height: 1.3em; }
 
+/* Hero: la mossa in grande. La misura è legata all'altezza della finestra e
+   non a un numero di px, perché lo schermo vero è un proiettore in fondo a una
+   sala: 96px fissi si leggevano bene sul monitor di sviluppo e sparivano
+   dall'altra parte della stanza. Il `clamp` tiene un minimo utilizzabile sul
+   desktop e un massimo che non si mangia le opzioni sotto. */
 .mg-morra-cinese-move-hero {
   display: block;
-  width: 96px;
-  height: 96px;
+  width: clamp(110px, 15vh, 190px);
+  height: clamp(110px, 15vh, 190px);
   margin: 8px auto;
+}
+
+/* Palcoscenico del reveal: la ruota gira qui dentro e qui si ferma.
+   Serve un contenitore (e non la sola icona) perché all'atterraggio compare
+   sotto l'etichetta che nomina la mossa. */
+.mg-morra-cinese-stage {
+  display: block;
+  text-align: center;
+}
+
+/* Rotazione in corso: l'icona "vibra" appena, per leggersi come in movimento
+   anche in un fotogramma fermo. */
+.mg-morra-cinese-stage .mg-morra-cinese-move-hero {
+  transition: transform 120ms ease-out;
+}
+
+/* ── La ruota in sala ──────────────────────────────────────────────────────
+   Sul proiettore la ruota non è "un'icona grande": è il soggetto della
+   schermata, l'unica cosa che tutta la stanza sta guardando. Quindi qui vale
+   una taglia sua, molto più generosa di quella dell'attesa.
+
+   E CRESCE mentre gira: `playReveal` scrive la scala in `--mg-mc-grow` a ogni
+   fotogramma, in proporzione al tempo trascorso, non alla curva di
+   decelerazione — così l'ingrandimento continua fino all'ultimo scatto invece
+   di esaurirsi a metà, e finisce esattamente quando la ruota si ferma.
+   La crescita è un `transform: scale`, non una `width`: la scatola ha la
+   dimensione finale già dal primo fotogramma, quindi l'etichetta sotto non
+   sobbalza e nessun frame costa un reflow.
+
+   `--mg-mc-grow` vale 1 di default perché a `reveal()` — la sala che si
+   riconnette a round già chiuso — si arriva senza rotazione: nessuno scrive la
+   variabile e la mossa dev'essere comunque già a piena grandezza. */
+.mg-morra-cinese-stage:not(.is-compact) .mg-morra-cinese-move-hero {
+  width: clamp(190px, 27vh, 340px);
+  height: clamp(190px, 27vh, 340px);
+  margin: 0 auto;
+  transform: scale(var(--mg-mc-grow, 1));
+  transform-origin: center center;
+  /* Nessuna transizione: la scala arriva già interpolata da
+     requestAnimationFrame, interpolarla di nuovo la farebbe solo arrivare in
+     ritardo sull'istante di atterraggio. */
+  transition: none;
+}
+
+/* Atterraggio: la mossa scatta in avanti con un rimbalzo secco — il movimento
+   fisico è la firma del sistema (DESIGN.md), non un semplice cambio di colore. */
+.mg-morra-cinese-stage.is-landed .mg-morra-cinese-move-hero {
+  animation: mg-morra-cinese-pop 620ms cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+
+@keyframes mg-morra-cinese-pop {
+  0%   { transform: scale(1)    rotate(0deg); }
+  35%  { transform: scale(1.55) rotate(-7deg); }
+  60%  { transform: scale(1.28) rotate(5deg); }
+  100% { transform: scale(1.35) rotate(0deg); }
+}
+
+/* In sala lo scatto ha un'ampiezza sua: la ruota è già arrivata a piena
+   grandezza crescendo, quindi il +55% del rimbalzo generico la farebbe uscire
+   dalla scheda e finire sopra l'etichetta. Qui il rimbalzo resta un accento e
+   torna a 1. */
+.mg-morra-cinese-stage.is-landed:not(.is-compact) .mg-morra-cinese-move-hero {
+  animation: mg-morra-cinese-pop-hero 620ms cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+
+@keyframes mg-morra-cinese-pop-hero {
+  0%   { transform: scale(0.94) rotate(0deg); }
+  35%  { transform: scale(1.12) rotate(-6deg); }
+  60%  { transform: scale(0.97) rotate(4deg); }
+  100% { transform: scale(1)    rotate(0deg); }
+}
+
+/* Etichetta che nomina la mossa a parole: il terzo segnale, per chi guarda da
+   lontano e non distingue bene l'icona. Sticker ruotato, come i badge di sala.
+
+   ⚠ Il palcoscenico vive DENTRO il titolo della domanda (`.q-text` in sala,
+   48px e 64px oltre il full HD), quindi ogni `em` qui dentro parte da lì. Con
+   la sola `1.5em` sul nome della mossa l'etichetta finiva a 72px: più grande
+   del titolo della domanda, cioè l'elemento più grande della schermata era la
+   didascalia di un'altra cosa. Per questo l'etichetta si RIPORTA a una base
+   propria (`0.5em` ≈ la taglia di un titolo secondario) e i due pezzi
+   scalano da quella: il nome resta forte ma sotto al titolo, e la ruota torna
+   a essere il soggetto. Non rimettere `em` calcolati sul titolo. */
+.mg-morra-cinese-verdict {
+  display: none;
+  /* Distanza tenuta larga: all'atterraggio la ruota rimbalza oltre la propria
+     scatola (+12%, cioè ~18px su un 1080p) e senza questo margine lo scatto
+     finirebbe sopra l'etichetta proprio nel fotogramma che si vuole guardare. */
+  margin: clamp(26px, 4vh, 52px) auto 0;
+  font-size: 0.5em;
+}
+
+.mg-morra-cinese-stage.is-landed .mg-morra-cinese-verdict {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1em;
+  padding: 0.4em 1.1em;
+  border: 4px solid #201b0d;
+  border-radius: 9999px;
+  background: #f7d708;
+  color: #4f4000;
+  box-shadow: 6px 6px 0 0 #201b0d;
+  transform: rotate(-2deg);
+  animation: mg-morra-cinese-stamp 420ms cubic-bezier(0.2, 1.4, 0.4, 1) 260ms both;
+}
+
+.mg-morra-cinese-verdict-kicker {
+  font-size: 0.8em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.mg-morra-cinese-verdict strong {
+  font-size: 1.4em;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+/* L'etichetta "si timbra" sopra la scena: arriva dall'alto e si assesta. */
+@keyframes mg-morra-cinese-stamp {
+  0%   { opacity: 0; transform: rotate(-2deg) scale(1.6) translateY(-14px); }
+  100% { opacity: 1; transform: rotate(-2deg) scale(1)   translateY(0); }
+}
+
+/* Variante telefono: durante il reveal il giocatore vede solo la PROPRIA mossa
+   e la riga che lo manda a guardare lo schermo grande. Icona più contenuta,
+   nessuno scatto (qui non c'è niente da rivelare: succede tutto in sala). */
+.mg-morra-cinese-stage.is-compact .mg-morra-cinese-move-hero {
+  width: 68px;
+  height: 68px;
+  margin: 4px auto;
+}
+
+.mg-morra-cinese-await {
+  display: block;
+  max-width: 22ch;
+  margin: 6px auto 0;
+  font-size: 0.6em;
+  line-height: 1.3;
+  text-transform: none;
+  opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mg-morra-cinese-stage.is-landed .mg-morra-cinese-move-hero,
+  .mg-morra-cinese-stage.is-landed .mg-morra-cinese-verdict {
+    animation: none;
+  }
+  .mg-morra-cinese-stage.is-landed .mg-morra-cinese-move-hero {
+    transform: scale(1.35);
+  }
+  /* In sala la ruota è già grande di suo: qui il 1.35 non è un'enfasi ma un
+     trabocco fuori dalla scheda. Resta ferma a piena grandezza. */
+  .mg-morra-cinese-stage.is-landed:not(.is-compact) .mg-morra-cinese-move-hero {
+    transform: scale(1);
+  }
 }
 
 /* Player: le tre scelte diventano grandi pulsanti rotondi con la sola icona,

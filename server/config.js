@@ -41,6 +41,14 @@ const config = {
   /** Percorso assoluto o relativo del file database SQLite. */
   dbPath: process.env.DB_PATH || './server/db/database.sqlite',
 
+  /**
+   * Cartella dei quiz di sistema, un file JSON per quiz.
+   * Configurabile perche deve poter stare FUORI dal codice: col packaging SEA
+   * il server diventa un binario, mentre questi file devono restare sul disco
+   * del Raspberry per poter essere modificati senza ricompilare nulla.
+   */
+  quizzesDir: process.env.QUIZZES_DIR || './content/quizzes',
+
   /** true se l'app gira in modalità sviluppo. */
   isDev: process.env.NODE_ENV !== 'production',
 };

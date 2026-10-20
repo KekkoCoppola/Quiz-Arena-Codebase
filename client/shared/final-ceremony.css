@@ -1,0 +1,183 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Quiz-Zata! — Premiazione finale, movimento condiviso
+   Servito su /shared, incluso da vista sala e client player.
+
+   Qui stanno SOLO i keyframes e il contratto di classi: il movimento deve
+   essere identico sulle due superfici, perché sala e telefoni proclamano lo
+   stesso vincitore nello stesso istante e due animazioni diverse si vedrebbero.
+
+   Misure, colori e tipografia NON stanno qui: le due SPA hanno sistemi di token
+   deliberatamente distinti (--retro-* in sala, --ticket-* sul player) e un
+   proiettore non è un telefono. Stessa divisione di /shared/minigames/.
+
+   Tutte le classi sono prefissate .fc- (final ceremony).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Ingresso di una riga della coda ──────────────────────────────────────
+   Sale dal basso con un piccolo scavalco: la riga "atterra" invece di
+   comparire, ed è ciò che la rende leggibile anche in fondo a una sala. */
+
+.fc-enter {
+  animation: fc-row-in 420ms cubic-bezier(0.18, 1.3, 0.4, 1) both;
+}
+
+@keyframes fc-row-in {
+  0%   { opacity: 0; transform: translateY(28px) scale(0.94); }
+  70%  { opacity: 1; transform: translateY(-4px) scale(1.02); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ─── Uscita della coda ────────────────────────────────────────────────────
+   Le righe già rivelate lasciano il palco al podio. Scivolano in basso e
+   svaniscono: verso l'alto sembrerebbero "risucchiate" dal podio, dando
+   l'impressione sbagliata che stiano salendo di posizione. */
+
+.fc-exit {
+  animation: fc-row-out 550ms cubic-bezier(0.5, 0, 0.75, 0) both;
+}
+
+@keyframes fc-row-out {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(40px) scale(0.9); }
+}
+
+/* ─── Comparsa di un gradino del podio ─────────────────────────────────────
+   Più marcata dell'ingresso di una riga: qui si sta premiando qualcuno.
+   Lo scavalco è ampio e la rotazione richiama i badge sticker del sistema. */
+
+.fc-pop {
+  animation: fc-pop-in 620ms cubic-bezier(0.16, 1.5, 0.35, 1) both;
+}
+
+@keyframes fc-pop-in {
+  0%   { opacity: 0; transform: translateY(60px) scale(0.4) rotate(-8deg); }
+  60%  { opacity: 1; transform: translateY(-8px) scale(1.12) rotate(2deg); }
+  80%  { transform: translateY(2px) scale(0.97) rotate(-1deg); }
+  100% { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+}
+
+/* ─── La proclamazione ─────────────────────────────────────────────────────
+   L'atto più grande della serata: parte da più lontano, scavalca di più e si
+   assesta con una scossa. Chi guarda deve capire che è finita, senza leggere. */
+
+.fc-erupt {
+  animation: fc-erupt-in 900ms cubic-bezier(0.14, 1.6, 0.3, 1) both;
+}
+
+@keyframes fc-erupt-in {
+  0%   { opacity: 0; transform: translateY(90px) scale(0.25) rotate(-12deg); }
+  45%  { opacity: 1; transform: translateY(-18px) scale(1.25) rotate(3deg); }
+  62%  { transform: translateY(6px) scale(0.94) rotate(-2deg); }
+  78%  { transform: translateY(-4px) scale(1.06) rotate(1deg); }
+  100% { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+}
+
+/* ─── Il gradino coperto ───────────────────────────────────────────────────
+   Il secondo classificato è in scena ma senza nome. L'avatar diventa una
+   sagoma d'inchiostro piena: un'emoji soltanto scurita resterebbe
+   riconoscibile su un proiettore (🦊 e 🐳 si distinguono a colpo d'occhio) e
+   rivelerebbe il secondo in anticipo, annullando l'atto. */
+
+.fc-covered .fc-avatar {
+  filter: brightness(0);
+  opacity: 0.85;
+}
+
+/* Il nome sostituito da blocchi. Non "———": dei blocchi pieni si leggono da
+   lontano come "qui c'è qualcosa di nascosto", un tratteggio no. */
+.fc-covered .fc-name {
+  color: transparent;
+  position: relative;
+}
+
+.fc-covered .fc-name::after {
+  content: '';
+  position: absolute;
+  inset: 12% 0;
+  background: currentColor;
+  color: inherit;
+  opacity: 0.28;
+  border-radius: 3px;
+  /* Il nome vero non deve poter trasparire dalla larghezza del blocco. */
+  min-width: 5ch;
+}
+
+.fc-covered .fc-points { visibility: hidden; }
+
+/* Il respiro dell'attesa: il gradino coperto non sta mai del tutto fermo,
+   così la sala sa che la scena è viva e non congelata. */
+.fc-covered.fc-waiting {
+  animation: fc-breathe 1.4s ease-in-out infinite;
+}
+
+@keyframes fc-breathe {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50%      { transform: scale(1.035) rotate(-0.6deg); }
+}
+
+/* ─── La scopertura ────────────────────────────────────────────────────────
+   Arriva DOPO il vincitore, e più sottovoce: è una conferma, non una
+   rivelazione. Se scavalcasse quanto la proclamazione ruberebbe la scena. */
+
+.fc-uncover {
+  animation: fc-uncover-in 520ms cubic-bezier(0.2, 1.2, 0.4, 1) both;
+}
+
+@keyframes fc-uncover-in {
+  0%   { transform: scale(1.14); filter: brightness(2.2); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+/* ─── Stelline ─────────────────────────────────────────────────────────────
+   Scoppiettano intorno al vincitore, sopra i coriandoli. Posizione e ritardo
+   li passa il JS come custom property, così ogni premiazione è diversa. */
+
+.fc-sparkles {
+  position: absolute;
+  inset: -20% -12%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.fc-sparkle {
+  position: absolute;
+  left: var(--fc-x, 50%);
+  top: var(--fc-y, 50%);
+  line-height: 1;
+  opacity: 0;
+  animation: fc-sparkle-pop 1.1s ease-out var(--fc-delay, 0ms) 3;
+}
+
+@keyframes fc-sparkle-pop {
+  0%   { opacity: 0; transform: scale(0.2) rotate(0deg); }
+  35%  { opacity: 1; transform: scale(1.35) rotate(90deg); }
+  100% { opacity: 0; transform: scale(0.3) rotate(200deg); }
+}
+
+/* ─── Attesa neutra sul telefono ───────────────────────────────────────────
+   Prima della propria battuta il telefono non mostra MAI la posizione: se lo
+   facesse, la sincronia con la sala sarebbe finta. Mostra questo. */
+
+.fc-pending {
+  animation: fc-pending-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes fc-pending-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
+/* ─── Movimento ridotto ────────────────────────────────────────────────────
+   Chi lo chiede riceve comunque la cerimonia, ma senza moto: i client saltano
+   al fotogramma finale (il calendario è fatto di setTimeout, che nessuna
+   media query può fermare — vedi renderFinal). Questo è il fermo di sicurezza
+   se qualche stato dovesse comunque comparire. */
+
+@media (prefers-reduced-motion: reduce) {
+  .fc-enter, .fc-exit, .fc-pop, .fc-erupt, .fc-uncover,
+  .fc-covered.fc-waiting, .fc-sparkle, .fc-pending {
+    animation: none;
+  }
+  .fc-sparkle { display: none; }
+  /* La copertura resta: è informazione (o meglio, è il suo contrario), non moto. */
+}

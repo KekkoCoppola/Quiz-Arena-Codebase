@@ -3,8 +3,8 @@
 /**
  * client/shared/minigames/index.js
  *
- * Registry di PRESENTAZIONE dei minigiochi, condiviso fra le due SPA
- * (host e player) e servito su `/shared`.
+ * Registry di PRESENTAZIONE dei minigiochi, condiviso fra la vista sala e il
+ * client player, e servito su `/shared`.
  *
  * Le regole di gioco non stanno qui: vivono in `server/minigames/`. Qui c'è solo
  * il "come si vede" — icone, animazione di suspense, reveal. Stesso confine fra
@@ -21,7 +21,8 @@
  *      presentazione parziale viene completata con i default. Un minigioco
  *      nuovo è giocabile subito e si arricchisce dopo.
  *
- * Caricato come <script> dalle due SPA (espone window.Minigames) e come modulo
+ * Caricato come <script> dalla vista sala e dal client player (espone
+ * window.Minigames) e come modulo
  * CommonJS da tools/test-minigames.js.
  */
 
@@ -57,14 +58,20 @@
     },
 
     /**
-     * Quale riga evidenziare nella distribuzione delle risposte lato host.
+     * Quale riga evidenziare nella distribuzione delle risposte in sala.
      * Per la quasi totalità dei minigiochi è la scelta della macchina.
      */
     highlightIndex(results) {
       return results.machineChoice;
     },
 
-    host: {
+    /**
+     * Presentazione sullo schermo proiettato. Si chiama `sala` e non `host`
+     * perché è la sala a vederla: sul tablet dell'host restano i comandi.
+     * Il testo di stato per l'host è invece `hostStatusText`, qui sopra —
+     * quello sì che è rivolto a chi conduce.
+     */
+    sala: {
       /**
        * Round aperto: la sala aspetta. Qui va l'animazione di attesa.
        * @param {{ questionText: HTMLElement }} els
@@ -76,6 +83,17 @@
 
       /** Chiamata alla chiusura del round e a ogni cambio schermata: deve essere idempotente. */
       stopSuspense() {},
+
+      /**
+       * OPZIONALE. Reveal animato e TEMPORIZZATO alla chiusura del round: se
+       * definito, la sala lo usa al posto del breve drumroll fisso. Deve far
+       * atterrare l'animazione esattamente a `ctx.revealAt` e poi chiamare
+       * `ctx.done()`. Il timestamp è condiviso col telefono (payload
+       * `game:results.revealAt`), così i due schermi si fermano insieme.
+       * `null` = nessun reveal animato → la sala ricade sul drumroll breve.
+       * @type {null | ((els: object, results: object, options: string[], ctx: { revealAt: number, isStale: () => boolean, done: () => void }) => void)}
+       */
+      playReveal: null,
 
       /**
        * Reveal davanti alla sala.
@@ -105,6 +123,21 @@
         label.textContent = option;
         btn.append(letter, label);
       },
+
+      /**
+       * OPZIONALE. Attesa sincronizzata sul telefono mentre in sala si svolge il
+       * reveal: se definito, occupa lo schermo del giocatore fino a `ctx.revealAt`
+       * e poi chiama `ctx.done()`; l'esito vero lo mostra dopo `reveal`.
+       *
+       * Regola: qui NON si rivela nulla dell'esito né della scelta della macchina.
+       * Lo spettacolo è in sala — il telefono ci rimanda, non lo duplica.
+       * Firma allineata a `reveal`: stessi argomenti più il contesto temporale.
+       *
+       * `null` = nessuna attesa dedicata (il player ricade su un'attesa generica
+       * quando `game:results.revealAt` è presente).
+       * @type {null | ((els: object, mine: object|null, results: object, ctx: { revealAt: number, isStale: () => boolean, done: () => void }) => void)}
+       */
+      playReveal: null,
 
       /**
        * Esito personale sul telefono del giocatore.
@@ -142,14 +175,14 @@
 
   /**
    * Completa una presentazione parziale con i default, un livello alla volta:
-   * un modulo che definisce solo `host.reveal` conserva `host.startSuspense`
+   * un modulo che definisce solo `sala.reveal` conserva `sala.startSuspense`
    * di default invece di perderlo.
    */
   function withDefaults(def) {
     return {
       ...DEFAULT_PRESENTATION,
       ...def,
-      host:   { ...DEFAULT_PRESENTATION.host,   ...(def.host   ?? {}) },
+      sala:   { ...DEFAULT_PRESENTATION.sala,   ...(def.sala   ?? {}) },
       player: { ...DEFAULT_PRESENTATION.player, ...(def.player ?? {}) },
     };
   }

@@ -18,6 +18,15 @@ const { spawn } = require('node:child_process');
 const jwt    = require('jsonwebtoken');
 const { io: ioc } = require('socket.io-client');
 
+// La cartella dei quiz di sistema va decisa PRIMA di caricare la config, che
+// legge process.env una sola volta al require. Senza questa riga il processo
+// di test sincronizzerebbe i quiz VERI del progetto invece dei propri.
+const quizzesDir = require('node:path').join(
+  require('node:os').tmpdir(),
+  `quizzata-test-socket-quizzes-${Date.now()}`
+);
+process.env.QUIZZES_DIR = quizzesDir;
+
 const config = require('../server/config');
 const db     = require('../server/quiz-manager');
 
@@ -55,36 +64,55 @@ function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 // ─── Setup DB temporaneo ─────────────────────────────────────────────────────────
 
 const QUIZ_QUESTIONS = [
-  { text: 'Capitale d\'Italia?', options: ['Roma', 'Milano', 'Napoli', 'Torino'], correct_index: 0, time_limit_s: 2 },
-  { text: '2 + 2?',             options: ['3', '4', '5', '6'],                   correct_index: 1, time_limit_s: 2 },
+  { text: 'Capitale d\'Italia?', options: ['Roma', 'Milano', 'Napoli', 'Torino'], correct_index: 0, time_limit_s: 5 },
+  { text: '2 + 2?',             options: ['3', '4', '5', '6'],                   correct_index: 1, time_limit_s: 5 },
 ];
 
 // Quiz con un minigioco "Morra Cinese" pianificato dopo la prima domanda
 // (Fase Minigiochi), usato per validare il trigger pianificato via socket.
 const QUIZ_WITH_MINIGAME_QUESTIONS = [
-  { text: 'Capitale della Francia?', options: ['Berlino', 'Parigi', 'Madrid', 'Roma'], correct_index: 1, time_limit_s: 2 },
-  { text: '3 + 3?',                  options: ['5', '6', '7', '8'],                    correct_index: 1, time_limit_s: 2 },
+  { text: 'Capitale della Francia?', options: ['Berlino', 'Parigi', 'Madrid', 'Roma'], correct_index: 1, time_limit_s: 5 },
+  { text: '3 + 3?',                  options: ['5', '6', '7', '8'],                    correct_index: 1, time_limit_s: 5 },
 ];
 const QUIZ_WITH_MINIGAME_SLOTS = [{ afterQuestionIndex: 0, type: 'morra_cinese' }];
 
 const dbPath = path.join(os.tmpdir(), `quizzata-test-socket-${Date.now()}.sqlite`);
 
-function seedTempDb() {
+// I quiz di sistema vivono in file e il server riallinea il DB ad ogni avvio,
+// cancellando le righe senza file corrispondente: seminare direttamente in
+// tabella non funziona più, le fixture verrebbero spazzate via al boot del
+// server figlio. Per questo il test scrive veri file JSON (vedi quizzesDir,
+// dichiarata in cima al file).
+
+function seedTempQuizzes() {
+  fs.mkdirSync(quizzesDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(quizzesDir, 'quiz-test-socket.json'),
+    JSON.stringify({ title: 'Quiz Test Socket', category: 'Test', minigames: [], questions: QUIZ_QUESTIONS })
+  );
+  fs.writeFileSync(
+    path.join(quizzesDir, 'quiz-test-socket-minigioco.json'),
+    JSON.stringify({
+      title: 'Quiz Test Socket — Minigioco pianificato',
+      category: 'Test',
+      minigames: QUIZ_WITH_MINIGAME_SLOTS,
+      questions: QUIZ_WITH_MINIGAME_QUESTIONS,
+    })
+  );
+
+  // initDb applica lo schema e sincronizza i file: da qui si ricavano gli id
+  // veri, che non sono più prevedibili come lo erano gli INSERT in sequenza.
   db.initDb(dbPath);
-  const stmt = db.getDb().prepare(
-    'INSERT INTO preloaded_quizzes (title, category, questions, minigames) VALUES (?, ?, ?, ?)'
-  );
-  const result = stmt.run('Quiz Test Socket', 'Test', JSON.stringify(QUIZ_QUESTIONS), '[]');
-  const quizId = Number(result.lastInsertRowid);
-
-  const resultMinigame = stmt.run(
-    'Quiz Test Socket — Minigioco pianificato', 'Test',
-    JSON.stringify(QUIZ_WITH_MINIGAME_QUESTIONS), JSON.stringify(QUIZ_WITH_MINIGAME_SLOTS)
-  );
-  const quizWithMinigameId = Number(resultMinigame.lastInsertRowid);
-
+  const righe = db.getDb()
+    .prepare('SELECT id, slug FROM preloaded_quizzes')
+    .all();
   db.closeDb();
-  return { quizId, quizWithMinigameId };
+
+  const trova = (slug) => righe.find((r) => r.slug === slug)?.id;
+  return {
+    quizId:             trova('quiz-test-socket'),
+    quizWithMinigameId: trova('quiz-test-socket-minigioco'),
+  };
 }
 
 // ─── Avvio server figlio ─────────────────────────────────────────────────────────
@@ -93,7 +121,10 @@ function startServer() {
   return spawn(
     process.execPath,
     [path.join(__dirname, '..', 'server', 'index.js')],
-    { env: { ...process.env, PORT: String(PORT), DB_PATH: dbPath }, stdio: 'ignore' }
+    {
+      env: { ...process.env, PORT: String(PORT), DB_PATH: dbPath, QUIZZES_DIR: quizzesDir },
+      stdio: 'ignore',
+    }
   );
 }
 
@@ -115,7 +146,7 @@ async function run() {
   console.log('  🧪  Quiz-Zata! — Test Integrazione: game-socket.js');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
-  const { quizId, quizWithMinigameId } = seedTempDb();
+  const { quizId, quizWithMinigameId } = seedTempQuizzes();
   const server = startServer();
   const sockets = [];
 
@@ -206,9 +237,10 @@ async function run() {
     assert(q2.index === 1, 'game:question: indice domanda 2');
 
     await emitAck(p1, 'player:answer', { optionIndex: 1 }); // solo Alice risponde
-    const r2 = await once(p2, 'game:results', 4000);        // Bob non risponde → timeout 2s
+    const r2 = await once(p2, 'game:results', 9000);        // Bob non risponde → si attende lo scadere dei 5s
     assert(r2.correctIndex === 1, 'results dopo timeout: correctIndex domanda 2');
     assert(r2.distribution[1] === 1, 'results dopo timeout: solo 1 risposta registrata');
+    assert(r2.revealAt === undefined, 'results domanda normale: nessuna sospensione (revealAt assente)');
 
     // 5. Classifica finale
     console.log('\n  🏆  Fase 5: Classifica finale');
@@ -335,6 +367,8 @@ async function run() {
     assert(r8_2.kind === 'minigame', 'game:results: kind "minigame" propagato nel riepilogo');
     assert(Number.isInteger(r8_2.machineChoice) && r8_2.machineChoice >= 0 && r8_2.machineChoice <= 2,
       'game:results: machineChoice (mossa del PC) rivelato');
+    assert(Number.isInteger(r8_2.revealAt) && r8_2.revealAt > Date.now(),
+      'game:results: revealAt (timestamp sospensione ~10s) presente per il minigioco');
     assert(['win', 'draw', 'lose'].includes(r8_2.answers[0].outcome),
       'game:results: esito win/draw/lose assegnato al giocatore');
 
@@ -365,6 +399,54 @@ async function run() {
 
     await emitAck(host, 'host:end-game', null);
 
+    // 9. Giocatori di prova (gesto nascosto del pannello host)
+    console.log(`
+  🤖  Fase 9: Giocatori di prova`);
+
+    const impostor2 = ioc(URL); sockets.push(impostor2);
+    await once(impostor2, 'connect');
+    const botsDenied = await emitAck(impostor2, 'host:spawn-bots', { count: 3 });
+    assert(botsDenied.ok === false, 'socket senza token: host:spawn-bots rifiutato');
+
+    const botsNoGame = await emitAck(host, 'host:spawn-bots', { count: 3 });
+    assert(botsNoGame.ok === false, 'senza partita attiva: host:spawn-bots rifiutato');
+
+    await emitAck(host, 'host:create-game', { quizId, quizType: 'preloaded' });
+    const p9 = ioc(URL); sockets.push(p9);
+    await once(p9, 'connect');
+    await emitAck(p9, 'player:join', { nickname: 'Umano', avatarId: 'gufo' });
+
+    const botsAck = await emitAck(host, 'host:spawn-bots', { count: 5 });
+    assert(botsAck.ok === true && botsAck.added === 5, 'host:spawn-bots: 5 giocatori aggiunti');
+    assert(botsAck.total === 6, 'lobby: 5 bot + 1 umano');
+
+    // Il conteggio arriva sporco dalla rete: non deve poter far esplodere nulla.
+    const sporco = await emitAck(host, 'host:spawn-bots', { count: -4 });
+    assert(sporco.ok === true && sporco.added > 0, 'conteggio non valido: si ripiega sul default');
+
+    // La prova che conta: i bot rispondono DAVVERO. Se non lo facessero, il
+    // round resterebbe aperto fino allo scadere del tempo e questa attesa
+    // andrebbe in timeout invece di chiudersi in anticipo.
+    const q9Promise = once(p9, 'game:question');
+    await emitAck(host, 'host:start-game', null);
+    const q9 = await q9Promise;
+    const results9Promise = once(host, 'game:results');
+    await emitAck(p9, 'player:answer', { optionIndex: 0 });
+    const inizio = Date.now();
+    const results9 = await results9Promise;
+    const durata = Date.now() - inizio;
+
+    assert(durata < q9.time_limit_s * 1000,
+      `round chiuso in anticipo (${durata}ms < ${q9.time_limit_s * 1000}ms): i bot hanno risposto`);
+    assert(results9.answers.length === results9.leaderboard.length,
+      'ogni giocatore, bot compresi, risulta fra chi ha risposto');
+
+    // Fuori dalla lobby non si entra più, bot inclusi.
+    const tardi = await emitAck(host, 'host:spawn-bots', { count: 2 });
+    assert(tardi.ok === false, 'a partita iniziata: host:spawn-bots rifiutato');
+
+    await emitAck(host, 'host:end-game', null);
+
   } finally {
     for (const s of sockets) s.disconnect();
     server.kill();
@@ -373,6 +455,7 @@ async function run() {
       fs.rmSync(dbPath, { force: true });
       fs.rmSync(`${dbPath}-wal`, { force: true });
       fs.rmSync(`${dbPath}-shm`, { force: true });
+      fs.rmSync(quizzesDir, { recursive: true, force: true });
     } catch { /* best effort */ }
   }
 

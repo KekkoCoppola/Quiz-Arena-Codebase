@@ -254,6 +254,24 @@ class GameSession {
     return this.rounds[this.currentRoundIndex] ?? null;
   }
 
+  /**
+   * True se il round corrente è l'ultimo in programma.
+   *
+   * Serve a due cose che devono restare d'accordo: `nextQuestion`, per decidere
+   * se chiudere la partita, e il payload di `endQuestion`, per dire ai client
+   * che dopo questi risultati viene la premiazione — così sala e telefoni
+   * possono NON mostrare la classifica, che a quel punto proclamerebbe il
+   * vincitore prima della cerimonia. È la stessa domanda: una condizione sola,
+   * non due copie libere di divergere.
+   *
+   * Non è una promessa definitiva: l'host può ancora inserire un minigioco
+   * ad-hoc da RESULTS, e allora l'ultimo round diventa un altro. Il prezzo è
+   * una classifica nascosta a vuoto per un pannello, non un errore.
+   */
+  get isLastRound() {
+    return this.currentRoundIndex >= this.rounds.length - 1;
+  }
+
   // ─── Lobby ──────────────────────────────────────────────────────────────────────
 
   /**
@@ -356,6 +374,12 @@ class GameSession {
       time_limit_s: r.time_limit_s,
       kind: r.kind,
       minigameType: r.minigameType ?? null,
+      // Un round minigioco non ha immagine: `r.image` è undefined e diventa
+      // null, che è la stessa cosa che dice una domanda senza immagine.
+      // Il campo arriva anche ai telefoni — sono ~90 byte, e non vale un emit
+      // per-room — ma solo la vista sala lo disegna. Vedi la spec
+      // docs/superpowers/specs/2026-08-29-immagini-domande-design.md.
+      image: r.image ?? null,
     };
   }
 
@@ -444,8 +468,13 @@ class GameSession {
     // Risoluzione minigioco: estrai lo stato macchina e assegna esito + punti a
     // ogni risposta PRIMA del loop di somma dei punteggi.
     let machineChoice = null;
+    // Durata della sospensione/reveal post-chiusura (0 = nessuna). Un valore di
+    // timing dichiarato dal modulo del minigioco; game-socket.js lo converte nel
+    // timestamp assoluto `revealAt` per sincronizzare sala e telefoni.
+    let revealMs = 0;
     if (round.kind === 'minigame') {
       const def = minigames.get(round.minigameType);
+      revealMs = def.revealMs ?? 0;
       const resolution = def.resolve(this._rnd);
       machineChoice = resolution.machineChoice;
       for (const answer of this.currentAnswers.values()) {
@@ -471,10 +500,17 @@ class GameSession {
       minigameType: round.minigameType ?? null,
       correctIndex: round.kind === 'minigame' ? null : round.correct_index,
       machineChoice,
+      revealMs,
+      // Dopo questi risultati viene la premiazione: i client sigillano la
+      // classifica invece di mostrarla (vedi il getter `isLastRound`).
+      isLastRound: this.isLastRound,
       distribution,
       answers: Array.from(this.currentAnswers.entries()).map(([playerId, a]) => ({
         playerId,
         nickname: this.players.get(playerId)?.nickname ?? null,
+        // La sala mostra ogni giocatore che "va a posarsi" sulla risposta scelta:
+        // le serve l'avatar, non solo il nickname.
+        avatar: this.players.get(playerId)?.avatar ?? null,
         optionIndex: a.optionIndex,
         correct: a.correct,
         outcome: a.outcome,
@@ -492,8 +528,7 @@ class GameSession {
   nextQuestion(now = Date.now()) {
     this._assertState(STATES.RESULTS, 'nextQuestion');
 
-    const isLastRound = this.currentRoundIndex >= this.rounds.length - 1;
-    if (isLastRound) {
+    if (this.isLastRound) {
       this.state = STATES.FINAL_LEADERBOARD;
       this.roundStartedAt = null;
       return { finished: true, leaderboard: this.getLeaderboard() };

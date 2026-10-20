@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+  <link rel="icon" type="image/svg+xml" href="/resources/img/Logo.svg">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Quiz-Zata! — Vista sala, lo schermo proiettato durante la partita.">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Quiz-Zata! — Sala</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="/shared/minigames/minigames.css">
+  <!-- Movimento della premiazione, identico sul telefono: le due superfici
+       proclamano lo stesso vincitore nello stesso istante. -->
+  <link rel="stylesheet" href="/shared/final-ceremony.css">
+</head>
+
+<body>
+
+  <!-- ═══ SFONDO ═══════════════════════════════════════════════════════════
+       La riga centrale divide il campo in due metà; gli scarabocchi danno il
+       tono "scrapbook". Tutto decorativo, tutto fuori dal flusso.
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="sala-bg-layer" aria-hidden="true">
+    <div class="sala-bg-split"></div>
+    <svg class="sala-sticker sala-sticker--1" fill="currentColor" viewBox="0 0 100 100">
+      <path d="M50,10 L90,90 L10,90 Z" stroke="#2A2A2A" stroke-linejoin="round" stroke-width="6"></path>
+    </svg>
+    <svg class="sala-sticker sala-sticker--2" fill="currentColor" viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="40" stroke="#2A2A2A" stroke-dasharray="10 5" stroke-width="6"></circle>
+    </svg>
+    <svg class="sala-sticker sala-sticker--3" fill="none" stroke="#2A2A2A" stroke-linecap="round" stroke-width="8" viewBox="0 0 100 100">
+      <path d="M20,20 L80,80 M80,20 L20,80"></path>
+    </svg>
+    <svg class="sala-sticker sala-sticker--4" fill="currentColor" viewBox="0 0 100 100">
+      <rect height="60" rx="10" stroke="#2A2A2A" stroke-width="6" width="60" x="20" y="20"></rect>
+    </svg>
+  </div>
+
+  <div class="sala-shell">
+
+    <!-- ═══ BARRA SUPERIORE ═══════════════════════════════════════════════ -->
+    <header class="sala-top-bar">
+      <div class="sala-progress" id="sala-progress" aria-hidden="true"></div>
+      <div class="sala-logo-wrap">
+        <img alt="Quiz-Zata!" src="/resources/img/Logo.svg">
+      </div>
+      <div class="sala-timer-wrap">
+        <div class="sala-timer-badge" id="sala-timer">--:--</div>
+      </div>
+    </header>
+
+    <!-- ═══ PALCO ═════════════════════════════════════════════════════════
+         Un solo pannello visibile alla volta. Nessun comando: la sala non si
+         tocca, ogni cambio di schermata arriva da un evento game:*.
+    ════════════════════════════════════════════════════════════════════════ -->
+    <main class="sala-stage" role="main">
+
+      <!-- ── Attesa: prima che una partita esista ──────────────────────── -->
+      <section class="sala-panel" id="sala-idle">
+        <p class="sala-idle-text" id="sala-idle-text">In attesa dell'host…</p>
+      </section>
+
+      <!-- ── Lobby: QR + giocatori che entrano ─────────────────────────── -->
+      <section class="sala-panel" id="sala-lobby" hidden>
+        <div class="sala-lobby-grid">
+          <div class="sala-join-card">
+            <p class="sala-join-kicker">Entra dal telefono</p>
+            <div class="sala-qr" id="sala-qr" role="img" aria-label="QR code per entrare in partita"></div>
+            <p class="sala-join-url" id="sala-join-url"></p>
+          </div>
+          <div class="sala-lobby-players">
+            <h2 class="sala-panel-title">
+              In lobby <span class="sala-count-bubble" id="sala-player-count">0</span>
+            </h2>
+            <ul class="sala-player-grid" id="sala-players"></ul>
+            <p class="sala-lobby-empty" id="sala-lobby-empty">Nessuno ancora… inquadrate il QR!</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Domanda / minigioco ───────────────────────────────────────────
+           Due varianti della stessa scheda, mutuamente esclusive:
+             · senza immagine → riga di istruzione sotto il titolo
+             · con immagine   → riquadro tratteggiato (oggi un segnaposto)
+           Le sceglie renderQuestion() in base al round, non il CSS.
+      ──────────────────────────────────────────────────────────────────── -->
+      <section class="sala-panel" id="sala-question" hidden>
+        <div class="q-card-wrap">
+          <div class="q-card">
+            <div class="q-tape" id="sala-round-kicker"></div>
+            <h2 class="q-text" id="sala-question-text"></h2>
+            <p class="q-hint" id="sala-question-hint">Scegli l'opzione corretta prima che scada il tempo!</p>
+            <div class="q-media" id="sala-question-media" hidden>
+              <span class="material-symbols-outlined" aria-hidden="true">image</span>
+            </div>
+            <div class="q-pin" aria-hidden="true"><span></span></div>
+          </div>
+        </div>
+        <ul class="sala-options" id="sala-options"></ul>
+
+        <!-- Palco della parata: a round chiuso ogni giocatore compare qui con
+             nome e avatar, il nome sfuma e l'avatar vola sulla risposta scelta.
+             Vive nel pannello DOMANDA perché le quattro opzioni devono restare
+             a schermo come se la domanda fosse ancora in corso. -->
+        <div class="sala-parade" id="sala-parade" hidden aria-hidden="true">
+          <div class="sala-parade-card" id="sala-parade-card">
+            <span class="sala-parade-avatar" id="sala-parade-avatar"></span>
+            <span class="sala-parade-name" id="sala-parade-name"></span>
+          </div>
+        </div>
+        <p class="sala-no-answer" id="sala-no-answer" hidden></p>
+      </section>
+
+      <!-- ── Risultati del round ───────────────────────────────────────────
+           Solo la classifica: chi ha risposto cosa si è già visto sulle
+           opzioni, con gli avatar posati sopra. Le barre di distribuzione
+           ripetevano quella stessa informazione in forma peggiore. -->
+      <section class="sala-panel" id="sala-results" hidden>
+        <p class="sala-reveal" id="sala-reveal"></p>
+        <div class="sala-results-grid">
+          <div class="sala-standings" id="sala-standings-box">
+            <h3 class="sala-standings-title">Classifica</h3>
+            <ol class="sala-standings-list" id="sala-standings"></ol>
+          </div>
+
+          <!-- Ultimo round: la premiazione prende il posto della classifica.
+               Mostrarla qui proclamerebbe il vincitore un minuto prima della
+               cerimonia, cioè l'unica cosa che la cerimonia ha da dare.
+               Prende il posto della classifica, non le si aggiunge. -->
+          <div class="sala-sealed" id="sala-sealed" hidden>
+            <span class="sala-sealed-seal" aria-hidden="true">🏆</span>
+            <p class="sala-sealed-title">Classifica sigillata</p>
+            <p class="sala-sealed-sub">È il momento della premiazione</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Classifica finale ─────────────────────────────────────────── -->
+      <section class="sala-panel" id="sala-final" hidden>
+        <h2 class="sala-panel-title">Classifica finale</h2>
+        <div class="sala-podium" id="sala-podium"></div>
+        <ol class="sala-final-list" id="sala-final-list"></ol>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="vendor/qrcode.js"></script>
+
+  <!-- Effetto coriandoli, condiviso con il client player. Facoltativo: chi lo usa
+       controlla `window.Confetti` prima di chiamarlo. -->
+  <script src="/shared/confetti.js"></script>
+
+  <!-- Calendario della premiazione: gli istanti di ogni atto della cerimonia.
+       Stesso file caricato dal client player — è ciò che tiene sincronizzate
+       sala e telefoni senza far dipendere nulla dall'orologio dei dispositivi. -->
+  <script src="/shared/final-schedule.js"></script>
+
+  <!-- Correzione dello scarto fra orologi: senza, in sala e sul telefono
+       il tempo scade in momenti diversi. -->
+  <script src="/shared/server-clock.js"></script>
+
+  <!-- Minigiochi: il registry, poi un modulo per gioco (si autoregistrano).
+       Stesso elenco del client player: il browser non ha un filesystem da
+       scandire, va detto cosa caricare. -->
+  <script src="/shared/minigames/index.js"></script>
+  <script src="/shared/minigames/morra-cinese.js"></script>
+
+  <!-- Comparto audio: le decisioni pure prima del motore che le esegue.
+       Vive qui e non su admin-console perché il suono esce dal proiettore
+       collegato al Raspberry, non dal tablet dell'host. -->
+  <script src="audio-logic.js"></script>
+  <script src="audio.js"></script>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
