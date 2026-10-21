@@ -424,12 +424,19 @@ body {
   filter: drop-shadow(2px 2px 0px var(--retro-terracotta));
 }
 
-/* Variante SENZA immagine: la riga di istruzione sotto il titolo. */
+/* Variante SENZA immagine: la riga di istruzione sotto il titolo.
+
+   Il respiro verticale era 4px su un testo da 20px, dentro un bordo da 4px: il
+   testo arrivava quasi a toccarlo, e su un proiettore quel poco diventa una
+   riga schiacciata contro la propria cornice. Portato a 12px — la stessa
+   proporzione che hanno le altre pillole del sistema fra testo e bordo. La
+   scheda della domanda ha `flex: 0 1 auto`, quindi i 16px in più li cede lei
+   invece di spingere le risposte fuori schermo. */
 .q-hint {
   display: inline-block;
   font-size: var(--body-lg);
   font-weight: 700;
-  padding: 0.25rem 1rem;
+  padding: 0.75rem 1.5rem;
   background: var(--surface-container);
   border: var(--border);
   border-radius: 0.375rem;
