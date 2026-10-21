@@ -347,3 +347,52 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ─── Adattamento all'altezza dello schermo ────────────────────────────────
+   Il telefono è l'unica superficie con un timer addosso: se le risposte
+   finiscono sotto la piega, il giocatore scrolla mentre il tempo scorre —
+   cioè perde punti per un problema di layout. A 360×640 (Android piccolo, o
+   qualunque telefono in cui la barra del browser si mangia l'altezza) la
+   schermata domanda sfondava di 174px, con il logo da 140px a prendersi un
+   quarto dello schermo.
+
+   Nessuna di queste regole cambia la struttura: comprimono le misure quando
+   l'altezza è poca. Su uno schermo alto resta tutto come prima. */
+
+.player-logo { width: clamp(88px, 26vw, 140px); height: auto; }
+
+/* Il margine di sicurezza del notch/barra gesti: senza, l'ultima risposta
+   finisce sotto la tacca dell'iPhone. */
+body { padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
+
+@media (max-height: 780px) {
+  body { padding-top: 10px; padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+  .player-header { padding: 2px 0 10px; }
+  .player-logo   { width: clamp(72px, 20vw, 96px); }
+  .screen        { gap: 12px; }
+  .screen-title  { font-size: 26px; line-height: 32px; }
+  .question-text { font-size: 20px; line-height: 26px; }
+  .countdown-num { font-size: 26px; }
+  .answer-stack  { gap: 10px; }
+  .answer-btn    { font-size: 16px; padding: 10px 14px; min-height: 48px; }
+  .me-badge      { font-size: 20px; padding: 6px 16px; }
+  .me-badge .avatar { font-size: 26px; }
+}
+
+@media (max-height: 640px) {
+  .player-logo   { width: 64px; }
+  .screen        { gap: 10px; }
+  .question-text { font-size: 18px; line-height: 24px; }
+  .answer-btn    { font-size: 15px; min-height: 44px; padding: 8px 12px; }
+  .avatar-option { min-height: 44px; }
+}
+
+/* Telefono ruotato: lo spazio verticale non basta per una colonna di quattro
+   risposte, quindi vanno a due per riga e il logo lascia il posto. */
+@media (max-height: 480px) and (orientation: landscape) {
+  .player-header { display: none; }
+  .screen        { max-width: 720px; gap: 8px; }
+  .answer-stack  { display: grid; grid-template-columns: 1fr 1fr; }
+  .question-text { font-size: 17px; line-height: 22px; text-align: center; }
+  .avatar-grid   { grid-template-columns: repeat(8, 1fr); }
+}
