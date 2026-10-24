@@ -78,18 +78,18 @@ const toastContainer = document.getElementById('toast-container');
  */
 function showToast(message, type = 'info') {
   const ICONS = {
-    success: '<i class="fas fa-circle-check"></i>',
-    error:   '<i class="fas fa-circle-xmark"></i>',
-    info:    '<i class="fas fa-circle-info"></i>',
+    success: 'check_circle',
+    error:   'error',
+    info:    'info',
   };
 
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
   toast.setAttribute('role', 'alert');
   toast.innerHTML = `
-    <span class="toast-icon" aria-hidden="true">${ICONS[type] ?? ICONS.info}</span>
+    <span class="toast-icon" aria-hidden="true">${icon(ICONS[type] ?? ICONS.info)}</span>
     <span class="toast-message">${escapeHtml(message)}</span>
-    <button class="toast-close" aria-label="Chiudi notifica"><i class="fas fa-xmark"></i></button>
+    <button class="toast-close" aria-label="Chiudi notifica">${icon('close')}</button>
   `;
 
   const closeBtn = toast.querySelector('.toast-close');
@@ -125,12 +125,12 @@ let _modalConfirmCallback = null;
  * @param {object} opts
  * @param {string} opts.title
  * @param {string} opts.message
- * @param {string} [opts.icon]
+ * @param {string} [opts.icon]  nome di un'icona Material Symbols
  * @param {string} [opts.confirmLabel]
  * @param {Function} opts.onConfirm
  */
-function showModal({ title, message, icon = '<i class="fas fa-triangle-exclamation"></i>', confirmLabel = 'Conferma', onConfirm }) {
-  modalIcon.innerHTML      = icon;
+function showModal({ title, message, icon: iconName = 'warning', confirmLabel = 'Conferma', onConfirm }) {
+  modalIcon.textContent    = iconName;
   modalTitle.textContent   = title;
   modalMessage.textContent = message;
   modalConfirm.textContent = confirmLabel;
@@ -292,20 +292,11 @@ async function checkAuth() {
   return false;
 }
 
-document.getElementById('help-btn').addEventListener('click', () => {
-  showModal({
-    title: 'Come funziona',
-    message: 'Scegli o crea un quiz dalla dashboard, poi premi "Avvia" per aprire la schermata di conduzione partita: da lì controlli domande e classifica sullo schermo che il pubblico vede. Per creare un quiz, aggiungi domande con 4 opzioni di risposta e un tempo limite, poi salva.',
-    icon: '<i class="fas fa-circle-info"></i>',
-    confirmLabel: 'Ho capito',
-  });
-});
-
 document.getElementById('logout-btn').addEventListener('click', () => {
   showModal({
     title: 'Esci dal pannello',
     message: 'Vuoi davvero effettuare il logout?',
-    icon: '<i class="fas fa-right-from-bracket"></i>',
+    icon: 'logout',
     confirmLabel: 'Esci',
     onConfirm: () => logout(true),
   });
@@ -336,15 +327,9 @@ function showView(viewName) {
     target.classList.add('active');
   }
 
-  // Gestione visibilità Sidebar Globale
-  const sidebar = document.getElementById('main-sidebar');
-  if (sidebar) {
-    if (viewName === 'dashboard' || viewName === 'editor') {
-      sidebar.classList.add('show');
-    } else {
-      sidebar.classList.remove('show');
-    }
-  }
+  // Ogni vista parte dall'alto: senza, aprire l'editor da metà dashboard
+  // lo mostrerebbe già scorso.
+  window.scrollTo(0, 0);
 
   // Aggiorna navbar se autenticato
   if (viewName !== 'login' && state.user) {
@@ -353,10 +338,8 @@ function showView(viewName) {
 }
 
 function updateNavbar() {
-  const avatarEl   = document.getElementById('navbar-avatar');
   const usernameEl = document.getElementById('navbar-username');
   if (state.user) {
-    avatarEl.textContent   = state.user.username.charAt(0).toUpperCase();
     usernameEl.textContent = state.user.username;
   }
 }
@@ -388,8 +371,11 @@ async function loadDashboard() {
 }
 
 /* ── Slot counter ── */
+const MAX_PERSONAL_QUIZZES = 3;
+
 function updateSlotCounter(used) {
-  slotLabel.textContent = `${used} / 3 quiz`;
+  slotLabel.textContent = `${used} di ${MAX_PERSONAL_QUIZZES}`;
+  slotLabel.classList.toggle('at-limit', used >= MAX_PERSONAL_QUIZZES);
 }
 
 /* ── Sezione quiz personali ── */
@@ -398,38 +384,29 @@ function renderPersonalSection() {
   updateSlotCounter(count);
   personalGrid.innerHTML = '';
 
-  // Card "Crea nuovo"
-  const newCard = document.createElement('div');
-  const atLimit = count >= 3;
-  newCard.className = 'quiz-card-new';
-  if (atLimit) newCard.setAttribute('disabled', '');
-  newCard.setAttribute('role', 'button');
-  newCard.setAttribute('tabindex', atLimit ? '-1' : '0');
-  newCard.setAttribute('aria-label', atLimit ? 'Limite quiz raggiunto (3/3)' : 'Crea nuovo quiz');
-  newCard.setAttribute('title', atLimit ? 'Hai raggiunto il limite di 3 quiz personali' : 'Crea un nuovo quiz');
-  newCard.innerHTML = `
-    <span class="new-icon" aria-hidden="true">${atLimit ? '<i class="fas fa-lock"></i>' : '<i class="fas fa-plus"></i>'}</span>
-    <span class="new-label">${atLimit ? 'Limite raggiunto' : 'Crea nuovo quiz'}</span>
-  `;
-  if (!atLimit) {
-    newCard.addEventListener('click', () => openEditor(null));
-    newCard.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') openEditor(null); });
-  }
-  personalGrid.appendChild(newCard);
-
-  if (state.quizzes.length === 0) {
-    // Messaggio vuoto (dopo la card new)
-    const empty = document.createElement('div');
-    empty.style.cssText = 'display:flex;align-items:center;color:var(--text-muted);font-size:0.875rem;padding: 1rem 0;';
-    empty.textContent = 'Nessun quiz personale creato ancora.';
-    personalGrid.appendChild(empty);
-    return;
-  }
-
-  state.quizzes.forEach((quiz, i) => {
-    const card = buildQuizCard(quiz, 'personal', i);
-    personalGrid.appendChild(card);
+  state.quizzes.forEach((quiz) => {
+    personalGrid.appendChild(buildQuizCard(quiz, 'personal'));
   });
+
+  // Tessera "Crea nuovo" in fondo alla griglia: dopo i quiz che esistono,
+  // non davanti. A limite raggiunto resta visibile e spiega perché è ferma,
+  // invece di sparire lasciando l'host a chiedersi dove sia finita.
+  const atLimit = count >= MAX_PERSONAL_QUIZZES;
+  const newTile = document.createElement('button');
+  newTile.type = 'button';
+  newTile.className = 'add-tile';
+  newTile.disabled = atLimit;
+  const label = atLimit ? 'Hai già 3 quiz' : (count === 0 ? 'Crea il tuo primo quiz' : 'Crea nuovo quiz');
+  const note  = atLimit ? 'Eliminane uno per crearne un altro' : '';
+  newTile.innerHTML = `
+    ${icon(atLimit ? 'lock' : 'add')}
+    <span class="add-tile-text">
+      <span>${label}</span>
+      ${note ? `<span class="add-tile-note">${note}</span>` : ''}
+    </span>
+  `;
+  if (!atLimit) newTile.addEventListener('click', () => openEditor(null));
+  personalGrid.appendChild(newTile);
 }
 
 /* ── Sezione quiz precaricati ── */
@@ -440,68 +417,64 @@ function renderPreloadedSection() {
     const empty = document.createElement('div');
     empty.className = 'empty-state';
     empty.innerHTML = `
-      <span class="empty-icon" aria-hidden="true"><i class="fas fa-box-open"></i></span>
-      <p>Nessun quiz di sistema trovato.<br>Aggiungi un file in <code>content/quizzes/</code> e riavvia il server.</p>
+      ${icon('inventory_2')}
+      <p>Nessun quiz pronto trovato.<br>Aggiungi un file in <code>content/quizzes/</code> e riavvia il server.</p>
     `;
     preloadedGrid.appendChild(empty);
     return;
   }
 
-  state.preloaded.forEach((quiz, i) => {
-    const card = buildQuizCard(quiz, 'preloaded', i);
-    preloadedGrid.appendChild(card);
+  state.preloaded.forEach((quiz) => {
+    preloadedGrid.appendChild(buildQuizCard(quiz, 'preloaded'));
   });
 }
 
 /**
  * Costruisce una quiz card DOM.
+ *
+ * Una sola azione principale per scheda — "Avvia partita", larga quanto la
+ * scheda — perché è quella per cui l'host apre il pannello. Modifica ed
+ * Elimina sono secondarie e restano più piccole, sotto.
+ *
  * @param {object} quiz
  * @param {'personal'|'preloaded'} type
- * @param {number} animIndex
  */
-function buildQuizCard(quiz, type, animIndex) {
+function buildQuizCard(quiz, type) {
   const isPersonal   = type === 'personal';
   const questionCount = Array.isArray(quiz.questions) ? quiz.questions.length : 0;
 
   const card = document.createElement('article');
-  card.className = 'quiz-card';
-  card.style.animationDelay = `${animIndex * 60}ms`;
+  card.className = `quiz-card ${isPersonal ? 'is-personal' : 'is-system'}`;
   card.setAttribute('aria-label', `Quiz: ${quiz.title}`);
 
-  const accentClass = isPersonal ? '' : 'preloaded';
-  const badgeHtml   = isPersonal
-    ? `<span class="badge badge-violet">Personale</span>`
-    : `<span class="badge badge-cyan">${escapeHtml(quiz.category ?? 'Sistema')}</span>`;
+  const tagHtml = !isPersonal && quiz.category
+    ? `<span class="quiz-card-tag">${escapeHtml(quiz.category)}</span>`
+    : '';
 
-  const actionsHtml = isPersonal ? `
-    <button class="btn btn-secondary btn-sm" data-action="edit" data-id="${quiz.id}" title="Modifica quiz">
-      <i class="fas fa-pen-to-square"></i> Modifica
-    </button>
-    <button class="btn btn-accent btn-sm" data-action="play" data-type="personal" data-id="${quiz.id}" title="Avvia partita">
-      <i class="fas fa-play"></i> Avvia
-    </button>
-    <button class="btn btn-danger btn-sm btn-icon" data-action="delete" data-id="${quiz.id}" title="Elimina quiz" aria-label="Elimina quiz ${escapeHtml(quiz.title)}">
-      <i class="fas fa-trash-can"></i>
-    </button>
-  ` : `
-    <button class="btn btn-accent btn-sm" style="width:100%;" data-action="play" data-type="preloaded" data-id="${quiz.id}" title="Avvia partita">
-      <i class="fas fa-play"></i> Avvia
-    </button>
-  `;
+  const toolsHtml = isPersonal ? `
+    <div class="quiz-card-tools">
+      <button class="btn-text" data-action="edit" data-id="${quiz.id}">
+        ${icon('edit')} Modifica
+      </button>
+      <button class="btn-text is-danger" data-action="delete" data-id="${quiz.id}" aria-label="Elimina quiz ${escapeHtml(quiz.title)}">
+        ${icon('delete')} Elimina
+      </button>
+    </div>
+  ` : '';
 
   card.innerHTML = `
-    <div class="quiz-card-accent ${accentClass}"></div>
     <div class="quiz-card-body">
-      <div class="quiz-card-header">
-        <h3 class="quiz-card-title">${escapeHtml(quiz.title)}</h3>
-        ${badgeHtml}
-      </div>
-      <div class="quiz-card-meta">
-        <span title="Numero di domande"><i class="fas fa-circle-question"></i> ${questionCount} domand${questionCount === 1 ? 'a' : 'e'}</span>
-      </div>
-      <div class="quiz-card-actions">
-        ${actionsHtml}
-      </div>
+      <h3 class="quiz-card-title">${escapeHtml(quiz.title)}</h3>
+      <p class="quiz-card-meta">
+        <span>${icon('help')} ${questionCount} domand${questionCount === 1 ? 'a' : 'e'}</span>
+        ${tagHtml}
+      </p>
+    </div>
+    <div class="quiz-card-actions">
+      <button class="btn btn-primary btn-block" data-action="play" data-type="${type}" data-id="${quiz.id}">
+        ${icon('play_arrow')} Avvia partita
+      </button>
+      ${toolsHtml}
     </div>
   `;
 
@@ -535,7 +508,7 @@ function confirmDeleteQuiz(quiz) {
   showModal({
     title: 'Elimina quiz',
     message: `Vuoi davvero eliminare "${quiz.title}"? Questa azione è irreversibile.`,
-    icon: '<i class="fas fa-trash-can"></i>',
+    icon: 'delete',
     confirmLabel: 'Elimina',
     onConfirm: async () => {
       try {
@@ -612,14 +585,14 @@ async function openEditor(quizId) {
           state.questions[slot.afterQuestionIndex]._minigameAfter = slot.type;
         }
       }
-      editorTitle.textContent = 'Modifica Quiz';
+      editorTitle.textContent = 'Modifica quiz';
     } catch {
       showToast('Errore di rete. Riprova.', 'error');
       return;
     }
   } else {
     quizTitleInput.value    = '';
-    editorTitle.textContent = 'Nuovo Quiz';
+    editorTitle.textContent = 'Nuovo quiz';
     // Aggiungi una domanda vuota di default
     state.questions = [createEmptyQuestion()];
   }
@@ -719,7 +692,7 @@ function buildQuestionItem(q, idx) {
         <input
           type="text"
           class="form-input"
-          placeholder="Opzione ${letter}..."
+          placeholder="Risposta ${letter}"
           value="${escapeHtml(q.options[oIdx] ?? '')}"
           data-role="option-text"
           data-q="${idx}"
@@ -742,7 +715,7 @@ function buildQuestionItem(q, idx) {
 
   // Time options
   const timeOpts = TIME_OPTIONS.map((t) =>
-    `<option value="${t}" ${q.time_limit_s === t ? 'selected' : ''}>${t}s</option>`
+    `<option value="${t}" ${q.time_limit_s === t ? 'selected' : ''}>${t} secondi</option>`
   ).join('');
 
   // Blocco immagine: bottone se non c'è, pannello con anteprima se c'è.
@@ -760,22 +733,22 @@ function buildQuestionItem(q, idx) {
             <span>Sfoca immagine</span>
           </label>
           ${weight ? `<span class="q-image-weight">${weight} KB</span>` : ''}
-          <button type="button" class="btn btn-danger btn-sm" data-role="image-remove" data-q="${idx}" title="Rimuovi l'immagine da questa domanda">
-            <i class="fas fa-trash"></i> Rimuovi
+          <button type="button" class="btn-text is-danger" data-role="image-remove" data-q="${idx}" title="Rimuovi l'immagine da questa domanda">
+            ${icon('delete')} Rimuovi
           </button>
         </div>
       </div>`
     : `
       <button type="button" class="btn btn-secondary btn-sm q-image-add" data-role="image-add" data-q="${idx}">
-        <i class="fas fa-image"></i> Aggiungi immagine
+        ${icon('add_photo_alternate')} Aggiungi immagine
       </button>`;
 
   item.innerHTML = `
     <div class="question-item-header" data-role="drag-handle">
-      <span class="drag-handle" aria-hidden="true"><i class="fas fa-grip-vertical"></i></span>
+      <span class="drag-handle" aria-hidden="true" title="Trascina per spostare">${icon('drag_indicator')}</span>
       <span class="question-number">Domanda ${idx + 1}</span>
-      <button class="btn btn-danger btn-sm btn-icon" data-role="remove-q" data-q="${idx}" aria-label="Rimuovi domanda ${idx + 1}" title="Rimuovi questa domanda">
-        <i class="fas fa-xmark"></i>
+      <button class="btn btn-danger-ghost btn-sm btn-icon" data-role="remove-q" data-q="${idx}" aria-label="Rimuovi domanda ${idx + 1}" title="Rimuovi questa domanda">
+        ${icon('delete')}
       </button>
     </div>
     <div class="question-item-body">
@@ -788,35 +761,36 @@ function buildQuestionItem(q, idx) {
           data-role="q-text"
           data-q="${idx}"
           rows="2"
-          aria-label="Testo domanda ${idx + 1}"
         >${escapeHtml(q.text)}</textarea>
       </div>
       ${imageHtml}
-      <div class="form-group">
-        <label class="form-label">Opzioni di risposta <span class="form-hint">(clicca il cerchio per segnare la risposta corretta)</span></label>
+      <div role="radiogroup" aria-labelledby="q-options-label-${idx}">
+        <p class="form-label" id="q-options-label-${idx}">Risposte
+          <span class="form-hint">Tocca il cerchio accanto a quella giusta</span>
+        </p>
         <div class="options-grid">
           ${optionsHtml}
         </div>
       </div>
-      <div class="time-row">
-        <label for="q-time-${idx}" class="form-label">⏱ Tempo limite:</label>
-        <select
-          id="q-time-${idx}"
-          class="form-select time-select"
-          data-role="q-time"
-          data-q="${idx}"
-          aria-label="Tempo limite domanda ${idx + 1}"
-        >${timeOpts}</select>
-      </div>
-      <div class="minigame-toggle-row${q._minigameAfter ? ' is-active' : ''}">
-        <span class="material-symbols-outlined" aria-hidden="true">casino</span>
-        <label for="q-minigame-${idx}">Minigioco dopo questa domanda:</label>
-        <select
-          id="q-minigame-${idx}"
-          class="form-select"
-          data-role="q-minigame-after"
-          data-q="${idx}"
-        >${minigameOptionsHtml(q._minigameAfter)}</select>
+      <div class="question-settings">
+        <div class="setting-field">
+          <label for="q-time-${idx}">${icon('timer')} Tempo per rispondere</label>
+          <select
+            id="q-time-${idx}"
+            class="form-select time-select"
+            data-role="q-time"
+            data-q="${idx}"
+          >${timeOpts}</select>
+        </div>
+        <div class="setting-field minigame-toggle-row${q._minigameAfter ? ' is-active' : ''}">
+          <label for="q-minigame-${idx}">${icon('casino')} Minigioco subito dopo</label>
+          <select
+            id="q-minigame-${idx}"
+            class="form-select"
+            data-role="q-minigame-after"
+            data-q="${idx}"
+          >${minigameOptionsHtml(q._minigameAfter)}</select>
+        </div>
       </div>
     </div>
   `;
@@ -1111,7 +1085,7 @@ imageFileInput.addEventListener('change', async () => {
   const btn = questionsList.querySelector(`[data-role="image-add"][data-q="${idx}"]`);
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Elaborazione…';
+    btn.innerHTML = '<span class="spinner" aria-hidden="true"></span> Elaborazione…';
   }
 
   try {
@@ -1162,7 +1136,7 @@ imageFileInput.addEventListener('change', async () => {
 /* ── Salva quiz ── */
 function setSaveLoading(loading) {
   editorSaveBtn.disabled = loading;
-  editorSaveText.textContent = loading ? 'Salvataggio...' : 'Salva Bozza';
+  editorSaveText.textContent = loading ? 'Salvataggio…' : 'Salva';
   editorSaveSpinner.classList.toggle('hidden', !loading);
 }
 
@@ -1237,7 +1211,7 @@ function goBackToDashboard() {
     showModal({
       title: 'Modifiche non salvate',
       message: 'Hai modifiche non salvate su questo quiz. Vuoi uscire senza salvare?',
-      icon: '<i class="fas fa-triangle-exclamation"></i>',
+      icon: 'warning',
       confirmLabel: 'Esci senza salvare',
       onConfirm: () => showView('dashboard'),
     });
@@ -1278,6 +1252,13 @@ const gameStartBtn    = document.getElementById('game-start-btn');
 const gameNextBtn     = document.getElementById('game-next-btn');
 const gameMinigameBtn = document.getElementById('game-minigame-btn');
 const gameRestartBtn  = document.getElementById('game-restart-btn');
+
+const viewGame        = document.getElementById('view-game');
+const gameNextLabel   = document.getElementById('game-next-label');
+const gameProgressBar = document.getElementById('game-progress-bar');
+const gameAnswerBar   = document.getElementById('game-answer-bar');
+const gameDock        = document.querySelector('.game-dock');
+const gameBar         = document.querySelector('.game-bar');
 
 let gameSocket = null;
 let gameCountdownInterval = null;
@@ -1331,11 +1312,30 @@ async function loadJoinInfo() {
   }
 }
 
+/**
+ * Fase della schermata di partita, letta dal CSS (`data-phase`) per decidere
+ * quali comandi mostrare: un bottone che ora non si può premere non c'è,
+ * invece di restare lì spento a confondere.
+ */
+const GAME_PHASE_OF_BOX = new Map([
+  [gameLobbyBox,    'lobby'],
+  [gameQuestionBox, 'question'],
+  [gameResultsBox,  'results'],
+  [gameFinalBox,    'final'],
+]);
+
 /** Mostra un solo box dell'area live alla volta. */
 function showGameBox(box) {
   for (const el of [gameLobbyBox, gameQuestionBox, gameResultsBox, gameFinalBox]) {
     el.hidden = el !== box;
   }
+  viewGame.dataset.phase = GAME_PHASE_OF_BOX.get(box) ?? 'lobby';
+}
+
+/** Barra di avanzamento sotto la testata: round corrente sul totale. */
+function setGameProgress(done, total) {
+  const pct = total > 0 ? Math.min(100, (done / total) * 100) : 0;
+  gameProgressBar.style.width = `${pct}%`;
 }
 
 function stopGameCountdown() {
@@ -1344,6 +1344,7 @@ function stopGameCountdown() {
     gameCountdownInterval = null;
   }
   gameTimerBadge.textContent = '00:00';
+  gameTimerBadge.classList.remove('is-urgent');
 }
 
 function startGameCountdown(endsAt, serverNow) {
@@ -1354,6 +1355,7 @@ function startGameCountdown(endsAt, serverNow) {
     const m = String(Math.floor(remaining / 60)).padStart(2, '0');
     const s = String(remaining % 60).padStart(2, '0');
     gameTimerBadge.textContent = `${m}:${s}`;
+    gameTimerBadge.classList.toggle('is-urgent', remaining > 0 && remaining <= 5);
     if (remaining === 0) stopGameCountdown();
   };
   tick();
@@ -1372,9 +1374,17 @@ function openGame(quiz, type) {
 
   gameQuizTitle.textContent     = quiz.title;
   gameQuestionCount.textContent = `${count} domand${count === 1 ? 'a' : 'e'}`;
-  gameTypeBadge.innerHTML = type === 'preloaded'
-    ? `<span aria-hidden="true"><i class="fas fa-star"></i></span> <span>Sistema${quiz.category ? ` · ${escapeHtml(quiz.category)}` : ''}</span>`
-    : `<span aria-hidden="true"><i class="fas fa-wand-magic-sparkles"></i></span> <span>Personale</span>`;
+  gameTypeBadge.textContent = type === 'preloaded'
+    ? (quiz.category ?? 'Quiz pronto')
+    : 'Quiz personale';
+
+  // Stato iniziale della schermata: nessuna fase a schermo finché il server
+  // non conferma la lobby, ma i comandi sono già quelli della lobby.
+  for (const el of [gameLobbyBox, gameQuestionBox, gameResultsBox, gameFinalBox]) el.hidden = true;
+  viewGame.dataset.phase = 'lobby';
+  gameStatusText.textContent = 'Connessione al server di gioco…';
+  gameStartBtn.disabled = true;
+  setGameProgress(0, 0);
 
   loadJoinInfo();
   connectGameSocket(quiz, type);
@@ -1441,6 +1451,8 @@ function connectGameSocket(quiz, type) {
       gameOptionsList.appendChild(li);
     });
     gameAnswerCount.textContent = 'Risposte: 0 / ?';
+    gameAnswerBar.style.width = '0%';
+    setGameProgress(q.index + 1, q.total);
     startGameCountdown(q.endsAt, q.serverNow);
     showGameBox(gameQuestionBox);
     gameStartBtn.disabled = true;
@@ -1451,6 +1463,7 @@ function connectGameSocket(quiz, type) {
 
   gameSocket.on('game:answer-count', ({ answered, total }) => {
     gameAnswerCount.textContent = `Risposte: ${answered} / ${total}`;
+    gameAnswerBar.style.width = `${total > 0 ? Math.min(100, (answered / total) * 100) : 0}%`;
   });
 
   gameSocket.on('game:results', (results) => {
@@ -1484,12 +1497,19 @@ function connectGameSocket(quiz, type) {
       const label = document.createElement('span');
       label.className = 'game-dist-label';
       const optionLabel = currentQuestionOptions[i] ?? `Opzione ${i + 1}`;
+      // Stesso segno della domanda (lettera colorata, o icona del minigioco):
+      // la riga si riconosce a colpo d'occhio senza rileggere il testo.
+      const chip = document.createElement('span');
+      chip.className = 'game-option-letter';
       const distIcon = currentMinigame?.optionIcon(i);
       if (distIcon) {
-        label.append(distIcon, document.createTextNode(` ${optionLabel}`));
+        chip.appendChild(distIcon);
       } else {
-        label.textContent = optionLabel;
+        chip.textContent = OPTION_LABELS[i] ?? String(i + 1);
       }
+      const text = document.createElement('span');
+      text.textContent = optionLabel;
+      label.append(chip, text);
       const track = document.createElement('div');
       track.className = 'game-dist-track';
       const bar = document.createElement('div');
@@ -1498,17 +1518,20 @@ function connectGameSocket(quiz, type) {
       track.appendChild(bar);
       const count = document.createElement('span');
       count.className = 'game-dist-count';
-      count.textContent = i === machineIndex ? `✔ ${n}` : String(n);
+      if (i === machineIndex) count.innerHTML = icon('check');
+      count.append(String(n));
       li.append(label, track, count);
       gameDistribution.appendChild(li);
     });
 
     gamePartialLeaderboard.innerHTML = '';
-    for (const p of results.leaderboard.slice(0, 5)) {
-      const li = document.createElement('li');
-      li.textContent = `${gameAvatarOf(p.avatar)} ${p.nickname} — ${p.score}`;
-      gamePartialLeaderboard.appendChild(li);
-    }
+    results.leaderboard.slice(0, 5).forEach((p, i) => {
+      gamePartialLeaderboard.appendChild(buildLeaderboardRow(p, p.rank ?? i + 1));
+    });
+
+    // All'ultimo round "avanti" non porta a una domanda ma alla premiazione:
+    // il bottone lo dice, così l'host sa cosa sta per comparire in sala.
+    gameNextLabel.textContent = results.isLastRound ? 'Classifica finale' : 'Prossima domanda';
 
     showGameBox(gameResultsBox);
     gameNextBtn.disabled = false;
@@ -1519,14 +1542,14 @@ function connectGameSocket(quiz, type) {
     stopGameCountdown();
     stopMinigameSuspense();
     gameStatusText.textContent = 'Partita conclusa!';
+    setGameProgress(1, 1);
     gameFinalPodium.innerHTML = '';
-    const MEDALS = ['🥇', '🥈', '🥉'];
     leaderboard.slice(0, 3).forEach((p, i) => {
       const step = document.createElement('div');
       step.className = `game-podium-step rank-${i + 1}`;
       const medal = document.createElement('span');
-      medal.className = 'medal';
-      medal.textContent = MEDALS[i];
+      medal.className = 'podium-rank';
+      medal.textContent = String(i + 1);
       const av = document.createElement('span');
       av.className = 'avatar';
       av.textContent = gameAvatarOf(p.avatar);
@@ -1541,11 +1564,9 @@ function connectGameSocket(quiz, type) {
     });
 
     gameFinalLeaderboard.innerHTML = '';
-    for (const p of leaderboard.slice(3)) {
-      const li = document.createElement('li');
-      li.textContent = `${p.rank}. ${gameAvatarOf(p.avatar)} ${p.nickname} — ${p.score} punti`;
-      gameFinalLeaderboard.appendChild(li);
-    }
+    leaderboard.slice(3).forEach((p, i) => {
+      gameFinalLeaderboard.appendChild(buildLeaderboardRow(p, p.rank ?? i + 4));
+    });
     showGameBox(gameFinalBox);
     gameNextBtn.disabled = true;
     gameMinigameBtn.disabled = true;
@@ -1573,9 +1594,8 @@ function disconnectGameSocket() {
 // giocatori finti. Serve a provare una partita — e soprattutto la premiazione,
 // che con tre persone non si vede davvero — senza radunare venti amici.
 //
-// Il logo è QUESTO e non quello della sidebar: la sidebar sparisce appena una
-// partita esiste, e finché non esiste non c'è nessuna lobby da riempire. Il
-// gesto stava quindi in un punto dove non poteva mai funzionare. Il logo della
+// Il logo è QUESTO e non quello della barra della dashboard: finché una
+// partita non esiste non c'è nessuna lobby da riempire. Il logo della
 // schermata di partita invece è a schermo esattamente quando serve.
 //
 // Nascosto e non un bottone perché non è una funzione del prodotto: è un
@@ -1613,6 +1633,25 @@ function spawnTestPlayers() {
     }
     showToast(`${res.added} giocatori di prova aggiunti — ${res.total} in lobby.`, 'success');
   });
+}
+
+/** Riga di classifica: posizione, avatar, nome, punti. */
+function buildLeaderboardRow(p, rank) {
+  const li = document.createElement('li');
+  li.className = 'lb-row';
+  const cells = [
+    ['lb-rank',   `${rank}.`],
+    ['lb-avatar', gameAvatarOf(p.avatar)],
+    ['lb-name',   p.nickname],
+    ['lb-score',  `${p.score}`],
+  ];
+  for (const [cls, text] of cells) {
+    const span = document.createElement('span');
+    span.className = cls;
+    span.textContent = text;
+    li.appendChild(span);
+  }
+  return li;
 }
 
 function renderGameLobby(players) {
@@ -1672,6 +1711,7 @@ gameRestartBtn.addEventListener('click', () => {
   gameSocket?.emit('host:restart-game', null, (res) => {
     if (!res.ok) { showToast(res.error, 'error'); return; }
     gameStatusText.textContent = 'Partita riavviata: giocatori di nuovo in lobby.';
+    setGameProgress(0, 0);
     showGameBox(gameLobbyBox);
     gameStartBtn.disabled = false;
     gameRestartBtn.disabled = true;
@@ -1681,8 +1721,8 @@ gameRestartBtn.addEventListener('click', () => {
 document.getElementById('game-back-btn-2').addEventListener('click', () => {
   showModal({
     title: 'Termina partita',
-    message: 'Vuoi davvero terminare la partita e tornare alla dashboard? I giocatori collegati verranno disconnessi.',
-    icon: '<i class="fas fa-triangle-exclamation"></i>',
+    message: 'Vuoi davvero terminare la partita e tornare ai quiz? I giocatori collegati verranno disconnessi.',
+    icon: 'stop_circle',
     confirmLabel: 'Termina partita',
     onConfirm: () => {
       gameSocket?.emit('host:end-game', null, () => {});
@@ -1707,72 +1747,27 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+/**
+ * Icona Material Symbols (unico sistema di icone del pannello).
+ * @param {string} name nome dell'icona, es. 'play_arrow'
+ */
+function icon(name) {
+  return `<span class="material-symbols-outlined" aria-hidden="true">${name}</span>`;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
-   SIDEBAR TOGGLE LOGIC
+   MISURE DELLA SCHERMATA DI PARTITA
+   Sul telefono il pannello comandi è fisso in basso e la sua altezza cambia
+   con la fase (un bottone, due, il contatore risposte): la scena deve
+   lasciargli sotto esattamente quello spazio, né di più né di meno.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const sidebarToggleBtn   = document.getElementById('sidebar-toggle-btn');
-const sidebarToggleArrow = document.getElementById('sidebar-toggle-arrow');
-const editorMenuBtn      = document.getElementById('editor-menu-btn');
-const mainSidebar        = document.getElementById('main-sidebar');
-const sidebarBackdrop    = document.getElementById('sidebar-backdrop');
-
-function openMobileSidebar() {
-  if (mainSidebar)     mainSidebar.classList.add('open');
-  if (sidebarBackdrop) sidebarBackdrop.classList.add('active');
-  document.body.style.overflow = 'hidden';
+if ('ResizeObserver' in window) {
+  new ResizeObserver(() => {
+    viewGame.style.setProperty('--dock-h', `${gameDock.offsetHeight}px`);
+    viewGame.style.setProperty('--game-bar-h', `${gameBar.offsetHeight}px`);
+  }).observe(gameDock);
 }
-
-function closeMobileSidebar() {
-  if (mainSidebar)     mainSidebar.classList.remove('open');
-  if (sidebarBackdrop) sidebarBackdrop.classList.remove('active');
-  document.body.style.overflow = '';
-}
-
-// Hamburger btn (topbar) — mobile slide / desktop collapse
-if (sidebarToggleBtn) {
-  sidebarToggleBtn.addEventListener('click', () => {
-    if (window.innerWidth < 769) {
-      if (mainSidebar && mainSidebar.classList.contains('open')) {
-        closeMobileSidebar();
-      } else {
-        openMobileSidebar();
-      }
-    } else {
-      document.body.classList.toggle('sidebar-collapsed');
-    }
-  });
-}
-
-// Hamburger nell'editor — visibile solo su mobile, apre la sidebar off-canvas
-if (editorMenuBtn) {
-  editorMenuBtn.addEventListener('click', openMobileSidebar);
-}
-
-// Freccia dentro la sidebar: mobile chiude, desktop collassa
-if (sidebarToggleArrow) {
-  sidebarToggleArrow.addEventListener('click', () => {
-    if (window.innerWidth < 769) {
-      closeMobileSidebar();
-    } else {
-      document.body.classList.toggle('sidebar-collapsed');
-      const isCollapsed = document.body.classList.contains('sidebar-collapsed');
-      sidebarToggleArrow.setAttribute('aria-label', isCollapsed ? 'Espandi menu' : 'Comprimi menu');
-    }
-  });
-}
-
-// Chiudi mobile sidebar cliccando sul backdrop
-if (sidebarBackdrop) {
-  sidebarBackdrop.addEventListener('click', closeMobileSidebar);
-}
-
-// Chiudi sidebar su mobile cambiando view
-window.addEventListener('resize', () => {
-  if (window.innerWidth >= 769) {
-    closeMobileSidebar();
-  }
-});
 
 /* ═══════════════════════════════════════════════════════════════════════════
    10. INIT

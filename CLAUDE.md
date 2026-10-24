@@ -10,7 +10,7 @@ Il progetto è sviluppato con un approccio **Game-First**: tutto il gioco viene 
 
 ## Design Context
 
-Registro: **product**. Contesto strategico completo in [PRODUCT.md](PRODUCT.md), sistema visivo ("Retro Street", neo-brutalismo da sala giochi: bordi 4px, ombre offset dure senza blur, badge sticker ruotati, palette calda satura, Quicksand bold 700-900) in [DESIGN.md](DESIGN.md). **Leggerli prima di qualunque lavoro su `client/host/`, `client/sala/` o `client/player/`.**
+Registro: **product**. Contesto strategico completo in [PRODUCT.md](PRODUCT.md), sistema visivo ("Retro Street", neo-brutalismo da sala giochi: bordi 4px, ombre offset dure senza blur, badge sticker ruotati, palette calda satura, Quicksand bold 700-900) in [DESIGN.md](DESIGN.md). Il pannello admin tiene la stessa forma ma prende i colori dal logo (giallo, indaco elettrico, inchiostro): regole proprie in DESIGN.md §7. **Leggerli prima di qualunque lavoro su `client/host/`, `client/sala/` o `client/player/`.**
 
 ## Commands
 
@@ -58,7 +58,7 @@ Gli account host **non** si creano via API pubblica: `server/routes/host.js` esp
 
 ### Giocatori di prova (gesto nascosto)
 
-Dieci clic ravvicinati sul logo in cima alla **schermata di partita** del pannello host riempiono la lobby di giocatori finti (default 19). Non quello della sidebar: la sidebar sparisce appena una partita esiste, e finché non esiste non c'è nessuna lobby da riempire — lì il gesto non poteva funzionare in nessun momento. Serve a provare una partita da soli — soprattutto la **premiazione finale**, che con tre persone non si vede: la coda in ritardando, il tetto sulla sua durata e il podio hanno senso solo con una sala piena.
+Dieci clic ravvicinati sul logo in cima alla **schermata di partita** del pannello host riempiono la lobby di giocatori finti (default 19). Non quello della barra della dashboard: finché una partita non esiste non c'è nessuna lobby da riempire — lì il gesto non potrebbe funzionare in nessun momento. Serve a provare una partita da soli — soprattutto la **premiazione finale**, che con tre persone non si vede: la coda in ritardando, il tetto sulla sua durata e il podio hanno senso solo con una sala piena.
 
 `server/test-bots.js` è il modulo puro (nomi, avatar, "scegli un'opzione a caso"); il cablaggio sta in `game-socket.js`, dove vivono già i timer veri: l'evento host-only `host:spawn-bots` e, dentro `emitQuestion`, un `setTimeout` per bot che risponde a un istante casuale del round. Tre vincoli deliberati:
 

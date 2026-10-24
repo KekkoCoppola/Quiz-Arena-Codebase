@@ -16,6 +16,24 @@ colors:
   outline-soft: "#7c785f"
   error-red: "#ba1a1a"
   success-green: "#2e7d32"
+  # Pannello admin (client/host): palette presa dal logo, vedi §7
+  logo-yellow: "#ffe500"
+  electric-indigo: "#443be0"
+  indigo-deep: "#2d25a8"
+  indigo-soft: "#e4e2fc"
+  logo-ink: "#1c1c26"
+  logo-ink-2: "#4a4960"
+  logo-ink-3: "#6b6a80"
+  logo-amber: "#c6853a"
+  admin-paper: "#f4f3fb"
+  admin-paper-dot: "#d9d6f2"
+  admin-surface-2: "#ecebf8"
+  admin-red: "#d32f2f"
+  admin-red-ink: "#a3191b"
+  admin-red-soft: "#fde4e2"
+  admin-green: "#1e8e4e"
+  admin-green-ink: "#0c5a2f"
+  admin-green-soft: "#dcf5e6"
 typography:
   display:
     fontFamily: "Quicksand, system-ui, sans-serif"
@@ -44,11 +62,48 @@ typography:
     fontWeight: 700
     lineHeight: "24px"
     letterSpacing: "0.03em"
+  # Scala del pannello admin (denso, a mezzo metro dagli occhi)
+  admin-caption:
+    fontFamily: "Quicksand, system-ui, sans-serif"
+    fontSize: "13px"
+    fontWeight: 700
+  admin-small:
+    fontFamily: "Quicksand, system-ui, sans-serif"
+    fontSize: "15px"
+    fontWeight: 700
+  admin-title:
+    fontFamily: "Quicksand, system-ui, sans-serif"
+    fontSize: "18px"
+    fontWeight: 900
+  # Misure delle icone Material Symbols (non testo)
+  icon-sm:
+    fontFamily: "Material Symbols Outlined"
+    fontSize: "1.125rem"
+  icon-md:
+    fontFamily: "Material Symbols Outlined"
+    fontSize: "1.25rem"
+  icon:
+    fontFamily: "Material Symbols Outlined"
+    fontSize: "1.375rem"
+  icon-lg:
+    fontFamily: "Material Symbols Outlined"
+    fontSize: "1.625rem"
+  icon-xl:
+    fontFamily: "Material Symbols Outlined"
+    fontSize: "1.875rem"
+  icon-2xl:
+    fontFamily: "Material Symbols Outlined"
+    fontSize: "2.25rem"
 rounded:
   base: "16px"
   lg: "32px"
   xl: "48px"
   full: "9999px"
+  # Pannello admin
+  admin-sm: "10px"
+  admin-control: "12px"
+  admin-base: "14px"
+  admin-card: "20px"
 spacing:
   unit: "8px"
   gutter: "16px"
@@ -192,7 +247,7 @@ Il sistema non usa ombre morbide o sfumate: ogni ombra è un **offset piatto e d
 - **Error:** bordo Error Red + micro-animazione shake (0.4s) + anello nel colore error-container. L'errore deve "scuotersi", non solo cambiare colore.
 
 ### Navigation
-- **Sidebar:** superficie Surface Container Low, bordo destro 3px Ink, ombra direzionale Stamp Right. Voci di menu con icona Material Symbols, stato attivo su sfondo pieno, mai su semplice sottolineatura.
+- **Barra in cima, niente sidebar:** il pannello admin non ha più una barra laterale (conteneva solo "Impostazioni", che non portava a nulla, ed "Esci"). Ogni vista ha una barra in alto, fissa, con i soli comandi che le servono: logo ed "Esci" nella dashboard, "Indietro" e "Salva" nell'editor, "Termina" nella conduzione partita. Vedi §7.
 
 ### Game Badge (componente firma)
 Badge a pillola usati nella schermata di conduzione partita ("2 domande", "Personale") — forma piena a pillola (mai clip-path a poligono: tagliava il testo, corretto in questa sessione), leggera rotazione alternata (±2deg) per l'effetto sticker sparpagliato, `flex-wrap` per restare leggibili anche su schermi stretti.
@@ -212,3 +267,16 @@ Badge a pillola usati nella schermata di conduzione partita ("2 domande", "Perso
 - **Don't** usare `border-left`/`border-right` colorato oltre 1px come accento decorativo (side-stripe) su card o alert — pattern da rimuovere ovunque compaia nel codice esistente, non da replicare in nuovi componenti.
 - **Don't** usare ombre sfocate (`blur-radius` > 0) su nessun elemento: ogni ombra di questo sistema è un offset piatto.
 - **Don't** scendere sotto peso 700 per il body text, e non usare grigio chiaro per il testo — il contrasto deve reggere la lettura da lontano durante un evento dal vivo (WCAG AA, ≥4.5:1).
+
+## 7. Superficie admin (pannello host)
+
+Il pannello di chi conduce (`client/host/`) tiene la **forma** di Retro Street — bordi inchiostro, ombre piene senza sfocatura, Quicksand in grassetto, tasti che si abbassano sotto il dito — ma prende i **colori dal logo**: giallo delle lettere (`logo-yellow`), indaco elettrico dell'ombra (`electric-indigo`), contorno blu-nero (`logo-ink`), su un fondo carta appena freddo (`admin-paper`). La terna crema/teal/terracotta non aveva legami con il marchio ed è stata tolta da questa superficie. Sala e player restano per ora sulla palette dei §2.
+
+### Regole della superficie
+- **Un'azione principale per schermata**, gialla. Tutto il resto è secondario (bianco) o di testo.
+- **Niente decorazione**: nessuna rotazione, adesivo, sfondo a doodle o indicatore finto. Chi usa il pannello non è necessariamente pratico di tecnologia: ogni elemento a schermo è un comando o un'informazione.
+- **Comandi per fase**: nella conduzione partita `data-phase` (`lobby|question|results|final`) decide quali bottoni esistono. Un comando che ora non si può usare non viene mostrato spento: non c'è.
+- **Il comando è sempre a schermo**: sul telefono i comandi stanno in un pannello fisso in basso, sotto il pollice; da 1024px (o in orizzontale da 700px) diventano una colonna a destra. Mai dover scorrere per trovare "Avvia" o "Prossima domanda".
+- **I colori delle risposte non seguono la palette admin**: le quattro tinte A/B/C/D (`--opt-1..4`) sono identiche a sala e player, così l'host può dire "la gialla" e intendere ciò che vede la stanza.
+- **Una sola famiglia di icone**: Material Symbols Outlined, vendorizzata. Niente emoji al posto delle icone (gli avatar dei giocatori sono contenuto, non icone).
+- **Mobile-first**: le regole di base sono quelle del telefono, i `min-width` aggiungono spazio. Altezze in `dvh`, margini con `env(safe-area-inset-*)`.

@@ -4,15 +4,14 @@
 <head>
   <link rel="icon" type="image/svg+xml" href="/resources/img/Logo.svg">
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#f4f3fb">
   <meta name="description"
     content="Quiz-Zata! — Pannello di controllo host per la gestione e conduzione dei quiz multiplayer.">
   <meta name="robots" content="noindex, nofollow">
   <title>Quiz-Zata! Admin</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="/shared/minigames/minigames.css">
-  <!-- Font Awesome Free 6.5.2 vendored (offline-first, licenza MIT/OFL/CC BY 4.0 nel banner del file) -->
-  <script src="vendor/fontawesome-all.min.js"></script>
 </head>
 
 <body>
@@ -27,7 +26,7 @@
   ════════════════════════════════════════════════════════════════════════════ -->
   <div id="modal-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal">
-      <span id="modal-icon" class="modal-icon" aria-hidden="true"><i class="fas fa-triangle-exclamation"></i></span>
+      <span id="modal-icon" class="modal-icon material-symbols-outlined" aria-hidden="true">warning</span>
       <h2 id="modal-title" class="modal-title">Conferma azione</h2>
       <p id="modal-message" class="modal-message">Sei sicuro di voler procedere?</p>
       <div class="modal-actions">
@@ -39,52 +38,21 @@
 
   <!-- ═══════════════════════════════════════════════════════════════════════════
        APP ROOT
+       Nessuna sidebar: le uniche voci erano "Impostazioni" (che non portava a
+       nulla) ed "Esci". Ogni vista ha la propria barra in cima con i soli
+       comandi che le servono.
   ════════════════════════════════════════════════════════════════════════════ -->
   <div id="app">
-    <!-- Sidebar Backdrop (mobile overlay) -->
-    <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
-
-    <!-- ══ Sidebar Globale ══ -->
-    <nav id="main-sidebar" class="sidebar" aria-label="Navigazione principale">
-
-      <!-- Freccia: chiudi (mobile) / comprimi (desktop) — in cima sopra il logo -->
-      <button id="sidebar-toggle-arrow" class="sidebar-toggle-arrow" aria-label="Comprimi menu">
-        <span class="material-symbols-outlined">chevron_left</span>
-      </button>
-
-      <div class="sidebar-logo">
-        <img src="/resources/img/Logo.svg" alt="Quiz-Zata Logo">
-      </div>
-
-      <div class="sidebar-header">
-        <h2>Pannello Admin</h2>
-        <p>Modalità Host</p>
-      </div>
-
-      <div class="sidebar-nav">
-        <a href="#" class="sidebar-link">
-          <span class="material-symbols-outlined">settings</span>
-          <span class="sidebar-link-label">Impostazioni</span>
-        </a>
-      </div>
-
-      <div class="sidebar-footer">
-        <button class="sidebar-logout" id="logout-btn">
-          <span class="material-symbols-outlined">logout</span>
-          <span class="sidebar-logout-label">Esci</span>
-        </button>
-      </div>
-    </nav>
 
     <!-- ─── Vista: LOGIN ──────────────────────────────────────────── -->
-    <section id="view-login" class="view" role="main" aria-label="Login">
-      <div class="login-wrapper">
-        <header class="login-header">
-          <div class="login-logo">
-            <img src="/resources/img/Logo.svg" alt="Quiz-Zata! Logo" class="login-logo-img">
+    <section id="view-login" class="view view-login" role="main" aria-label="Login">
+      <div class="login-shell">
+        <header class="login-brand">
+          <img src="/resources/img/Logo.svg" alt="Quiz-Zata!" class="login-logo-img">
+          <div class="login-heading">
+            <h1 class="login-title">Gestionale Admin</h1>
+            <p class="login-subtitle">Inserisci le credenziali amministratore</p>
           </div>
-          <h1 class="login-title">Gestionale Admin</h1>
-          <h2 class="login-subtitle">Inserisci le credenziali amministratore</h2>
         </header>
 
         <div class="card login-card">
@@ -92,7 +60,7 @@
             <div class="form-group">
               <label class="form-label" for="login-username">Username</label>
               <input id="login-username" type="text" class="form-input" placeholder="Il tuo username"
-                autocomplete="username" required>
+                autocomplete="username" autocapitalize="none" spellcheck="false" required>
             </div>
 
             <div class="form-group">
@@ -103,9 +71,9 @@
 
             <div id="login-error" class="login-error" role="alert"></div>
 
-            <button id="login-btn" type="submit" class="btn btn-primary login-btn">
+            <button id="login-btn" type="submit" class="btn btn-primary btn-lg btn-block">
               <span id="login-btn-text">Accedi</span>
-              <span id="login-spinner" class="login-spinner" aria-hidden="true"></span>
+              <span id="login-spinner" class="spinner login-spinner" aria-hidden="true"></span>
             </button>
           </form>
         </div>
@@ -113,266 +81,202 @@
     </section>
 
     <!-- ─── Vista: DASHBOARD ─────────────────────────────────────── -->
-    <section id="view-dashboard" class="view" role="main" aria-label="Dashboard">
-      <div class="dashboard-layout">
-
-        <!-- ══ Main Content ══ -->
-        <div class="dashboard-main">
-
-          <!-- Top App Bar -->
-          <header class="topbar">
-            <div class="topbar-left">
-              <button id="sidebar-toggle-btn" class="topbar-menu-btn" aria-label="Apri menu">
-                <span class="material-symbols-outlined" style="font-size: 1.75rem;">menu</span>
-              </button>
-            </div>
-
-            <div class="topbar-right">
-              <div class="topbar-actions">
-                <button id="help-btn" class="topbar-icon-btn" aria-label="Aiuto">
-                  <span class="material-symbols-outlined">help</span>
-                </button>
-              </div>
-              <div class="navbar-user">
-                <div id="navbar-avatar" class="topbar-avatar" aria-hidden="true">?</div>
-                <span id="navbar-username" class="sr-only">Admin</span>
-              </div>
-            </div>
-          </header>
-
-          <!-- Dashboard Content -->
-          <main class="dashboard-content">
-
-            <!-- Sezione: Quiz personali -->
-            <section class="dashboard-section">
-              <div class="section-header">
-                <div class="section-title">
-                  <div class="section-icon" aria-hidden="true">
-                    <span class="material-symbols-outlined text-sm">stars</span>
-                  </div>
-                  <h2>I miei Quiz</h2>
-                </div>
-                <div class="slot-counter" aria-label="Slot quiz utilizzati" title="Quiz personali creati">
-                  <span id="slot-label" class="slot-label">0 / 3 quiz</span>
-                </div>
-              </div>
-
-              <div id="personal-quiz-grid" class="quiz-grid">
-                <!-- Popolato da JS -->
-              </div>
-            </section>
-
-            <!-- Divisore -->
-            <div class="divider-label">
-              <span>Quiz precaricati</span>
-            </div>
-
-            <!-- Sezione: Quiz precaricati -->
-            <section class="dashboard-section">
-              <div class="section-header">
-                <div class="section-title">
-                  <div class="section-icon system" aria-hidden="true">
-                    <span class="material-symbols-outlined text-sm">auto_awesome</span>
-                  </div>
-                  <h2>Quiz di sistema</h2>
-                </div>
-              </div>
-              <div id="preloaded-quiz-grid" class="quiz-grid">
-                <!-- Popolato da JS -->
-              </div>
-            </section>
-
-          </main>
+    <section id="view-dashboard" class="view" role="main" aria-label="I tuoi quiz">
+      <header class="appbar">
+        <div class="appbar-inner">
+          <div class="appbar-brand">
+            <img src="/resources/img/Logo.svg" alt="Quiz-Zata!" class="appbar-logo">
+            <span class="appbar-brand-text">Pannello host</span>
+          </div>
+          <div class="appbar-actions">
+            <span class="appbar-user" title="Account collegato">
+              <span class="material-symbols-outlined" aria-hidden="true">account_circle</span>
+              <span id="navbar-username">Admin</span>
+            </span>
+            <button id="logout-btn" class="btn btn-secondary btn-sm">
+              <span class="material-symbols-outlined" aria-hidden="true">logout</span>
+              <span>Esci</span>
+            </button>
+          </div>
         </div>
+      </header>
 
-      </div>
+      <main class="page">
+        <h1 class="page-title">Scegli un quiz e avvia la partita</h1>
+
+        <section class="dash-section" aria-labelledby="personal-heading">
+          <div class="section-head">
+            <h2 id="personal-heading">I miei quiz</h2>
+            <span id="slot-label" class="count-pill" title="Quiz personali creati">0 di 3</span>
+          </div>
+          <div id="personal-quiz-grid" class="quiz-grid">
+            <!-- Popolato da JS -->
+          </div>
+        </section>
+
+        <section class="dash-section" aria-labelledby="preloaded-heading">
+          <div class="section-head">
+            <h2 id="preloaded-heading">Quiz pronti</h2>
+          </div>
+          <div id="preloaded-quiz-grid" class="quiz-grid">
+            <!-- Popolato da JS -->
+          </div>
+        </section>
+      </main>
     </section>
 
     <!-- ─── Vista: EDITOR QUIZ ────────────────────────────────────── -->
     <section id="view-editor" class="view" role="main" aria-label="Editor quiz">
-      <div class="editor-layout">
-
-        <!-- Contenuto editor -->
-        <div class="editor-content">
-
-          <!-- Page Header -->
-          <div class="editor-page-header">
-            <div class="editor-page-header-left">
-              <button id="editor-menu-btn" class="topbar-menu-btn editor-menu-btn" aria-label="Apri menu">
-                <span class="material-symbols-outlined" style="font-size: 1.75rem;">menu</span>
-              </button>
-              <h2 id="editor-title" class="editor-page-title">NUOVO QUIZ</h2>
-            </div>
-            <button id="editor-back-btn" class="btn btn-secondary btn-sm editor-back-btn" aria-label="Torna alla Dashboard">
-              <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
-              <span class="editor-back-label">Dashboard</span>
-            </button>
-          </div>
-
-          <!-- Informazioni quiz -->
-          <section class="brutal-card quiz-info-block">
-            <div class="brutal-badge-info">INFO</div>
-            <div class="form-group" style="margin-top: 0.5rem;">
-              <label class="form-label-brutal" for="quiz-title-input">Titolo Quiz</label>
-              <input id="quiz-title-input" type="text" class="brutal-input-lg" placeholder="es. Animali del mondo"
-                maxlength="100">
-            </div>
-          </section>
-
-          <!-- Lista domande -->
-          <div class="questions-block">
-            <div class="questions-header">
-              <div class="questions-header-title">
-                <h3>Domande</h3>
-                <span id="question-count-badge" class="question-count-badge">1 / 20</span>
-              </div>
-              <button id="add-question-btn" class="btn-add-question">
-                <div class="btn-add-icon">
-                  <span class="material-symbols-outlined text-sm font-bold">add</span>
-                </div>
-                <span>Aggiungi Domanda</span>
-              </button>
-            </div>
-
-            <div id="questions-list" aria-label="Lista domande" role="list">
-              <!-- Domande inserite da JS -->
-            </div>
-
-            <div id="questions-empty" class="empty-state hidden">
-              <span class="empty-icon material-symbols-outlined" aria-hidden="true">edit_document</span>
-              <p>Nessuna domanda aggiunta.<br>Clicca "Aggiungi Domanda" per iniziare.</p>
-            </div>
-          </div>
-
-          <!-- Save Action Area -->
-          <div class="editor-save-area">
-            <button id="editor-save-btn" class="btn-save-draft">
-              <span id="editor-save-text">Salva Bozza</span>
-              <span id="editor-save-spinner" class="spinner hidden" aria-hidden="true"></span>
-            </button>
-          </div>
-
+      <header class="appbar">
+        <div class="appbar-inner appbar-inner-narrow">
+          <button id="editor-back-btn" class="btn btn-secondary btn-sm btn-collapse" aria-label="Torna ai quiz">
+            <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+            <span class="btn-label">Indietro</span>
+          </button>
+          <h1 id="editor-title" class="appbar-title">Nuovo quiz</h1>
+          <button id="editor-save-btn" class="btn btn-primary btn-sm">
+            <span class="material-symbols-outlined" aria-hidden="true">check</span>
+            <span id="editor-save-text">Salva</span>
+            <span id="editor-save-spinner" class="spinner hidden" aria-hidden="true"></span>
+          </button>
         </div>
-      </div>
+      </header>
+
+      <main class="page page-narrow">
+        <section class="card editor-title-card">
+          <label class="form-label" for="quiz-title-input">Titolo del quiz</label>
+          <input id="quiz-title-input" type="text" class="form-input form-input-lg"
+            placeholder="es. Animali del mondo" maxlength="100">
+        </section>
+
+        <section class="questions-block" aria-labelledby="questions-heading">
+          <div class="section-head">
+            <h2 id="questions-heading">Domande</h2>
+            <span id="question-count-badge" class="count-pill">1 / 20</span>
+          </div>
+
+          <div id="questions-list" class="questions-list" aria-label="Lista domande" role="list">
+            <!-- Domande inserite da JS -->
+          </div>
+
+          <div id="questions-empty" class="empty-state hidden">
+            <span class="material-symbols-outlined" aria-hidden="true">edit_note</span>
+            <p>Nessuna domanda. Aggiungi la prima qui sotto.</p>
+          </div>
+
+          <button id="add-question-btn" class="add-tile" type="button">
+            <span class="material-symbols-outlined" aria-hidden="true">add</span>
+            <span>Aggiungi domanda</span>
+          </button>
+        </section>
+      </main>
     </section>
 
     <!-- ─── Vista: GAME (Conduzione Partita) ─────────────────────── -->
-    <section id="view-game" class="view" role="main" aria-label="Conduzione partita">
-      <!-- Game Specific Background -->
-      <div class="game-bg-layer">
-        <div class="game-bg-left"></div>
-        <div class="game-bg-right"></div>
-        <div class="game-bg-pattern"></div>
-        <!-- Doodle Stickers Background -->
-        <svg class="game-sticker sticker-1" fill="currentColor" viewBox="0 0 100 100">
-          <path d="M50,10 L90,90 L10,90 Z" stroke="var(--retro-dark)" stroke-linejoin="round" stroke-width="6"></path>
-        </svg>
-        <svg class="game-sticker sticker-2" fill="currentColor" viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r="40" stroke="var(--retro-dark)" stroke-dasharray="10 5" stroke-width="6"></circle>
-        </svg>
-        <svg class="game-sticker sticker-3" fill="none" stroke="var(--retro-dark)" stroke-linecap="round"
-          stroke-width="8" viewBox="0 0 100 100">
-          <path d="M20,20 L80,80 M80,20 L20,80"></path>
-        </svg>
-        <svg class="game-sticker sticker-4" fill="currentColor" viewBox="0 0 100 100">
-          <rect height="60" rx="10" stroke="var(--retro-dark)" stroke-width="6" width="60" x="20" y="20"></rect>
-        </svg>
+    <!-- data-phase (lobby|question|results|final) lo imposta app.js: decide
+         quali comandi compaiono nel pannello. Un bottone che in questa fase
+         non si può premere non viene mostrato, invece di restare lì spento. -->
+    <section id="view-game" class="view view-game" role="main" aria-label="Conduzione partita" data-phase="lobby">
+      <header class="game-bar">
+        <!-- Il logo resta qui: dieci clic ravvicinati aggiungono i giocatori
+             di prova (vedi app.js, "gesto nascosto"). -->
+        <div class="game-logo-wrapper">
+          <img src="/resources/img/Logo.svg" alt="Quiz-Zata!">
+        </div>
+        <div class="game-bar-title">
+          <h1 id="game-quiz-title">Titolo Quiz</h1>
+          <p class="game-bar-meta">
+            <span id="game-question-count">0 domande</span>
+            <span id="game-type-badge">Personale</span>
+          </p>
+        </div>
+        <div id="game-timer-badge" class="game-timer" role="timer" aria-label="Tempo rimasto">00:00</div>
+        <button id="game-back-btn-2" class="btn btn-danger-ghost btn-sm btn-collapse" aria-label="Termina partita">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          <span class="btn-label">Termina</span>
+        </button>
+      </header>
+      <div class="game-progress" aria-hidden="true">
+        <div id="game-progress-bar" class="game-progress-bar"></div>
       </div>
 
-      <div class="game-layout-wrapper">
-        <!-- TOP APP BAR -->
-        <header class="game-top-bar">
-          <div class="game-progress-wrapper">
-            <div aria-label="Quiz Progress" class="game-progress">
-              <div class="dot-small drawn-circle bg-retro-terracotta"
-                style="background-color: var(--retro-terracotta);"></div>
-              <div class="bar bg-retro-terracotta" style="background-color: var(--retro-terracotta);"></div>
-              <div class="dot-large drawn-circle bg-primary-container"
-                style="background-color: var(--primary-container);">
-                <div class="dot-inner"></div>
-              </div>
-              <div class="bar bg-surface-dim" style="background-color: var(--surface-dim);"></div>
-              <div class="dot-small drawn-circle bg-surface-dim" style="background-color: var(--surface-dim);"></div>
-            </div>
-          </div>
-          <!-- Centered Logo -->
-          <div class="game-logo-wrapper">
-            <img alt="Quizzata Logo" src="/resources/img/Logo.svg">
-          </div>
-          <div class="game-timer-wrapper">
-            <div class="game-timer-badge" id="game-timer-badge">00:00</div>
-          </div>
-        </header>
-
-        <!-- MAIN CANVAS -->
-        <main class="game-main-canvas">
-          <div class="game-admin-card">
-            <h2 id="game-quiz-title">Titolo Quiz</h2>
-
-            <div class="game-admin-badges">
-              <div id="game-question-count" class="game-badge count">0 domande</div>
-              <div id="game-type-badge" class="game-badge type">Personalizzato</div>
-            </div>
-
-            <div id="game-status-note" class="game-status-note" role="status">
-              <i class="fas fa-hourglass-half" aria-hidden="true"></i>
-              <span id="game-status-text">Connessione al server di gioco…</span>
-            </div>
-
-            <!-- Area live (Step 7 — design Retro Street: lobby QR, opzioni, risultati, podio) -->
-            <div id="game-live-area">
-              <div id="game-lobby-box" hidden>
-                <div class="game-join-card">
-                  <div id="game-qr" class="game-qr" role="img" aria-label="QR code per entrare in partita"></div>
+      <div class="game-body">
+        <main class="game-stage">
+          <div id="game-live-area">
+            <div id="game-lobby-box" class="game-lobby" hidden>
+              <div class="join-card">
+                <div id="game-qr" class="game-qr" role="img" aria-label="QR code per entrare in partita"></div>
+                <div class="join-text">
+                  <h2 class="stage-title">Fai entrare i giocatori</h2>
+                  <p class="game-join-hint">Inquadrano il QR o aprono questo indirizzo sul telefono:</p>
                   <p id="game-join-url" class="game-join-url"></p>
-                  <p class="game-join-hint">Inquadra il QR o digita l'indirizzo sul telefono</p>
-                </div>
-                <div class="game-lobby-players">
-                  <h3 class="game-live-title">In lobby
-                    <span id="game-player-count" class="game-count-bubble">0</span>
-                  </h3>
-                  <ul id="game-players-list" class="game-player-badges"></ul>
                 </div>
               </div>
-              <div id="game-question-box" hidden>
-                <h3 id="game-question-text" class="game-live-question"></h3>
-                <ul id="game-options-list" class="game-option-cards"></ul>
-                <p id="game-answer-count" class="game-answer-counter">Risposte: 0 / 0</p>
-              </div>
-              <div id="game-results-box" hidden>
-                <h3 class="game-live-title">Risultati</h3>
-                <p id="game-correct-answer" class="game-correct-answer"></p>
-                <ul id="game-distribution" class="game-distribution"></ul>
-                <ol id="game-partial-leaderboard" class="game-partial-leaderboard"></ol>
-              </div>
-              <div id="game-final-box" hidden>
-                <h3 class="game-live-title">Classifica finale</h3>
-                <div id="game-final-podium" class="game-final-podium"></div>
-                <ol id="game-final-leaderboard" class="game-final-list"></ol>
+              <div class="lobby-players">
+                <h2 class="stage-title">In lobby
+                  <span id="game-player-count" class="count-pill count-pill-strong">0</span>
+                </h2>
+                <ul id="game-players-list" class="player-chips"></ul>
+                <p class="lobby-empty">Nessuno ancora: appena qualcuno entra, compare qui.</p>
               </div>
             </div>
 
-            <div class="game-controls-grid">
-              <button id="game-start-btn" class="btn-game-control btn-game-primary btn-start-game btn-game-primary--dominant" disabled>
-                <span class="material-symbols-outlined">play_arrow</span> Avvia Partita
-              </button>
-              <div class="game-controls-secondary">
-                <button id="game-next-btn" class="btn-game-control btn-game-secondary" disabled>
-                  <span class="material-symbols-outlined">skip_next</span> Prossima Domanda
-                </button>
-                <button id="game-minigame-btn" class="btn-game-control btn-game-minigame" disabled title="Inserisci un minigioco non pianificato prima della prossima domanda">
-                  <span class="material-symbols-outlined">casino</span> Inserisci Minigioco
-                </button>
-                <button id="game-restart-btn" class="btn-game-control btn-game-tertiary" disabled>
-                  <span class="material-symbols-outlined">replay</span> Riavvia Partita
-                </button>
+            <div id="game-question-box" class="game-question" hidden>
+              <h2 id="game-question-text" class="game-live-question"></h2>
+              <ul id="game-options-list" class="game-option-cards"></ul>
+            </div>
+
+            <div id="game-results-box" class="game-results" hidden>
+              <h2 class="stage-title">Risultati del round</h2>
+              <p id="game-correct-answer" class="game-correct-answer"></p>
+              <ul id="game-distribution" class="game-distribution"></ul>
+              <div class="leaderboard-block">
+                <h3 class="stage-subtitle">Classifica</h3>
+                <ol id="game-partial-leaderboard" class="game-leaderboard"></ol>
               </div>
-              <button id="game-back-btn-2" class="btn-game-control btn-game-danger btn-game-danger--demoted">
-                <span class="material-symbols-outlined">close</span> Termina Partita
-              </button>
+            </div>
+
+            <div id="game-final-box" class="game-final" hidden>
+              <h2 class="stage-title">Classifica finale</h2>
+              <div id="game-final-podium" class="game-final-podium"></div>
+              <ol id="game-final-leaderboard" class="game-leaderboard game-final-list"></ol>
             </div>
           </div>
         </main>
+
+        <aside class="game-dock" aria-label="Comandi partita">
+          <div id="game-status-note" class="game-status-note" role="status">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span id="game-status-text">Connessione al server di gioco…</span>
+          </div>
+
+          <div class="game-meter">
+            <p id="game-answer-count" class="game-answer-counter">Risposte: 0 / 0</p>
+            <div class="game-meter-track" aria-hidden="true">
+              <div id="game-answer-bar" class="game-meter-bar"></div>
+            </div>
+          </div>
+
+          <div class="game-controls">
+            <button id="game-start-btn" class="btn btn-primary btn-lg btn-block btn-game" disabled>
+              <span class="material-symbols-outlined" aria-hidden="true">play_arrow</span>
+              <span>Avvia partita</span>
+            </button>
+            <button id="game-next-btn" class="btn btn-primary btn-lg btn-block btn-game" disabled>
+              <span class="material-symbols-outlined" aria-hidden="true">skip_next</span>
+              <span id="game-next-label">Prossima domanda</span>
+            </button>
+            <button id="game-minigame-btn" class="btn btn-accent btn-block btn-game" disabled
+              title="Inserisce un minigioco a sorpresa prima della prossima domanda">
+              <span class="material-symbols-outlined" aria-hidden="true">casino</span>
+              <span>Minigioco a sorpresa</span>
+            </button>
+            <button id="game-restart-btn" class="btn btn-primary btn-lg btn-block btn-game" disabled>
+              <span class="material-symbols-outlined" aria-hidden="true">replay</span>
+              <span>Gioca ancora</span>
+            </button>
+          </div>
+        </aside>
       </div>
     </section>
 
