@@ -86,49 +86,36 @@
    di un grado). Devono stare sotto la soglia di attenzione: si notano se li
    cerchi, non mentre leggi una domanda. */
 
-/* Gli adesivi dello sfondo galleggiano, ognuno col suo tempo. I periodi sono
-   numeri primi fra loro apposta: non tornano mai in fase, quindi il fondo non
-   acquista mai un ritmo riconoscibile. */
-.sala-sticker { animation: mo-drift 23s ease-in-out infinite; }
+/* Le forme dello sfondo vivono ognuna col suo tempo. I periodi sono primi fra
+   loro apposta: non tornano mai in fase, quindi il fondo non acquista mai un
+   ritmo riconoscibile. L'esplosione gira su se stessa in un minuto intero:
+   abbastanza lenta da non attirare lo sguardo, abbastanza da dire "è acceso". */
+.sala-shape--orb   { animation: mo-orb 29s ease-in-out infinite; }
+.sala-shape--burst { animation: mo-burst-spin 61s linear infinite; }
 
-.sala-sticker--1 { animation-duration: 19s; animation-delay: -4s;  }
-.sala-sticker--2 { animation-duration: 26s; animation-delay: -11s; }
-.sala-sticker--3 { animation-duration: 17s; animation-delay: -7s;  }
-.sala-sticker--4 { animation-duration: 29s; animation-delay: -2s;  }
-
-/* La rotazione di partenza è diversa per ogni adesivo (sta in style.css) e va
-   conservata, altrimenti il keyframe la azzera: per questo ogni variante ha il
-   proprio ciclo invece di condividerne uno solo. */
-@keyframes mo-drift {
-  0%, 100% { transform: rotate(var(--mo-rot, 0deg)) translate(0, 0); }
-  33%      { transform: rotate(calc(var(--mo-rot, 0deg) + 3deg)) translate(10px, -8px); }
-  66%      { transform: rotate(calc(var(--mo-rot, 0deg) - 2deg)) translate(-6px, 9px); }
+@keyframes mo-orb {
+  0%, 100% { transform: translate(0, 0); }
+  50%      { transform: translate(16px, -12px); }
 }
 
-.sala-sticker--1 { --mo-rot: -15deg; }
-.sala-sticker--2 { --mo-rot:  20deg; }
-.sala-sticker--3 { --mo-rot:  45deg; }
-.sala-sticker--4 { --mo-rot: -30deg; }
-
-/* La riga che divide il campo: un respiro verticale appena percettibile.
-   `scaleY` da un'origine centrale non sposta un pixel di layout. */
-.sala-bg-split {
-  transform-origin: 50% 50%;
-  animation: mo-split-breathe 11s ease-in-out infinite;
+@keyframes mo-burst-spin {
+  to { transform: rotate(1turn); }
 }
 
-@keyframes mo-split-breathe {
-  0%, 100% { transform: translateX(-2px) scaleY(1);     opacity: 1;    }
-  50%      { transform: translateX(-2px) scaleY(0.985); opacity: 0.82; }
-}
-
-/* Il logo è un adesivo appiccicato storto sulla barra: si comporta come tale,
-   con l'oscillazione di una cosa incollata male che nessuno raddrizza. */
+/* Il logo in testata galleggia appena, con un mezzo inchino ogni tanto. */
 .sala-logo-wrap { animation: mo-logo-idle 6.5s ease-in-out infinite; }
 
 @keyframes mo-logo-idle {
-  0%, 100% { transform: rotate(-5deg)   translateY(0);      }
-  50%      { transform: rotate(-2.5deg) translateY(-3px) scale(1.015); }
+  0%, 100% { transform: translateY(0)    rotate(0deg);  }
+  50%      { transform: translateY(-4px) rotate(-3deg); }
+}
+
+/* In attesa il logo è il protagonista: respira più ampio. */
+.sala-idle-logo { animation: mo-idle-logo 5.3s ease-in-out infinite; }
+
+@keyframes mo-idle-logo {
+  0%, 100% { transform: translateY(0)     rotate(-2deg) scale(1);    }
+  50%      { transform: translateY(-10px) rotate(2deg)  scale(1.03); }
 }
 
 /* ─── Timer ─────────────────────────────────────────────────────────────────
@@ -142,9 +129,9 @@
 }
 
 @keyframes mo-timer-tick {
-  0%   { transform: rotate(3deg) scale(1);    }
-  45%  { transform: rotate(3deg) scale(1.07); }
-  100% { transform: rotate(3deg) scale(1);    }
+  0%   { transform: scale(1);    }
+  45%  { transform: scale(1.07); }
+  100% { transform: scale(1);    }
 }
 
 /* Ultimi dieci secondi: oltre al battito già presente sul badge, i bordi dello
@@ -162,8 +149,8 @@ body.is-urgent::after {
   z-index: 90;
   pointer-events: none;
   background:
-    linear-gradient(to right,  var(--retro-terracotta), transparent 14%, transparent 86%, var(--retro-terracotta)),
-    linear-gradient(to bottom, var(--retro-terracotta), transparent 12%, transparent 88%, var(--retro-terracotta));
+    linear-gradient(to right,  var(--alert-red), transparent 14%, transparent 86%, var(--alert-red)),
+    linear-gradient(to bottom, var(--alert-red), transparent 12%, transparent 88%, var(--alert-red));
   opacity: 0;
   animation: mo-urgent-vignette 1.2s ease-in-out infinite;
 }
@@ -219,8 +206,9 @@ body.is-urgent::after {
 /* La scheda del QR arriva da sinistra e si pianta: è l'invito a entrare, il
    primo oggetto che la sala deve vedere all'apertura delle danze. */
 @keyframes mo-slam-left {
-  from { opacity: 0; transform: translateX(-60px) rotate(-7deg); }
-  to   { opacity: 1; transform: translateX(0)     rotate(-1.5deg); }
+  0%   { opacity: 0; transform: translateX(-60px) rotate(-6deg); }
+  70%  { opacity: 1; transform: translateX(4px)   rotate(0.8deg); }
+  100% { opacity: 1; transform: translateX(0)     rotate(0deg); }
 }
 
 /* ─── L'eccezione: i risultati ───────────────────────────────────────────────
@@ -247,12 +235,12 @@ body.is-urgent::after {
 
 /* Il cartello "In attesa dell'host" può restare proiettato parecchio prima che
    la serata cominci: è letteralmente la prima impressione del prodotto. Respira
-   e dondola, come un'insegna appesa. */
+   piano, sotto il logo che galleggia. */
 .sala-idle-text { animation: mo-idle-breathe 4.5s ease-in-out infinite; }
 
 @keyframes mo-idle-breathe {
-  0%, 100% { transform: rotate(-1deg)   scale(1);     }
-  50%      { transform: rotate(0.6deg)  scale(1.025); }
+  0%, 100% { transform: scale(1);     }
+  50%      { transform: scale(1.025); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -314,32 +302,23 @@ body.is-urgent::after {
    5. DOMANDA
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* La scheda della domanda è un foglio appuntato a un muro: ha una puntina in
-   alto a destra, quindi oscilla INTORNO ALLA PUNTINA, non intorno al centro.
-   È il dettaglio che fa la differenza fra "un riquadro che ruota" e "un foglio
-   appeso". */
-.q-card {
-  transform-origin: 92% 1.5rem;
-  animation: mo-pinned-sway 9s ease-in-out infinite;
-}
+/* La scheda della domanda sta ferma: è il testo che la sala sta leggendo.
+   (Prima oscillava intorno a una puntina che il redesign ha tolto.) */
 
-@keyframes mo-pinned-sway {
-  0%, 100% { transform: rotate(-1deg);   }
-  50%      { transform: rotate(-0.1deg); }
-}
-
-/* Il nastro con "Domanda 3 di 10" si attacca di schianto all'inizio del round.
+/* La pillola "Domanda 3 di 10" arriva di schianto all'inizio del round.
    Il testo lo riscrive app.js su un elemento che resta lo stesso, quindi
-   l'animazione non ripartirebbe da sola: la riattacca l'ingresso del pannello. */
+   l'animazione non ripartirebbe da sola: la riattacca l'ingresso del pannello.
+   Usa `transform`: il centraggio della pillola sta su `translate`, quindi
+   l'animazione non lo sposta. */
 .sala-panel.is-entering .q-tape {
   animation: mo-tape-slap var(--mo-slow) var(--mo-stamp) both;
   animation-delay: calc(var(--mo-stagger) * 2);
 }
 
 @keyframes mo-tape-slap {
-  0%   { opacity: 0; transform: rotate(-26deg) scale(1.6) translate(-20px, -14px); }
-  60%  { opacity: 1; transform: rotate(-2deg)  scale(0.96); }
-  100% { opacity: 1; transform: rotate(-5deg)  scale(1);    }
+  0%   { opacity: 0; transform: scale(1.7) rotate(-10deg); }
+  60%  { opacity: 1; transform: scale(0.94) rotate(1.5deg); }
+  100% { opacity: 1; transform: scale(1)    rotate(0deg); }
 }
 
 /* L'immagine della domanda entra con un respiro lentissimo (scala 1 → 1.04 in
@@ -449,7 +428,7 @@ body.is-urgent::after {
 @keyframes mo-seal-drop {
   0%   { opacity: 0; transform: translateY(-80px) rotate(-14deg) scale(1.1); }
   65%  { opacity: 1; transform: translateY(6px)   rotate(1deg)   scale(0.97); }
-  100% { opacity: 1; transform: translateY(0)     rotate(-1.5deg) scale(1);  }
+  100% { opacity: 1; transform: translateY(0)     rotate(0deg)   scale(1);  }
 }
 
 /* ─── Premiazione ────────────────────────────────────────────────────────────
@@ -489,12 +468,11 @@ body.is-urgent::after {
      rimetterebbe il salto che questo file è venuto a risolvere. */
 
 @media (prefers-reduced-motion: reduce) {
-  .sala-sticker,
-  .sala-bg-split,
+  .sala-shape,
   .sala-logo-wrap,
+  .sala-idle-logo,
   .sala-idle-text,
   .sala-lobby-empty,
-  .q-card,
   .q-media img,
   #sala-lobby:not(.has-players) .sala-qr,
   body.is-urgent::after {
