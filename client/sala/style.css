@@ -128,7 +128,7 @@
   --radius-full: 9999px;
 
   /* Testata: misure dei tre oggetti tondi. */
-  --hud-logo:    5.5rem;
+  --hud-logo:    7.25rem;
   --hud-timer:   7.25rem;
   --hud-pad:     1.5rem;
 }
@@ -311,25 +311,29 @@ body {
   background: var(--retro-dark);
 }
 
-/* Logo: un bottone tondo, dritto. */
+/* Logo: così com'è, senza contenitore. Ha già contorno e colori suoi, e un
+   cerchio bianco intorno lo rimpiccioliva a un'icona dentro un bottone. La
+   taglia segue il cronometro (`--hud-logo`), così i due angoli della testata
+   pesano uguale in ogni viewport. */
 .sala-logo-wrap {
   grid-column: 1;
   grid-row: 1;
   justify-self: start;
-  width: var(--hud-logo);
+  width: calc(var(--hud-logo) * 1.3);
   height: var(--hud-logo);
-  padding: 0.45rem;
-  background: var(--white);
-  border: var(--border);
-  border-radius: 50%;
-  box-shadow: 6px 6px 0 0 var(--retro-dark);
   display: grid;
   place-items: center;
 }
 
+/* Il disegno del logo occupa ~3/4 dell'altezza del suo SVG (è un'esplosione
+   più larga che alta): a parità di box sembrerebbe più piccolo del
+   cronometro, che è un cerchio pieno. L'immagine esce del 15% sopra e sotto
+   la scatola — meno del `--hud-pad` di ogni breakpoint, quindi non tocca il
+   bordo dello schermo — e la testata non cambia altezza. */
 .sala-logo-wrap img {
   width: 100%;
-  height: 100%;
+  height: calc(var(--hud-logo) * 1.3);
+  max-width: none;
   object-fit: contain;
 }
 
@@ -1423,7 +1427,7 @@ body {
     --display-lg-mobile: 24px;
     --headline-md:       19px;
     --body-lg:           17px;
-    --hud-logo:          4rem;
+    --hud-logo:          5.25rem;
     --hud-timer:         5.25rem;
     --hud-pad:           0.9rem;
   }
@@ -1453,7 +1457,7 @@ body {
     --display-lg-mobile: 42px;
     --headline-md:       30px;
     --body-lg:           26px;
-    --hud-logo:          7rem;
+    --hud-logo:          9rem;
     --hud-timer:         9rem;
     --hud-pad:           2rem;
   }
