@@ -29,9 +29,11 @@
    */
   const THREE_URL = '/shared/vendor/three/three.module.min.js';
 
-  /** Asset SVG esistenti nel repository principale. */
+  /** Asset SVG e PNG esistenti nel repository principale. */
   const CUP_ASSET = '/resources/img/cup-game/cup.svg';
   const BALL_ASSET = '/resources/img/cup-game/ball.svg';
+  const LOGO_PNG_ASSET = '/resources/img/LogoNoBG.png';
+  const LOGO_SVG_ASSET = '/resources/img/Logo.svg';
 
   /**
    * Etichette allineate all'ordine del server (0 = Sinistra, 1 = Centro, 2 = Destra)
@@ -511,7 +513,54 @@
 
   // ─── Caricamento e risorse Three.js (§7.1, §7.2, §7.3, §7.6) ─────────────────
 
+  let cachedLogoImage = null;
+  let logoImageLoading = false;
+  const logoReadyListeners = [];
+  let lastActiveGraph3D = null;
+
+  function preloadLogoImage(onReady) {
+    if (typeof Image === 'undefined') return;
+    if (cachedLogoImage) {
+      if (onReady) onReady(cachedLogoImage);
+      return;
+    }
+    if (onReady) logoReadyListeners.push(onReady);
+    if (logoImageLoading) return;
+    logoImageLoading = true;
+
+    const notify = (img) => {
+      cachedLogoImage = img;
+      logoImageLoading = false;
+      while (logoReadyListeners.length > 0) {
+        const fn = logoReadyListeners.shift();
+        try {
+          fn(img);
+        } catch {
+          // ignore listener error
+        }
+      }
+      if (sharedRenderer && lastActiveGraph3D) {
+        sharedRenderer.render(lastActiveGraph3D.scene, lastActiveGraph3D.camera);
+      }
+    };
+
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => notify(img);
+    img.onerror = () => {
+      const fallbackSvg = new Image();
+      fallbackSvg.decoding = 'async';
+      fallbackSvg.onload = () => notify(fallbackSvg);
+      fallbackSvg.onerror = () => {
+        logoImageLoading = false;
+      };
+      fallbackSvg.src = LOGO_SVG_ASSET;
+    };
+    img.src = LOGO_PNG_ASSET;
+  }
+
   function loadThree() {
+    preloadLogoImage();
     if (THREE) return Promise.resolve(THREE);
     if (threeLoadFailed) return Promise.resolve(null);
     if (!threePromise) {
@@ -584,16 +633,15 @@
       new THREE.Vector2(0.80, 0.05),
       new THREE.Vector2(0.78, 0.13),
       new THREE.Vector2(0.71, 0.16),
-      new THREE.Vector2(0.68, 0.42),
-      new THREE.Vector2(0.65, 0.45),
-      new THREE.Vector2(0.61, 0.95),
-      new THREE.Vector2(0.58, 0.99),
-      new THREE.Vector2(0.53, 1.42),
+      new THREE.Vector2(0.70, 0.28),
+      new THREE.Vector2(0.68, 0.34),
+      new THREE.Vector2(0.55, 1.34),
+      new THREE.Vector2(0.52, 1.44),
       new THREE.Vector2(0.47, 1.56),
       new THREE.Vector2(0.32, 1.62),
       new THREE.Vector2(0.00, 1.62),
     ];
-    const cupBodyGeo = new THREE.LatheGeometry(cupPoints, 28);
+    const cupBodyGeo = new THREE.LatheGeometry(cupPoints, 32);
 
     const lipPoints = [
       new THREE.Vector2(0.74, 0.00),
@@ -601,30 +649,64 @@
       new THREE.Vector2(0.815, 0.14),
       new THREE.Vector2(0.72, 0.16),
     ];
-    const cupLipGeo = new THREE.LatheGeometry(lipPoints, 28);
+    const cupLipGeo = new THREE.LatheGeometry(lipPoints, 32);
 
-    const bandPoints = [
-      new THREE.Vector2(0.635, 0.68),
-      new THREE.Vector2(0.615, 0.90),
-    ];
-    const cupBandGeo = new THREE.LatheGeometry(bandPoints, 28);
+    // Decal curvo 3D che avvolge la pancia frontale del bicchiere (y = 0.35..1.33)
+    // seguendo esattamente la conicità del LatheGeometry per ospitare il logo Quiz-Zata!
+    const logoThetaSpan = 1.72;
+    const cupLogoGeo = new THREE.CylinderGeometry(
+      0.566,
+      0.694,
+      0.98,
+      32,
+      1,
+      true,
+      -logoThetaSpan / 2,
+      logoThetaSpan
+    );
 
     const outlinePoints = [
       new THREE.Vector2(0.83, -0.02),
       new THREE.Vector2(0.86, 0.15),
-      new THREE.Vector2(0.75, 0.45),
-      new THREE.Vector2(0.65, 1.00),
+      new THREE.Vector2(0.75, 0.36),
+      new THREE.Vector2(0.62, 1.34),
       new THREE.Vector2(0.58, 1.58),
       new THREE.Vector2(0.36, 1.68),
       new THREE.Vector2(0.00, 1.68),
     ];
-    const cupOutlineGeo = new THREE.LatheGeometry(outlinePoints, 28);
+    const cupOutlineGeo = new THREE.LatheGeometry(outlinePoints, 32);
 
     const ballGeo = new THREE.SphereGeometry(0.38, 24, 18);
     const tableGeo = new THREE.BoxGeometry(7.4, 0.36, 3.3);
     const tableOutlineGeo = new THREE.BoxGeometry(7.58, 0.48, 3.48);
     const tableMatGeo = new THREE.PlaneGeometry(6.8, 2.7);
     const shadowBlobGeo = new THREE.CircleGeometry(0.84, 24);
+
+    // Texture 2D -> 3D per il logo Quiz-Zata! (creata una sola volta e mantenuta in cache)
+    const logoCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+    if (logoCanvas) {
+      logoCanvas.width = 512;
+      logoCanvas.height = 512;
+    }
+    const logoTexture = logoCanvas ? new THREE.CanvasTexture(logoCanvas) : null;
+    if (logoTexture) {
+      if (THREE.SRGBColorSpace) {
+        logoTexture.colorSpace = THREE.SRGBColorSpace;
+      }
+      logoTexture.minFilter = THREE.LinearFilter;
+      logoTexture.magFilter = THREE.LinearFilter;
+      preloadLogoImage((img) => {
+        const ctx2d = logoCanvas.getContext('2d');
+        if (!ctx2d) return;
+        ctx2d.clearRect(0, 0, 512, 512);
+        const w = img.naturalWidth || img.width || 500;
+        const h = img.naturalHeight || img.height || 500;
+        const padX = w * 0.065;
+        const padY = h * 0.065;
+        ctx2d.drawImage(img, padX, padY, w - padX * 2, h - padY * 2, 0, 0, 512, 512);
+        logoTexture.needsUpdate = true;
+      });
+    }
 
     const matCupBody = new THREE.MeshToonMaterial({
       color: 0xe05a47,
@@ -634,9 +716,14 @@
       color: 0xfff8f1,
       gradientMap,
     });
-    const matCupBand = new THREE.MeshToonMaterial({
-      color: 0xf7d708,
-      gradientMap,
+    const matCupLogo = new THREE.MeshBasicMaterial({
+      map: logoTexture,
+      transparent: true,
+      alphaTest: 0.03,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
     });
     const matBall = new THREE.MeshToonMaterial({
       color: 0xf7d708,
@@ -663,16 +750,17 @@
     cachedAssets3D = {
       cupBodyGeo,
       cupLipGeo,
-      cupBandGeo,
+      cupLogoGeo,
       cupOutlineGeo,
       ballGeo,
       tableGeo,
       tableOutlineGeo,
       tableMatGeo,
       shadowBlobGeo,
+      logoTexture,
       matCupBody,
       matCupLip,
-      matCupBand,
+      matCupLogo,
       matBall,
       matTable,
       matTableTop,
@@ -714,9 +802,11 @@
       const group = new THREE.Group();
       const body = new THREE.Mesh(assets.cupBodyGeo, assets.matCupBody);
       const lip = new THREE.Mesh(assets.cupLipGeo, assets.matCupLip);
-      const band = new THREE.Mesh(assets.cupBandGeo, assets.matCupBand);
+      const logo = new THREE.Mesh(assets.cupLogoGeo, assets.matCupLogo);
+      logo.position.y = 0.84;
+      logo.renderOrder = 2;
       const outline = new THREE.Mesh(assets.cupOutlineGeo, assets.matInkOutline);
-      group.add(body, lip, band, outline);
+      group.add(body, lip, logo, outline);
       group.position.set(SLOT_X_3D[i], 0, 0);
       scene.add(group);
       cupNodes.push(group);
@@ -1041,6 +1131,7 @@
         }
         if (using3D && graph3d && sharedRenderer) {
           lastStageMode = '3d';
+          lastActiveGraph3D = graph3d;
           recordFrameDelta(dtMs, viewportEl, graph3d.camera);
           applyKinematicsTo3D(graph3d, kinematics);
           sharedRenderer.render(graph3d.scene, graph3d.camera);
