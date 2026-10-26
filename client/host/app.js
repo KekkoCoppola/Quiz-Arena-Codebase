@@ -1291,6 +1291,8 @@ let currentQuestionOptions = [];
 // `Minigames.get()` non restituisce mai null — un tipo sconosciuto ottiene una
 // presentazione generica, così un round anomalo degrada invece di rompersi.
 let currentMinigame = null;
+/** Cambia a ogni round: un'anteprima rimasta in coda capisce di essere vecchia. */
+let hostRoundToken = 0;
 
 /** Elementi che la presentazione host può disegnare durante un round minigioco. */
 const minigameEls = () => ({
@@ -1415,7 +1417,15 @@ function connectGameSocket(quiz, type) {
     // Minigioco: il titolo è affidato alla sua animazione di attesa; la domanda
     // vera mostra semplicemente il proprio testo.
     if (isMinigame) {
-      currentMinigame.sala.startSuspense(minigameEls(), q);
+      // Stesso contesto che riceve la sala: la fine dell'anteprima, se il
+      // minigioco ne ha una, sull'orologio locale.
+      const roundToken = ++hostRoundToken;
+      currentMinigame.sala.startSuspense(minigameEls(), q, {
+        answersOpenAt: q.answersOpenAt
+          ? ServerClock.localDeadline(q.answersOpenAt, q.serverNow)
+          : Date.now(),
+        isStale: () => roundToken !== hostRoundToken,
+      });
     } else {
       gameQuestionText.textContent = q.text;
     }

@@ -136,6 +136,13 @@ class InvalidMinigameTypeError extends Error {
   }
 }
 
+class AnswersNotOpenError extends Error {
+  constructor(message = 'Le risposte non sono ancora aperte: guarda lo schermo!') {
+    super(message);
+    this.name = 'AnswersNotOpenError';
+  }
+}
+
 // ─── Minigiochi ──────────────────────────────────────────────────────────────────
 // Le regole dei minigiochi vivono in `server/minigames/`, un modulo per gioco,
 // caricati e validati dal registry all'avvio. Qui resta solo l'orchestrazione.
@@ -221,6 +228,21 @@ class GameSession {
     this.state = STATES.LOBBY;
     this.currentRoundIndex = -1;
     this.roundStartedAt = null;
+
+    /**
+     * Istante da cui il round accetta risposte. Coincide con `roundStartedAt`
+     * tranne per i minigiochi con anteprima (`previewMs`), dove la sala mostra
+     * prima uno spettacolo da seguire e solo dopo si sceglie.
+     */
+    this.answersOpenAt = null;
+
+    /**
+     * Risoluzione estratta all'APERTURA del round, solo per i minigiochi con
+     * anteprima: la sala deve conoscere l'esito per metterlo in scena prima che
+     * si scelga (es. i bicchieri che si fermano sulla pallina). `null` per tutti
+     * gli altri round, che si risolvono alla chiusura come sempre.
+     */
+    this._openResolution = null;
 
     /** @type {Map<string, { id: string, nickname: string, avatar: string, score: number, connected: boolean }>} */
     this.players = new Map();
@@ -355,6 +377,33 @@ class GameSession {
     this.state = STATES.QUESTION;
     this.roundStartedAt = now;
     this.currentAnswers = new Map();
+
+    // Minigioco con anteprima: l'esito si estrae ORA, non alla chiusura, perché
+    // lo spettacolo che lo racconta viene prima della scelta. Le risposte
+    // restano chiuse finché l'anteprima non è finita.
+    const def = this._currentMinigameDef();
+    const previewMs = def?.previewMs ?? 0;
+    this._openResolution = previewMs > 0 ? def.resolve(this._rnd) : null;
+    this.answersOpenAt = now + previewMs;
+  }
+
+  /** Definizione del minigioco del round corrente, `null` per una domanda. */
+  _currentMinigameDef() {
+    const round = this.currentRound;
+    return round?.kind === 'minigame' ? minigames.get(round.minigameType) : null;
+  }
+
+  /**
+   * Stato macchina già estratto per un minigioco con anteprima, da mostrare
+   * SOLO alla sala e all'host (game-socket.js non lo manda ai telefoni:
+   * leggerlo sarebbe conoscere la risposta). `null` per ogni altro round.
+   * @returns {{ machineChoice: number } | null}
+   */
+  getRoundPreview() {
+    this._assertState(STATES.QUESTION, 'getRoundPreview');
+    return this._openResolution
+      ? { machineChoice: this._openResolution.machineChoice }
+      : null;
   }
 
   /**
@@ -372,6 +421,9 @@ class GameSession {
       text: r.text,
       options: r.options,
       time_limit_s: r.time_limit_s,
+      // Durata dell'anteprima prima che si possa rispondere (0 = si risponde
+      // subito). Il countdown di `time_limit_s` parte dopo.
+      previewMs: this.answersOpenAt - this.roundStartedAt,
       kind: r.kind,
       minigameType: r.minigameType ?? null,
       // Un round minigioco non ha immagine: `r.image` è undefined e diventa
@@ -402,6 +454,10 @@ class GameSession {
 
     if (this.currentAnswers.has(playerId)) {
       throw new AlreadyAnsweredError();
+    }
+
+    if (now < this.answersOpenAt) {
+      throw new AnswersNotOpenError();
     }
 
     const round = this.currentRound;
@@ -475,7 +531,10 @@ class GameSession {
     if (round.kind === 'minigame') {
       const def = minigames.get(round.minigameType);
       revealMs = def.revealMs ?? 0;
-      const resolution = def.resolve(this._rnd);
+      // Con anteprima l'esito esiste già ed è quello che la sala ha mostrato:
+      // estrarne un altro qui smentirebbe lo spettacolo.
+      const resolution = this._openResolution ?? def.resolve(this._rnd);
+      this._openResolution = null;
       machineChoice = resolution.machineChoice;
       for (const answer of this.currentAnswers.values()) {
         answer.outcome = resolution.outcomeFor(answer.optionIndex);
@@ -605,6 +664,7 @@ module.exports = {
   PlayerNotFoundError,
   AlreadyAnsweredError,
   InvalidAnswerIndexError,
+  AnswersNotOpenError,
   InvalidNicknameError,
   InvalidAvatarError,
   EmptyQuizError,

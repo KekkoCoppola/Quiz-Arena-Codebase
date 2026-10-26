@@ -48,3 +48,6 @@ server/db/*.sqlite-shm
 *.swo
 *.bak
 *.orig
+
+# Prompt di lavoro per Gemini (materiale locale, non fa parte del prodotto)
+docs/gemini/
