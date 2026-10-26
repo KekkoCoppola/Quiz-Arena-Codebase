@@ -1,0 +1,522 @@
+@charset "UTF-8";
+
+/**
+ * client/sala/motion.css
+ *
+ * Il movimento della vista sala. Sta in un file suo e non dentro style.css
+ * per la stessa ragione per cui audio-logic.js sta fuori da app.js: è un
+ * comparto con regole proprie, che si rivede e si stacca tutto insieme.
+ *
+ * ─── Il principio ───────────────────────────────────────────────────────────
+ * DESIGN.md dice che ogni superficie si comporta come un tasto arcade fisico:
+ * "si sposta, fa clack, non si limita a cambiare colore". Il movimento segue
+ * quella frase alla lettera. Niente si dissolve e niente scivola con calma:
+ * le cose ARRIVANO, superano di poco il bersaglio e si assestano con un
+ * colpo secco — come un adesivo schiacciato sul vetro di un flipper.
+ *
+ * Per questo le curve non sono `ease-in-out` ma sovraelongazioni (il
+ * parametro oltre 1 nella cubic-bezier). Sono le stesse già usate in
+ * style.css per il verdetto e per il timbro della X: qui diventano un
+ * vocabolario dichiarato invece di tre valori ripetuti a mano.
+ *
+ * ─── Il vincolo ─────────────────────────────────────────────────────────────
+ * Questo schermo gira su un Raspberry Pi, in Chromium kiosk, a 1080p, per
+ * due ore di fila. Ogni animazione di questo file tocca SOLO `transform` e
+ * `opacity`: sono le due proprietà che il browser anima sul compositore,
+ * senza ridisegnare né ricalcolare il layout. Animare `width`, `top`,
+ * `filter`, `box-shadow` o `background` in un ciclo infinito vorrebbe dire
+ * un repaint a 60fps su una GPU che non lo regge: è esattamente il "lag" che
+ * su un proiettore si vede da in fondo alla sala.
+ *
+ * La regola pratica, per chi aggiunge qui dentro:
+ *   · in un `infinite`, solo transform e opacity. Senza eccezioni.
+ *   · in un one-shot si può osare di più (lo fa già `.is-out` con filter),
+ *     perché il costo lo paghi una volta e nessuno lo vede ripetersi.
+ *   · niente `will-change` sparso: su un ciclo infinito tiene un layer in
+ *     memoria per sempre. Il compositore promuove da solo quel che serve.
+ *
+ * ─── Il consenso ────────────────────────────────────────────────────────────
+ * In fondo al file un blocco `prefers-reduced-motion` spegne tutti i cicli di
+ * attesa e accorcia le entrate. Non è formalità: sul desktop di sviluppo è
+ * l'unico modo di guardare una schermata ferma.
+ */
+
+:root {
+  /* ─── Curve ───────────────────────────────────────────────────────────────
+     Quattro, e bastano. Chi ne vuole una quinta dovrebbe prima chiedersi
+     quale di queste quattro stava cercando. */
+
+  /* Arrivo arcade: supera il bersaglio e torna. Il movimento firma del
+     sistema — pannelli, carte, tutto ciò che "entra in scena". */
+  --mo-snap:   cubic-bezier(0.2, 1.5, 0.4, 1);
+  /* Timbro: sovraelongazione più dura e corta, per ciò che SBATTE
+     (il nastro della domanda, la bolla del conteggio). */
+  --mo-stamp:  cubic-bezier(0.2, 1.7, 0.35, 1);
+  /* Assestamento senza rimbalzo: per i movimenti lunghi, dove un rimbalzo
+     sembrerebbe un errore invece di un gesto (riordino della classifica). */
+  --mo-settle: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Uscita: accelera e sparisce. Chi esce non merita una curva gentile. */
+  --mo-exit:   cubic-bezier(0.5, 0, 0.75, 0);
+
+  /* ─── Durate ──────────────────────────────────────────────────────────────
+     Tarate sulla DISTANZA DI LETTURA, non sul gusto: la sala guarda da sei
+     metri, quindi un movimento che su un monitor sarebbe elegante a 200ms
+     qui diventa uno sfarfallio che l'occhio non aggancia. */
+  --mo-tick:  180ms;   /* un colpo solo: tick del timer, pop di un numero */
+  --mo-fast:  300ms;
+  --mo-base:  460ms;   /* entrata standard di un elemento */
+  --mo-slow:  720ms;   /* entrata di un intero pannello */
+
+  /* Scalino fra un elemento e il successivo in una sequenza. Sotto i 60ms
+     la sequenza si legge come un blocco unico; sopra i 120ms si legge come
+     elementi scollegati che arrivano per conto loro. */
+  --mo-stagger: 80ms;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   1. AMBIENTE — ciò che si muove sempre, anche quando non succede nulla
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Durante una serata questo schermo passa la maggior parte del tempo FERMO:
+   una domanda resta su venti secondi, la lobby può restare su dieci minuti.
+   Uno schermo immobile proiettato su un muro smette di sembrare acceso. Il
+   fondo che respira è ciò che dice alla sala "è vivo, sta succedendo".
+
+   Tutti i cicli qui sotto sono lentissimi (6-30s) e minuscoli (pochi px, meno
+   di un grado). Devono stare sotto la soglia di attenzione: si notano se li
+   cerchi, non mentre leggi una domanda. */
+
+/* Gli adesivi dello sfondo galleggiano, ognuno col suo tempo. I periodi sono
+   numeri primi fra loro apposta: non tornano mai in fase, quindi il fondo non
+   acquista mai un ritmo riconoscibile. */
+.sala-sticker { animation: mo-drift 23s ease-in-out infinite; }
+
+.sala-sticker--1 { animation-duration: 19s; animation-delay: -4s;  }
+.sala-sticker--2 { animation-duration: 26s; animation-delay: -11s; }
+.sala-sticker--3 { animation-duration: 17s; animation-delay: -7s;  }
+.sala-sticker--4 { animation-duration: 29s; animation-delay: -2s;  }
+
+/* La rotazione di partenza è diversa per ogni adesivo (sta in style.css) e va
+   conservata, altrimenti il keyframe la azzera: per questo ogni variante ha il
+   proprio ciclo invece di condividerne uno solo. */
+@keyframes mo-drift {
+  0%, 100% { transform: rotate(var(--mo-rot, 0deg)) translate(0, 0); }
+  33%      { transform: rotate(calc(var(--mo-rot, 0deg) + 3deg)) translate(10px, -8px); }
+  66%      { transform: rotate(calc(var(--mo-rot, 0deg) - 2deg)) translate(-6px, 9px); }
+}
+
+.sala-sticker--1 { --mo-rot: -15deg; }
+.sala-sticker--2 { --mo-rot:  20deg; }
+.sala-sticker--3 { --mo-rot:  45deg; }
+.sala-sticker--4 { --mo-rot: -30deg; }
+
+/* La riga che divide il campo: un respiro verticale appena percettibile.
+   `scaleY` da un'origine centrale non sposta un pixel di layout. */
+.sala-bg-split {
+  transform-origin: 50% 50%;
+  animation: mo-split-breathe 11s ease-in-out infinite;
+}
+
+@keyframes mo-split-breathe {
+  0%, 100% { transform: translateX(-2px) scaleY(1);     opacity: 1;    }
+  50%      { transform: translateX(-2px) scaleY(0.985); opacity: 0.82; }
+}
+
+/* Il logo è un adesivo appiccicato storto sulla barra: si comporta come tale,
+   con l'oscillazione di una cosa incollata male che nessuno raddrizza. */
+.sala-logo-wrap { animation: mo-logo-idle 6.5s ease-in-out infinite; }
+
+@keyframes mo-logo-idle {
+  0%, 100% { transform: rotate(-5deg)   translateY(0);      }
+  50%      { transform: rotate(-2.5deg) translateY(-3px) scale(1.015); }
+}
+
+/* ─── Timer ─────────────────────────────────────────────────────────────────
+   Il countdown è, con la domanda, la cosa che la sala guarda di più. Fermo fra
+   un secondo e l'altro sembra rotto; per questo ogni cambio di cifra dà un
+   colpo. La classe la mette app.js solo quando il TESTO cambia davvero, non a
+   ogni tick dell'intervallo (che gira a 250ms): il colpo deve coincidere col
+   secondo, altrimenti è rumore. */
+.sala-timer-badge.is-tick {
+  animation: mo-timer-tick var(--mo-tick) var(--mo-stamp);
+}
+
+@keyframes mo-timer-tick {
+  0%   { transform: rotate(3deg) scale(1);    }
+  45%  { transform: rotate(3deg) scale(1.07); }
+  100% { transform: rotate(3deg) scale(1);    }
+}
+
+/* Ultimi dieci secondi: oltre al battito già presente sul badge, i bordi dello
+   schermo si accendono.
+
+   È una VIGNETTATURA che respira, non un lampo a tutto campo — scelta di
+   sicurezza, non di gusto. Un'area grande che lampeggia a ~1,4Hz davanti a una
+   sala piena rientra nel territorio della fotosensibilità; una banda ai bordi,
+   a bassa opacità e con un ciclo lento da 1,2s, dà la stessa urgenza senza
+   quel rischio. Il centro dello schermo — dove c'è la domanda — resta pulito. */
+body.is-urgent::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+  background:
+    linear-gradient(to right,  var(--retro-terracotta), transparent 14%, transparent 86%, var(--retro-terracotta)),
+    linear-gradient(to bottom, var(--retro-terracotta), transparent 12%, transparent 88%, var(--retro-terracotta));
+  opacity: 0;
+  animation: mo-urgent-vignette 1.2s ease-in-out infinite;
+}
+
+@keyframes mo-urgent-vignette {
+  0%, 100% { opacity: 0;    }
+  50%      { opacity: 0.28; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   2. CAMBI DI PANNELLO
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Prima, un pannello appariva e basta: `hidden` via, contenuto a schermo nello
+   stesso fotogramma. Su un proiettore quel salto non si legge come un cambio
+   di scena, si legge come un glitch — la sala non capisce se è successo
+   qualcosa o se lo schermo ha avuto un singhiozzo.
+
+   Ora ogni pannello entra a scaglioni: i figli diretti arrivano uno dopo
+   l'altro, con lo scalino di --mo-stagger. app.js mette `.is-entering` e la
+   toglie a fine animazione. */
+
+.sala-panel.is-entering > *:not(.sala-options) {
+  animation: mo-rise-in var(--mo-base) var(--mo-snap) both;
+}
+
+/* Lo scaglionamento. Cinque posizioni bastano: nessun pannello della sala ha
+   più figli diretti di così, e il sesto in giù erediterebbe comunque l'ultimo
+   ritardo invece di non essere animato. */
+.sala-panel.is-entering > *:nth-child(1) { animation-delay: 0ms; }
+.sala-panel.is-entering > *:nth-child(2) { animation-delay: var(--mo-stagger); }
+.sala-panel.is-entering > *:nth-child(3) { animation-delay: calc(var(--mo-stagger) * 2); }
+.sala-panel.is-entering > *:nth-child(4) { animation-delay: calc(var(--mo-stagger) * 3); }
+.sala-panel.is-entering > *:nth-child(n+5) { animation-delay: calc(var(--mo-stagger) * 4); }
+
+@keyframes mo-rise-in {
+  from { opacity: 0; transform: translateY(26px) scale(0.965); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);     }
+}
+
+/* La lobby ha un figlio solo (la griglia): lo scaglionamento va un livello più
+   in basso, o le due colonne arrivano insieme e la sequenza non si vede. */
+#sala-lobby.is-entering > .sala-lobby-grid { animation: none; }
+
+#sala-lobby.is-entering .sala-join-card {
+  animation: mo-slam-left var(--mo-slow) var(--mo-snap) both;
+}
+#sala-lobby.is-entering .sala-lobby-players {
+  animation: mo-rise-in var(--mo-base) var(--mo-snap) both;
+  animation-delay: calc(var(--mo-stagger) * 2);
+}
+
+/* La scheda del QR arriva da sinistra e si pianta: è l'invito a entrare, il
+   primo oggetto che la sala deve vedere all'apertura delle danze. */
+@keyframes mo-slam-left {
+  from { opacity: 0; transform: translateX(-60px) rotate(-7deg); }
+  to   { opacity: 1; transform: translateX(0)     rotate(-1.5deg); }
+}
+
+/* ─── L'eccezione: i risultati ───────────────────────────────────────────────
+   Qui style.css dichiara una scelta precisa ("Nessun effetto al cambio
+   pannello: il momento del reveal è già passato, sulle opzioni, quando la
+   risposta giusta si è accesa"). Un ingresso arcade contraddirebbe quella
+   scelta: rifarebbe il colpo di scena un secondo dopo il colpo di scena.
+
+   Resta quindi un'entrata SOMMESSA — niente sovraelongazione, niente
+   spostamento verticale, solo un velo che si alza. Serve a far capire che la
+   scena è cambiata, non ad annunciare qualcosa. */
+#sala-results.is-entering > * {
+  animation: mo-fade-in var(--mo-fast) ease-out both;
+}
+
+@keyframes mo-fade-in {
+  from { opacity: 0; transform: scale(0.99); }
+  to   { opacity: 1; transform: scale(1);    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   3. ATTESA
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Il cartello "In attesa dell'host" può restare proiettato parecchio prima che
+   la serata cominci: è letteralmente la prima impressione del prodotto. Respira
+   e dondola, come un'insegna appesa. */
+.sala-idle-text { animation: mo-idle-breathe 4.5s ease-in-out infinite; }
+
+@keyframes mo-idle-breathe {
+  0%, 100% { transform: rotate(-1deg)   scale(1);     }
+  50%      { transform: rotate(0.6deg)  scale(1.025); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   4. LOBBY
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Un giocatore che entra è metà dello spettacolo d'apertura. Lo era già
+   (`sala-pop` in style.css), ma si vedeva male: renderLobby ridisegna TUTTA la
+   lista a ogni aggiornamento, quindi al ventesimo arrivo ripartivano tutte e
+   venti le animazioni insieme — un muro che sfarfalla, e venti elementi da
+   comporre nello stesso fotogramma sul Pi.
+
+   Ora app.js marca `.is-new` solo su chi è arrivato davvero, e il pop resta
+   solo lì. Chi c'era già sta fermo: è quello che rende leggibile l'arrivo. */
+.sala-player-chip { animation: none; }
+
+.sala-player-chip.is-new {
+  animation: mo-chip-in var(--mo-base) var(--mo-stamp) both;
+}
+
+@keyframes mo-chip-in {
+  0%   { opacity: 0; transform: scale(0.3) rotate(-14deg); }
+  65%  { opacity: 1; transform: scale(1.12) rotate(4deg);  }
+  100% { opacity: 1; transform: scale(1)   rotate(0deg);   }
+}
+
+/* Il contatore in cima fa il suo scatto quando il numero sale: è il dato che
+   l'host guarda per decidere quando partire. */
+.sala-count-bubble.is-bumped {
+  animation: mo-bump var(--mo-fast) var(--mo-stamp);
+}
+
+@keyframes mo-bump {
+  0%   { transform: scale(1);    }
+  40%  { transform: scale(1.35) rotate(-5deg); }
+  100% { transform: scale(1)    rotate(0deg);  }
+}
+
+/* A lobby vuota il QR è l'unica cosa da guardare: pulsa piano per dire
+   "inquadrami". Si ferma appena entra il primo giocatore — da lì in poi
+   l'attenzione deve andare ai nomi che compaiono, non più al codice. */
+#sala-lobby:not(.has-players) .sala-qr {
+  animation: mo-qr-invite 3.2s ease-in-out infinite;
+}
+
+@keyframes mo-qr-invite {
+  0%, 100% { transform: scale(1);     }
+  50%      { transform: scale(1.035); }
+}
+
+.sala-lobby-empty { animation: mo-soft-pulse 2.8s ease-in-out infinite; }
+
+@keyframes mo-soft-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1;    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   5. DOMANDA
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* La scheda della domanda è un foglio appuntato a un muro: ha una puntina in
+   alto a destra, quindi oscilla INTORNO ALLA PUNTINA, non intorno al centro.
+   È il dettaglio che fa la differenza fra "un riquadro che ruota" e "un foglio
+   appeso". */
+.q-card {
+  transform-origin: 92% 1.5rem;
+  animation: mo-pinned-sway 9s ease-in-out infinite;
+}
+
+@keyframes mo-pinned-sway {
+  0%, 100% { transform: rotate(-1deg);   }
+  50%      { transform: rotate(-0.1deg); }
+}
+
+/* Il nastro con "Domanda 3 di 10" si attacca di schianto all'inizio del round.
+   Il testo lo riscrive app.js su un elemento che resta lo stesso, quindi
+   l'animazione non ripartirebbe da sola: la riattacca l'ingresso del pannello. */
+.sala-panel.is-entering .q-tape {
+  animation: mo-tape-slap var(--mo-slow) var(--mo-stamp) both;
+  animation-delay: calc(var(--mo-stagger) * 2);
+}
+
+@keyframes mo-tape-slap {
+  0%   { opacity: 0; transform: rotate(-26deg) scale(1.6) translate(-20px, -14px); }
+  60%  { opacity: 1; transform: rotate(-2deg)  scale(0.96); }
+  100% { opacity: 1; transform: rotate(-5deg)  scale(1);    }
+}
+
+/* L'immagine della domanda entra con un respiro lentissimo (scala 1 → 1.04 in
+   venti secondi). È l'unica cosa sullo schermo che non ha bordi né ombre, e
+   senza movimento sembra incollata lì; con il respiro sembra proiettata.
+   `transform` su un <img> è compositore puro: non ricalcola né ridisegna. */
+.q-media img { animation: mo-slow-zoom 24s ease-in-out infinite alternate; }
+
+@keyframes mo-slow-zoom {
+  from { transform: scale(1);    }
+  to   { transform: scale(1.04); }
+}
+
+/* ─── Le risposte ───────────────────────────────────────────────────────────
+   Due animazioni sullo stesso elemento, separate da virgola: l'ENTRATA (una
+   sola volta, a scaglioni) e poi il GALLEGGIAMENTO (infinito, che parte quando
+   l'entrata è finita). Serve che siano due e non una: l'entrata deve poter
+   essere sostituita in blocco dal verdetto.
+
+   E lo è: `.sala-option-card.is-right` / `.is-out` in style.css hanno due
+   classi contro una, quindi la loro `animation` (forma breve, che azzera anche
+   il ritardo) vince su entrambe queste. Il galleggiamento si ferma da solo nel
+   momento esatto in cui la carta viene giudicata. */
+.sala-option-card {
+  animation:
+    mo-card-in var(--mo-base) var(--mo-snap) both,
+    mo-card-float 7s ease-in-out infinite;
+  animation-delay:
+    calc(var(--mo-i, 0) * var(--mo-stagger)),
+    calc(900ms + var(--mo-i, 0) * 500ms);
+}
+
+.sala-option-card:nth-child(1) { --mo-i: 0; }
+.sala-option-card:nth-child(2) { --mo-i: 1; }
+.sala-option-card:nth-child(3) { --mo-i: 2; }
+.sala-option-card:nth-child(4) { --mo-i: 3; }
+.sala-option-card:nth-child(5) { --mo-i: 4; }
+.sala-option-card:nth-child(6) { --mo-i: 5; }
+
+/* Le carte arrivano dal basso ruotate: è il gesto di quattro carte da gioco
+   buttate sul tavolo, non di quattro riquadri che compaiono. */
+@keyframes mo-card-in {
+  0%   { opacity: 0; transform: translateY(44px) scale(0.9) rotate(-3deg); }
+  70%  { opacity: 1; transform: translateY(-5px) scale(1.02) rotate(0.6deg); }
+  100% { opacity: 1; transform: translateY(0)    scale(1)   rotate(0deg);   }
+}
+
+/* Galleggiamento: tre pixel e un terzo di grado. Deliberatamente al limite
+   del percettibile — qui sopra c'è il testo che la sala sta LEGGENDO da sei
+   metri, e un movimento che si nota è un movimento che disturba. */
+@keyframes mo-card-float {
+  0%, 100% { transform: translateY(0)    rotate(0deg);    }
+  50%      { transform: translateY(-3px) rotate(0.35deg); }
+}
+
+/* La pedina di un giocatore che atterra sulla risposta scelta: rimbalza una
+   volta, come una moneta posata. Si aggiunge alla transizione già presente in
+   style.css, che copre il passaggio da `.is-incoming`. */
+.sala-option-seat:not(.is-incoming) {
+  animation: mo-seat-land var(--mo-fast) var(--mo-stamp);
+}
+
+@keyframes mo-seat-land {
+  0%   { transform: scale(0.5) translateY(-10px); }
+  60%  { transform: scale(1.15) translateY(0);    }
+  100% { transform: scale(1)   translateY(0);     }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   6. RISULTATI E PREMIAZIONE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Le righe della classifica arrivano a cascata dall'alto in giù: la lettura
+   segue l'ordine del podio, dal primo all'ultimo. Le righe sono ricreate a
+   ogni round (vedi renderStandings), quindi l'animazione riparte da sola. */
+.sala-rank-row {
+  animation: mo-row-in var(--mo-base) var(--mo-snap) both;
+}
+
+.sala-rank-row:nth-child(1) { animation-delay: 0ms;   }
+.sala-rank-row:nth-child(2) { animation-delay: 55ms;  }
+.sala-rank-row:nth-child(3) { animation-delay: 110ms; }
+.sala-rank-row:nth-child(4) { animation-delay: 165ms; }
+.sala-rank-row:nth-child(5) { animation-delay: 220ms; }
+.sala-rank-row:nth-child(n+6) { animation-delay: 275ms; }
+
+@keyframes mo-row-in {
+  from { opacity: 0; transform: translateX(-36px); }
+  to   { opacity: 1; transform: translateX(0);     }
+}
+
+/* Durante il sorpasso la riga è mossa da un'animazione WAAPI (il FLIP in
+   app.js), che occupa la stessa `transform`. L'entrata qui sopra si toglie di
+   mezzo, o le due si contendono la proprietà e la riga sobbalza a metà strada.
+
+   L'uscita di chi scende (`.is-dropped`) NON va azzerata qui: ha la propria
+   animazione in style.css e due classi di specificità, quindi vince già da
+   sola su questa entrata. Spegnerla da qui la cancellerebbe. */
+.sala-rank-row.is-moving { animation: none; }
+
+/* Il sigillo dell'ultimo round ha già il suo battito (`sealed-throb`). Quel che
+   mancava è l'ARRIVO: il cartello deve piombare, non comparire. */
+#sala-results.is-entering .sala-sealed {
+  animation: mo-seal-drop var(--mo-slow) var(--mo-stamp) both;
+}
+
+@keyframes mo-seal-drop {
+  0%   { opacity: 0; transform: translateY(-80px) rotate(-14deg) scale(1.1); }
+  65%  { opacity: 1; transform: translateY(6px)   rotate(1deg)   scale(0.97); }
+  100% { opacity: 1; transform: translateY(0)     rotate(-1.5deg) scale(1);  }
+}
+
+/* ─── Premiazione ────────────────────────────────────────────────────────────
+   Il podio e la coda appartengono a /shared/final-ceremony.css, che è
+   SINCRONIZZATO col telefono: ogni millisecondo lì dentro è concordato fra le
+   due superfici, e toccarlo da qui significherebbe far proclamare il vincitore
+   in due istanti diversi. Qui si anima solo il titolo del pannello, che la
+   cerimonia non rivendica. */
+#sala-final.is-entering > .sala-panel-title {
+  animation: mo-title-in var(--mo-slow) var(--mo-snap) both;
+}
+
+/* E il podio e la coda vanno sottratti esplicitamente all'ingresso generico di
+   pannello: sono figli diretti di #sala-final, quindi lo erediterebbero, e un
+   `mo-rise-in` addosso al podio significherebbe due animazioni che si
+   contendono la `transform` proprio durante la proclamazione. */
+#sala-final.is-entering > .sala-podium,
+#sala-final.is-entering > .sala-final-list { animation: none; }
+
+@keyframes mo-title-in {
+  0%   { opacity: 0; transform: scale(0.6) rotate(-6deg); }
+  70%  { opacity: 1; transform: scale(1.06) rotate(1.5deg); }
+  100% { opacity: 1; transform: scale(1)   rotate(0deg);  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   7. MOVIMENTO RIDOTTO
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Due cose diverse, trattate diversamente:
+
+   · i CICLI DI ATTESA (galleggiamenti, respiri, vignettatura) si spengono del
+     tutto. Non comunicano un evento: sono atmosfera, e l'atmosfera è
+     esattamente ciò che chi chiede movimento ridotto non vuole.
+   · le ENTRATE si accorciano a un istante invece di sparire. Portano
+     un'informazione — "questa schermata è cambiata" — e toglierla del tutto
+     rimetterebbe il salto che questo file è venuto a risolvere. */
+
+@media (prefers-reduced-motion: reduce) {
+  .sala-sticker,
+  .sala-bg-split,
+  .sala-logo-wrap,
+  .sala-idle-text,
+  .sala-lobby-empty,
+  .q-card,
+  .q-media img,
+  #sala-lobby:not(.has-players) .sala-qr,
+  body.is-urgent::after {
+    animation: none;
+  }
+
+  /* La vignettatura degli ultimi secondi resta ACCESA ma ferma: è un avviso,
+     non una decorazione — toglierla toglierebbe un'informazione. */
+  body.is-urgent::after { opacity: 0.2; }
+
+  .sala-panel.is-entering > *,
+  .sala-panel.is-entering .q-tape,
+  #sala-lobby.is-entering .sala-join-card,
+  #sala-lobby.is-entering .sala-lobby-players,
+  .sala-option-card,
+  .sala-player-chip.is-new,
+  .sala-count-bubble.is-bumped,
+  .sala-rank-row,
+  .sala-option-seat:not(.is-incoming),
+  .sala-timer-badge.is-tick,
+  #sala-final.is-entering > .sala-panel-title {
+    animation-duration: 1ms;
+    animation-delay: 0ms;
+  }
+}

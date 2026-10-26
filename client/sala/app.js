@@ -104,10 +104,47 @@ function reducedMotion() {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 }
 
+/**
+ * Quanto dura, al massimo, l'ingresso scaglionato di un pannello: la posa più
+ * lunga di motion.css più il suo ritardo, con un margine. Serve solo a togliere
+ * la classe quando ha finito — un valore un po' generoso non fa danno, un
+ * valore corto taglierebbe l'animazione a metà.
+ */
+const PANEL_ENTER_MS = 1200;
+let panelEnterTimer = null;
+
+/**
+ * Fa entrare in scena un pannello. Il movimento vero sta in motion.css, sotto
+ * `.is-entering`: qui c'è solo l'interruttore.
+ *
+ * Il giro remove → lettura di offsetWidth → add non è superstizione: riattaccare
+ * una classe nello stesso fotogramma in cui la si toglie non fa ripartire
+ * nessuna animazione, perché il browser vede un solo stato finale. La lettura
+ * forza un ricalcolo in mezzo, e l'animazione riparte davvero. Senza, un
+ * pannello mostrato due volte di fila (succede a ogni `game:snapshot`) entra
+ * una volta sola.
+ */
+function enterPanel(el) {
+  if (panelEnterTimer) clearTimeout(panelEnterTimer);
+  for (const p of Object.values(els.panels)) p.classList.remove('is-entering');
+  void el.offsetWidth;
+  el.classList.add('is-entering');
+  panelEnterTimer = setTimeout(() => {
+    el.classList.remove('is-entering');
+    panelEnterTimer = null;
+  }, PANEL_ENTER_MS);
+}
+
 /** Mostra un solo pannello alla volta. */
 function showPanel(name) {
   for (const [key, el] of Object.entries(els.panels)) {
-    el.hidden = key !== name;
+    const show = key === name;
+    // Chi era già a schermo non rientra: `showPanel` viene richiamata anche
+    // per aggiornare un pannello che sta già mostrando (il riallineamento da
+    // `game:snapshot`), e rifare l'ingresso lì sembrerebbe un glitch.
+    const entering = show && el.hidden;
+    el.hidden = !show;
+    if (entering) enterPanel(el);
   }
 }
 
@@ -163,7 +200,19 @@ function stopCountdown(reset = true) {
     countdownTimer = null;
   }
   els.timer.classList.remove('is-urgent');
+  document.body.classList.remove('is-urgent');
   if (reset) els.timer.textContent = '--:--';
+}
+
+/**
+ * Il colpo del countdown a ogni secondo. Lo chiama solo il tick che ha visto
+ * cambiare DAVVERO la cifra: l'intervallo gira a 250ms, e un colpo quattro
+ * volte al secondo non sarebbe un battito ma un tremolio.
+ */
+function pulseTimer() {
+  els.timer.classList.remove('is-tick');
+  void els.timer.offsetWidth;
+  els.timer.classList.add('is-tick');
 }
 
 /**
@@ -177,8 +226,20 @@ function startCountdown(endsAt, serverNow) {
     const remaining = Math.ceil(ServerClock.remainingMs(deadline) / 1000);
     const m = String(Math.floor(remaining / 60)).padStart(2, '0');
     const s = String(remaining % 60).padStart(2, '0');
-    els.timer.textContent = `${m}:${s}`;
-    els.timer.classList.toggle('is-urgent', remaining > 0 && remaining <= 10);
+    const urgent = remaining > 0 && remaining <= 10;
+    const text = `${m}:${s}`;
+    if (els.timer.textContent !== text) {
+      els.timer.textContent = text;
+      // Negli ultimi dieci secondi il colpo si tace: il badge sta già
+      // battendo da solo (`.is-urgent`), e le due animazioni si contendono
+      // la stessa `transform` — il battito si interromperebbe ogni secondo
+      // per far passare il colpo, che è il contrario dell'effetto voluto.
+      if (!urgent) pulseTimer();
+    }
+    els.timer.classList.toggle('is-urgent', urgent);
+    // Anche i bordi dello schermo si accendono: in sala il badge da solo è
+    // un dettaglio in un angolo, e chi guarda la domanda non lo vede.
+    document.body.classList.toggle('is-urgent', urgent);
     if (remaining === 0) stopCountdown(false);
   };
   tick();
@@ -234,13 +295,46 @@ async function loadJoinInfo() {
   }
 }
 
+/**
+ * Chi era già in lobby all'aggiornamento precedente. Serve a distinguere
+ * l'arrivo di una persona dal semplice ridisegno della lista.
+ */
+let shownPlayerKeys = new Set();
+
+/**
+ * Identità di un giocatore ai fini del disegno. L'id è quello buono; il
+ * nickname è il ripiego per un payload che non lo portasse, e sbaglia solo nel
+ * caso in cui due persone scelgano lo stesso nome — dove l'unica conseguenza è
+ * un pop mancato.
+ */
+const playerKey = (p) => String(p.id ?? p.nickname ?? '');
+
 function renderLobby(players) {
-  els.playerCount.textContent = players.length;
   els.lobbyEmpty.hidden = players.length > 0;
+  // Il QR smette di pulsare appena c'è qualcuno: da lì in poi l'attenzione
+  // deve andare ai nomi che compaiono, non più al codice da inquadrare.
+  els.panels.lobby.classList.toggle('has-players', players.length > 0);
+
+  // `renderLobby` ridisegna tutta la lista a ogni aggiornamento, quindi senza
+  // questo confronto l'animazione d'ingresso ripartirebbe su TUTTI i chip a
+  // ogni arrivo: al ventesimo giocatore sarebbe un muro che sfarfalla, e venti
+  // elementi da comporre nello stesso fotogramma su un Raspberry. Si anima solo
+  // chi è arrivato davvero; chi c'era già resta fermo, ed è proprio questo che
+  // rende leggibile l'arrivo.
+  const seen = new Set();
+  let arrivals = 0;
+
   els.players.innerHTML = '';
   for (const p of players) {
+    const key = playerKey(p);
+    seen.add(key);
+    const isNew = !shownPlayerKeys.has(key);
+    if (isNew) arrivals++;
+
     const li = document.createElement('li');
-    li.className = 'sala-player-chip' + (p.connected === false ? ' is-disconnected' : '');
+    li.className = 'sala-player-chip'
+      + (p.connected === false ? ' is-disconnected' : '')
+      + (isNew ? ' is-new' : '');
     const av = document.createElement('span');
     av.className = 'avatar';
     av.textContent = avatarOf(p.avatar);
@@ -248,6 +342,16 @@ function renderLobby(players) {
     name.textContent = p.nickname;
     li.append(av, name);
     els.players.appendChild(li);
+  }
+  shownPlayerKeys = seen;
+
+  // Il contatore scatta solo quando il numero sale per un arrivo vero: una
+  // disconnessione lo fa scendere, e festeggiare chi se ne va è fuori luogo.
+  els.playerCount.textContent = players.length;
+  if (arrivals > 0) {
+    els.playerCount.classList.remove('is-bumped');
+    void els.playerCount.offsetWidth;
+    els.playerCount.classList.add('is-bumped');
   }
 }
 
