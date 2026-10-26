@@ -127,7 +127,7 @@ Un minigioco è un **modulo isolato**: due file che portano il suo nome, più du
 
 1. `server/minigames/<nome-gioco>.js` — le **regole**. Copiare `server/minigames/_TEMPLATE.js`, che documenta il contratto riga per riga.
 2. `client/shared/minigames/<nome-gioco>.js` — la **presentazione**. Copiare `client/shared/minigames/_TEMPLATE.js`.
-3. Una riga `<script src="/shared/minigames/<nome-gioco>.js">` in `client/sala/index.html` **e** in `client/player/index.html`. È l'unico punto in cui il nome compare fuori dai suoi file: il browser non ha un filesystem da scandire, va detto cosa caricare.
+3. Una riga `<script src="/shared/minigames/<nome-gioco>.js">` in `client/sala/index.html`, `client/player/index.html` **e** `client/host/index.html` (anche il pannello host disegna l'attesa del round, in un riquadro piccolo). È l'unico punto in cui il nome compare fuori dai suoi file: il browser non ha un filesystem da scandire, va detto cosa caricare.
 4. Facoltativi: asset in `resources/img/<nome-gioco>/`, regole CSS in `client/shared/minigames/minigames.css` — una sezione per minigioco, tutte le classi prefissate `.mg-<tipo-con-trattini>-`.
 5. `npm run test:minigames` — il registry ricarica da solo e valida il contratto.
 
@@ -136,6 +136,8 @@ Le tre regole che tengono in piedi la struttura:
 - **Il nome del file è la fonte di verità del tipo** (`morra-cinese.js` → `morra_cinese`). Il registry lo verifica all'avvio.
 - **`build()` e `resolve()` devono essere pure**: il registry le esegue una volta a vuoto per validarle.
 - **Un minigioco non conosce l'esistenza degli altri.** Se serve scrivere `if (type === '...')` da qualche parte, quel comportamento va nel contratto, non in un ramo.
+
+**Minigiochi "guarda e poi scegli" (`previewMs`).** Di default un minigioco si sceglie subito e la macchina decide alla chiusura. Un modulo che dichiara `previewMs > 0` (oggi Tre Bicchieri, `cup-game.js`) rovescia l'ordine: `GameSession._enterRound` chiama `resolve()` all'**apertura**, `submitAnswer` rifiuta con `AnswersNotOpenError` fino a `answersOpenAt`, ed `endQuestion` riusa quella risoluzione invece di estrarne un'altra che smentirebbe lo spettacolo. In `emitQuestion` l'esito viaggia come `preview: { machineChoice }` **solo** fuori dalla room `players` (`io.except`): sala e host lo mettono in scena, i telefoni non lo ricevono mai. Il tempo di risposta parte da `answersOpenAt`, e i client lo ricevono accanto a `serverNow` come ogni altra scadenza. Attenzione rimandando un countdown: `ServerClock.localDeadline` misura lo scarto nell'istante della chiamata, quindi chi la chiama in ritardo deve far avanzare `serverNow` del tempo trascorso dalla ricezione (vedi `renderQuestion` in sala e player). three.js (`client/shared/vendor/three/`, r170 dal pacchetto npm ufficiale) è caricato con `import()` dinamico solo dal modulo che lo usa.
 
 Gli stili specifici di un minigioco non stanno nei fogli delle SPA: là resta solo l'accento generico `.is-minigame` del round, che usa i token propri di ciascuna (`--retro-ochre` in sala, `--ticket-ochre` sul player).
 

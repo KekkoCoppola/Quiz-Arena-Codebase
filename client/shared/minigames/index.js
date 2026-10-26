@@ -74,8 +74,15 @@
     sala: {
       /**
        * Round aperto: la sala aspetta. Qui va l'animazione di attesa.
+       * Chiamata anche dal pannello host, in un riquadro piccolo.
+       *
+       * Per un minigioco con anteprima (`previewMs` lato server), `round.preview`
+       * porta l'esito già estratto (solo sala e host lo ricevono) e
+       * `ctx.answersOpenAt` dice quando finisce lo spettacolo da seguire e
+       * si apre la scelta, già sull'orologio locale.
        * @param {{ questionText: HTMLElement }} els
        * @param {object} round payload game:question
+       * @param {{ answersOpenAt: number, isStale: () => boolean }} [ctx]
        */
       startSuspense(els, round) {
         els.questionText.textContent = round.text;

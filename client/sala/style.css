@@ -13,11 +13,15 @@
  *     vendorati, perché durante l'evento il Raspberry è offline.
  *  2. Le risposte non sono <button>. Sulla sala nessuno clicca: sono schede di
  *     sola lettura, quindi niente stati hover/active e niente cursore.
- *  3. Lo sfondo è la carta a pois, non lo split ochre/teal. È ciò che il mockup
- *     produce davvero: le sue `.grid-bg-left/right` usano `theme()` dentro un
- *     <style> semplice, che il CDN di Tailwind non risolve, quindi restano
- *     trasparenti. Della divisione resta la riga verticale centrale, che il
- *     mockup disegna col bordo destro della metà sinistra.
+ *  3. Lo sfondo è la carta a pois, non lo split ochre/teal.
+ *
+ * Redesign (ottobre 2026): stessa forma Retro Street — bordi inchiostro, ombre
+ * piene, Quicksand — ma più tonda e più pulita. I colori vengono dal LOGO
+ * (giallo, indaco elettrico, inchiostro blu-nero), come nel pannello admin. Via
+ * la barra in alto, la riga centrale, gli adesivi storti e la puntina: la sala
+ * ha tre oggetti tondi sospesi in testata e un fondo che prende la retinatura
+ * e l'esplosione del logo. Le tinte delle risposte NON cambiano: sono le stesse
+ * del telefono, e il giocatore guarda i due schermi insieme.
  */
 
 /* ─── Font vendorati ────────────────────────────────────────────────────── */
@@ -72,15 +76,19 @@
    che il mockup descrive. */
 
 :root {
-  --paper-base:      #f4e8d1;
-  /* Inchiostro di DESIGN.md, identico a quello del client player: è il colore
-     di OGNI bordo strutturale del sistema, quindi deve essere lo stesso su
-     entrambi gli schermi. Prima era #2A2A2A, un grigio leggermente diverso:
-     bastava a far sembrare i due schermi due prodotti diversi. */
-  --retro-dark:      #201b0d;
-  --retro-ochre:     #F2A65A;
-  --retro-teal:      #008080;
-  --retro-terracotta:#E05A47;
+  /* ─── Dal logo ────────────────────────────────────────────────────────────
+     Gli stessi valori del pannello admin (DESIGN.md §7). */
+  --paper-base:      #f1f0fa;   /* il bianco del fumetto, appena freddo */
+  --paper-dot:       #d9d6f2;
+  /* Inchiostro dei contorni del logo: è il colore di OGNI bordo strutturale
+     della sala. Il testo delle risposte resta su --ink, quello del telefono. */
+  --retro-dark:      #1c1c26;
+  --logo-yellow:     #ffe500;
+  --indigo:          #443be0;
+  --indigo-deep:     #2d25a8;
+  --indigo-soft:     #e4e2fc;
+  --amber:           #c6853a;
+  --alert-red:       #e5383b;
 
   /* ─── Palette delle risposte, condivisa con il client player ───────────────
      Stessi nomi e stessi valori di client/player/style.css: le opzioni di
@@ -94,9 +102,9 @@
   --paper-white:        #ffffff;
   --ink:                #201b0d;
 
-  --primary-container: #ffed00;
-  --surface-container: #eceef0;
-  --surface-dim:       #d8dadc;
+  --primary-container: var(--logo-yellow);
+  --surface-container: #ecebf8;
+  --surface-dim:       #d4d2ea;
   --white:             #ffffff;
 
   --font-family: 'Quicksand', system-ui, sans-serif;
@@ -113,9 +121,24 @@
   --block-sm:   4px 4px 0px 0px var(--retro-dark);
   --border:     4px solid var(--retro-dark);
 
-  --radius:      1rem;
-  --radius-lg:   2rem;
+  /* Più tondi di prima (16/32px): su un proiettore gli angoli generosi sono
+     ciò che fa sembrare la sala un gioco e non un modulo. */
+  --radius:      1.5rem;
+  --radius-lg:   2.25rem;
   --radius-full: 9999px;
+
+  /* Testata: misure dei tre oggetti tondi. */
+  --hud-logo:    7.25rem;
+  --hud-timer:   7.25rem;
+  --hud-pad:     1.5rem;
+}
+
+/* L'anello del cronometro si svuota in modo continuo: registrare la proprietà
+   permette di interpolarla fra un tick e l'altro invece di farla scattare. */
+@property --frac {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 1;
 }
 
 /* ─── Reset e base ──────────────────────────────────────────────────────── */
@@ -133,12 +156,9 @@ body {
   font-weight: 700;
   color: var(--retro-dark);
   background-color: var(--paper-base);
-  /* Due griglie di pois sfalsate: è la trama del mockup. */
-  background-image:
-    radial-gradient(var(--retro-dark) 1px, transparent 1px),
-    radial-gradient(var(--retro-dark) 1px, transparent 1px);
-  background-size: 40px 40px;
-  background-position: 0 0, 20px 20px;
+  /* Pois tenui: la trama resta, ma non compete più con il testo. */
+  background-image: radial-gradient(var(--paper-dot) 2px, transparent 2px);
+  background-size: 36px 36px;
   overflow: hidden;   /* nessuno scrolla un proiettore */
   cursor: none;       /* il puntatore non deve comparire in sala */
   -webkit-font-smoothing: antialiased;
@@ -146,36 +166,66 @@ body {
 
 [hidden] { display: none !important; }
 
-/* ─── Sfondo: divisione centrale e adesivi ──────────────────────────────── */
+/* ─── Sfondo: la retinatura e le forme del logo ─────────────────────────── */
 
 .sala-bg-layer {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  overflow: hidden;
 }
 
-/* La riga che divide il campo in due metà. */
-.sala-bg-split {
+/* Retinatura da fumetto, come i puntini del logo: piena nell'angolo, sfuma
+   verso il centro. Statica: la maschera si dipinge una volta sola. */
+.sala-halftone {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: 4px;
-  transform: translateX(-2px);
-  background: var(--retro-dark);
+  width: 55vmax;
+  height: 55vmax;
+  background-image: radial-gradient(circle, var(--indigo) 0 2.6px, transparent 3px);
+  background-size: 18px 18px;
+  opacity: 0.22;
+}
+.sala-halftone--tl {
+  top: -12vmax;
+  left: -12vmax;
+  -webkit-mask-image: radial-gradient(circle at 30% 30%, #000 0, transparent 62%);
+  mask-image: radial-gradient(circle at 30% 30%, #000 0, transparent 62%);
+}
+.sala-halftone--br {
+  bottom: -14vmax;
+  right: -14vmax;
+  -webkit-mask-image: radial-gradient(circle at 70% 70%, #000 0, transparent 62%);
+  mask-image: radial-gradient(circle at 70% 70%, #000 0, transparent 62%);
 }
 
-.sala-sticker {
-  position: absolute;
-  opacity: 0.8;
-  filter: drop-shadow(4px 4px 0px var(--retro-dark));
+/* Forme grandi che sbordano: occupano gli angoli, mai il centro. */
+.sala-shape { position: absolute; }
+
+/* Il disco indaco, in basso a sinistra: l'ombra elettrica del logo. */
+.sala-shape--orb {
+  left: -15vmin;
+  bottom: -19vmin;
+  width: 42vmin;
+  height: 42vmin;
+  border-radius: 50%;
+  background: var(--indigo);
+  border: 6px solid var(--retro-dark);
+  box-shadow: 10px -10px 0 0 var(--retro-dark);
 }
 
-.sala-sticker--1 { top: 2.5rem;  left: 2.5rem;  width: 6rem;  height: 6rem;  color: var(--retro-terracotta); transform: rotate(-15deg); }
-.sala-sticker--2 { bottom: 5rem; right: 2.5rem; width: 8rem;  height: 8rem;  color: var(--primary-container); transform: rotate(20deg); }
-.sala-sticker--3 { top: 33%;     left: 1rem;    width: 4rem;  height: 4rem;  color: var(--retro-ochre); transform: rotate(45deg); }
-.sala-sticker--4 { bottom: 33%;  right: 25%;    width: 5rem;  height: 5rem;  color: var(--white); transform: rotate(-30deg); }
+/* L'esplosione gialla, a destra: il fumetto del logo. */
+.sala-shape--burst {
+  right: -10vmin;
+  bottom: -9vmin;
+  width: 32vmin;
+  height: 32vmin;
+  fill: var(--logo-yellow);
+  stroke: var(--retro-dark);
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+  overflow: visible;
+}
 
 /* ─── Impalcatura ───────────────────────────────────────────────────────── */
 
@@ -187,119 +237,160 @@ body {
   flex-direction: column;
 }
 
-/* ─── Barra superiore ───────────────────────────────────────────────────── */
+/* ─── Testata: tre oggetti tondi, nessuna barra ─────────────────────────────
+   La barra bianca a tutta larghezza è sparita: prendeva una fascia intera
+   dello schermo per mostrare, in lobby, un logo e un "--:--". Restano tre
+   oggetti che galleggiano sul fondo — logo, avanzamento, cronometro — e
+   ognuno si fa vedere solo quando ha qualcosa da dire. Le tre colonne sono
+   simmetriche (1fr auto 1fr) così l'avanzamento resta al centro esatto. */
 
 .sala-top-bar {
   flex: 0 0 auto;
   position: relative;
   z-index: 50;
-  margin: 1rem;
-  padding: 1rem;
-  background: var(--white);
-  border: var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--block);
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
+  gap: 1rem;
+  padding: var(--hud-pad) calc(var(--hud-pad) + 0.5rem) 0.5rem;
+  min-height: calc(var(--hud-timer) + var(--hud-pad));
 }
 
-/* Traccia di avanzamento: cerchi disegnati e barrette alternati. */
+/* Avanzamento: una pillola con un pallino per round. */
 .sala-progress {
-  flex: 1 1 0;
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.55rem;
+  padding: 0.7rem 1.1rem;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius-full);
+  box-shadow: 6px 6px 0 0 var(--retro-dark);
+  max-width: 100%;
   overflow: hidden;
 }
+
+/* In attesa, in lobby e alla premiazione l'avanzamento non dice nulla (e in
+   lobby mostrerebbe i pallini della partita precedente): la pillola non c'è. */
+.sala-progress:empty,
+.sala-shell:has(#sala-idle:not([hidden]))  .sala-progress,
+.sala-shell:has(#sala-lobby:not([hidden])) .sala-progress,
+.sala-shell:has(#sala-final:not([hidden])) .sala-progress { visibility: hidden; }
 
 .sala-progress .dot {
   flex: 0 0 auto;
   width: 1rem;
   height: 1rem;
-  border: var(--border);
+  border: 3px solid var(--retro-dark);
+  border-radius: 50%;
   background: var(--surface-dim);
-  /* "Drawn circle": raggi asimmetrici, per l'effetto disegnato a mano. */
-  border-radius: 50% 40% 60% 30% / 40% 60% 30% 50%;
+  transition: background-color 300ms ease-out;
 }
 
-.sala-progress .bar {
-  flex: 0 0 auto;
-  width: 2rem;
-  height: 0.5rem;
-  border: var(--border);
-  border-radius: var(--radius-full);
-  background: var(--surface-dim);
-}
+/* Le barrette fra un pallino e l'altro raccontavano un percorso disegnato a
+   mano; nella pillola bastano i pallini. */
+.sala-progress .bar { display: none; }
 
-.sala-progress .is-done { background: var(--retro-terracotta); }
+.sala-progress .dot.is-done { background: var(--indigo); }
 
-.sala-progress .is-current {
-  width: 1.5rem;
-  height: 1.5rem;
-  background: var(--primary-container);
+.sala-progress .dot.is-current {
+  width: 1.6rem;
+  height: 1.6rem;
+  background: var(--logo-yellow);
   display: grid;
   place-items: center;
 }
 
-.sala-progress .is-current::after {
+.sala-progress .dot.is-current::after {
   content: '';
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: var(--radius-full);
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
   background: var(--retro-dark);
 }
 
-/* Logo: sporge sopra la barra ed è ruotato, come un adesivo appiccicato. */
+/* Logo: così com'è, senza contenitore. Ha già contorno e colori suoi, e un
+   cerchio bianco intorno lo rimpiccioliva a un'icona dentro un bottone. La
+   taglia segue il cronometro (`--hud-logo`), così i due angoli della testata
+   pesano uguale in ogni viewport. */
 .sala-logo-wrap {
-  flex: 0 0 auto;
-  margin-top: -2rem;
-  padding: 0.5rem;
-  background: var(--white);
-  border: var(--border);
-  border-radius: var(--radius-full);
-  box-shadow: var(--block);
-  transform: rotate(-5deg);
-  display: flex;
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+  width: calc(var(--hud-logo) * 1.3);
+  height: var(--hud-logo);
+  display: grid;
+  place-items: center;
 }
 
+/* Il disegno del logo occupa ~3/4 dell'altezza del suo SVG (è un'esplosione
+   più larga che alta): a parità di box sembrerebbe più piccolo del
+   cronometro, che è un cerchio pieno. L'immagine esce del 15% sopra e sotto
+   la scatola — meno del `--hud-pad` di ogni breakpoint, quindi non tocca il
+   bordo dello schermo — e la testata non cambia altezza. */
 .sala-logo-wrap img {
-  width: 4rem;
-  height: 4rem;
+  width: 100%;
+  height: calc(var(--hud-logo) * 1.3);
+  max-width: none;
   object-fit: contain;
 }
 
+/* In attesa il logo è già grande al centro: in testata sarebbe un doppione. */
+.sala-shell:has(#sala-idle:not([hidden])) .sala-logo-wrap { visibility: hidden; }
+
 .sala-timer-wrap {
-  flex: 1 1 0;
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
   display: flex;
-  justify-content: flex-end;
 }
 
+/* Il cronometro è un quadrante tondo con un anello che si svuota: si legge
+   da in fondo alla sala anche senza leggere la cifra. L'anello è un
+   conic-gradient pilotato da --frac (1 → 0), che app.js aggiorna a ogni tick;
+   il disco scuro al centro è il radial-gradient sopra di lui. */
 .sala-timer-badge {
-  /* Il countdown è, con la domanda, la cosa che la sala guarda di più: stava a
-     --headline-md, cioè più piccolo del testo delle risposte. */
-  font-size: var(--display-lg-mobile);
-  font-weight: 900;
-  line-height: 1.3;
-  padding: 0.5rem 1rem;
-  color: var(--white);
-  background: var(--retro-teal);
+  --ring: var(--logo-yellow);
+  width: var(--hud-timer);
+  height: var(--hud-timer);
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
   border: var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--block-sm);
-  transform: rotate(3deg);
+  box-shadow: 6px 6px 0 0 var(--retro-dark);
+  background:
+    radial-gradient(closest-side, var(--retro-dark) 74%, transparent 75%),
+    conic-gradient(var(--ring) calc(var(--frac) * 1turn), rgba(255, 255, 255, 0.92) 0);
+  color: var(--white);
+  font-size: calc(var(--hud-timer) * 0.36);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+  transition: --frac 260ms linear, opacity 260ms ease-out, transform 260ms ease-out;
+}
+
+/* Sopra il minuto il testo è "1:30": più lungo, va un passo più piccolo. */
+.sala-timer-badge.is-long { font-size: calc(var(--hud-timer) * 0.25); }
+
+/* Fuori dalla domanda il quadrante esce di scena (lo decide app.js). */
+.sala-timer-badge.is-idle {
+  opacity: 0;
+  transform: scale(0.6);
 }
 
 /* Ultimi secondi: in sala il colore fa il lavoro che il suono da solo non fa. */
 .sala-timer-badge.is-urgent {
-  background: var(--retro-terracotta);
+  --ring: var(--alert-red);
+  color: var(--logo-yellow);
   animation: sala-pulse 700ms steps(2, jump-none) infinite;
 }
 
 @keyframes sala-pulse {
-  from { transform: rotate(3deg) scale(1); }
-  to   { transform: rotate(3deg) scale(1.08); }
+  from { transform: scale(1); }
+  to   { transform: scale(1.08); }
 }
 
 /* ─── Palco ─────────────────────────────────────────────────────────────── */
@@ -308,7 +399,7 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
-  padding: 0 1rem 1.5rem;
+  padding: 0 2rem 1.5rem;
 }
 
 .sala-panel {
@@ -335,13 +426,23 @@ body {
   background: var(--primary-container);
   border: var(--border);
   border-radius: var(--radius-full);
-  padding: 0.05em 0.45em;
+  box-shadow: var(--block-sm);
+  padding: 0.05em 0.5em;
   font-variant-numeric: tabular-nums;
 }
 
 /* ─── Attesa ────────────────────────────────────────────────────────────── */
+/* La prima cosa che la sala vede, a volte per dieci minuti: il marchio in
+   grande e un cartello che dice cosa sta succedendo. */
 
-#sala-idle { justify-content: center; }
+#sala-idle { justify-content: center; gap: clamp(1rem, 4vh, 2.5rem); }
+
+.sala-idle-logo {
+  width: clamp(9rem, 32vh, 20rem);
+  height: auto;
+  aspect-ratio: 1;
+  filter: drop-shadow(8px 8px 0 var(--retro-dark));
+}
 
 .sala-idle-text {
   font-size: var(--display-lg);
@@ -350,10 +451,9 @@ body {
   text-align: center;
   background: var(--white);
   border: var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-full);
   box-shadow: var(--block);
-  padding: 2rem 3rem;
-  transform: rotate(-1deg);
+  padding: 1.25rem 3rem;
 }
 
 /* ─── Scheda domanda ────────────────────────────────────────────────────── */
@@ -381,7 +481,7 @@ body {
 
 .q-card-wrap {
   width: 92%;
-  max-width: 48rem;
+  max-width: 58rem;
   flex: 0 1 auto;
   min-height: 0;
 }
@@ -390,28 +490,31 @@ body {
   position: relative;
   background: var(--white);
   border: var(--border);
-  box-shadow: var(--block);
-  padding: 2rem 3rem;
+  border-radius: var(--radius-lg);
+  box-shadow: 10px 10px 0 0 var(--retro-dark);
+  padding: 2.75rem 3rem 2rem;
   text-align: center;
-  transform: rotate(-1deg);
 }
 
-/* Badge categoria "a nastro adesivo": sporge dall'angolo, bordi tagliati storti. */
+/* "Domanda 3 di 10": una pillola a cavallo del bordo superiore, al centro.
+   Il centraggio usa la proprietà `translate` e non `transform`, così le
+   animazioni di motion.css (che usano `transform`) non lo annullano. */
 .q-tape {
   position: absolute;
-  top: -1rem;
-  left: -1rem;
-  padding: 0.5rem 1.5rem;
-  background: var(--primary-container);
-  color: var(--retro-dark);
-  border: 2px solid var(--retro-dark);
+  top: 0;
+  left: 50%;
+  translate: -50% -50%;
+  padding: 0.4rem 1.5rem;
+  background: var(--indigo);
+  color: var(--white);
+  border: var(--border);
+  border-radius: var(--radius-full);
   box-shadow: var(--block-sm);
   font-size: var(--headline-md);
   font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  transform: rotate(-5deg);
-  clip-path: polygon(0 0, 100% 5%, 95% 100%, 5% 95%);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
 }
 
 .q-text {
@@ -420,8 +523,7 @@ body {
   font-weight: 900;
   letter-spacing: -0.02em;
   margin-bottom: 1rem;
-  /* Ombra secondaria terracotta: stacca il titolo dallo sfondo. */
-  filter: drop-shadow(2px 2px 0px var(--retro-terracotta));
+  text-wrap: balance;
 }
 
 /* Variante SENZA immagine: la riga di istruzione sotto il titolo.
@@ -436,10 +538,11 @@ body {
   display: inline-block;
   font-size: var(--body-lg);
   font-weight: 700;
-  padding: 0.75rem 1.5rem;
+  padding: 0.75rem 1.75rem;
   background: var(--surface-container);
-  border: var(--border);
-  border-radius: 0.375rem;
+  /* Niente bordo: dentro la scheda della domanda una seconda cornice
+     inchiostro la faceva sembrare una scheda nella scheda. Basta il fondo. */
+  border-radius: var(--radius-full);
 }
 
 /* Variante CON immagine.
@@ -497,29 +600,6 @@ body {
   color: rgba(42, 42, 42, 0.2);
 }
 
-/* Puntina decorativa in alto a destra. */
-.q-pin {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: var(--radius-full);
-  background: var(--retro-terracotta);
-  border: var(--border);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35);
-}
-
-.q-pin span {
-  position: absolute;
-  top: 0.15rem;
-  left: 0.15rem;
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: var(--radius-full);
-  background: rgba(255, 255, 255, 0.5);
-}
-
 /* ─── Risposte ──────────────────────────────────────────────────────────── */
 
 .sala-options {
@@ -558,9 +638,9 @@ body {
   align-items: center;
   column-gap: 1rem;
   row-gap: 0.9rem;
-  padding: 1.5rem;
+  padding: 1.5rem 1.75rem;
   border: var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   box-shadow: var(--block);
   font-size: var(--display-lg-mobile);
   /* 700, non 900, e nessun maiuscolo: identico al telefono. */
@@ -751,7 +831,7 @@ body {
   font-size: 5rem;
   font-weight: 900;
   line-height: 1;
-  color: var(--game-over-red, #ab3425);
+  color: var(--alert-red);
   -webkit-text-stroke: 4px var(--ink);
   paint-order: stroke fill;
   pointer-events: none;
@@ -778,7 +858,7 @@ body {
 }
 
 /* Accento del round minigioco: il nastro cambia colore, il resto no. */
-.sala-panel.is-minigame .q-tape { background: var(--retro-ochre); }
+.sala-panel.is-minigame .q-tape { background: var(--logo-yellow); color: var(--retro-dark); }
 
 /* ─── Lobby ─────────────────────────────────────────────────────────────── */
 
@@ -794,29 +874,35 @@ body {
 }
 
 .sala-join-card {
+  position: relative;
   background: var(--white);
   border: var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--block);
-  padding: 1.5rem;
+  border-radius: var(--radius-lg);
+  box-shadow: 10px 10px 0 0 var(--retro-dark);
+  padding: 2.75rem 2rem 1.75rem;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
-  transform: rotate(-1.5deg);
+  gap: 1rem;
 }
 
+/* Stessa pillola a cavallo del bordo della scheda domanda. */
 .sala-join-kicker {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  translate: -50% -50%;
+  white-space: nowrap;
   font-size: var(--headline-md);
   font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  background: var(--primary-container);
-  border: 2px solid var(--retro-dark);
+  letter-spacing: 0.06em;
+  color: var(--white);
+  background: var(--indigo);
+  border: var(--border);
+  border-radius: var(--radius-full);
   box-shadow: var(--block-sm);
-  padding: 0.25rem 1rem;
-  transform: rotate(-2deg);
-  clip-path: polygon(0 0, 100% 5%, 95% 100%, 5% 95%);
+  padding: 0.4rem 1.5rem;
 }
 
 .sala-qr {
@@ -825,16 +911,17 @@ body {
   aspect-ratio: 1;
   background: var(--white);
   border: var(--border);
-  border-radius: 0.5rem;
-  padding: 0.5rem;
+  border-radius: var(--radius);
+  padding: 0.75rem;
   display: flex;
 }
 
 .sala-qr svg { width: 100%; height: 100%; display: block; }
 
 .sala-join-url {
-  font-size: var(--body-lg);
+  font-size: var(--headline-md);
   font-weight: 900;
+  color: var(--indigo-deep);
   word-break: break-all;
   text-align: center;
 }
@@ -887,12 +974,11 @@ body {
 .sala-reveal {
   font-size: var(--display-lg-mobile);
   font-weight: 900;
-  padding: 0.5rem 1.5rem;
+  padding: 0.6rem 2rem;
   background: var(--primary-container);
   border: var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-full);
   box-shadow: var(--block);
-  transform: rotate(-1deg);
   text-align: center;
 }
 
@@ -932,12 +1018,11 @@ body {
   align-items: center;
   gap: 0.5rem;
   padding: 2.5rem 2rem;
-  background: var(--ticket-ochre);
-  color: var(--ink);
+  background: var(--indigo);
+  color: var(--white);
   border: var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--block);
-  transform: rotate(-1.5deg);
+  box-shadow: 10px 10px 0 0 var(--retro-dark);
   text-align: center;
 }
 
@@ -1069,8 +1154,10 @@ body {
 .sala-odo-strip { display: block; }
 .sala-odo-digit { display: block; height: 1.25em; line-height: 1.25em; }
 
-/* Il totale si accende mentre cresce. */
-.sala-standings-list.counting .sala-rank-score { color: var(--arcade-teal-deep); }
+/* Il totale si accende mentre cresce. Sull'argento (fondo indaco) l'indaco
+   sparirebbe: lì si accende di giallo. */
+.sala-standings-list.counting .sala-rank-score { color: var(--indigo-deep); }
+.sala-standings-list.counting .is-rank-2 .sala-rank-score { color: var(--logo-yellow); }
 
 /* Riga in movimento durante un sorpasso: passa sopra le altre, così si legge
    chi sta scavalcando chi. */
@@ -1108,9 +1195,10 @@ body {
   transition: background-color 420ms ease-out, color 420ms ease-out;
 }
 
-.sala-rank-row.is-rank-1 { background: var(--insert-coin-yellow); color: var(--primary-ink); }
-.sala-rank-row.is-rank-2 { background: var(--arcade-teal);        color: var(--arcade-teal-deep); }
-.sala-rank-row.is-rank-3 { background: var(--ticket-ochre);       color: var(--ink); }
+/* I metalli nella palette del logo: oro giallo, argento indaco, bronzo ambra. */
+.sala-rank-row.is-rank-1 { background: var(--logo-yellow); color: var(--retro-dark); }
+.sala-rank-row.is-rank-2 { background: var(--indigo);      color: var(--white); }
+.sala-rank-row.is-rank-3 { background: var(--amber);       color: var(--retro-dark); }
 
 /* La lama di luce che attraversa la riga. */
 .sala-rank-row.is-rank-1::after,
@@ -1198,8 +1286,8 @@ body {
      al gradino (vedi --name-scale), mai il contrario. */
   width: 21rem;
   border: var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--block);
+  border-radius: var(--radius-lg) var(--radius-lg) var(--radius) var(--radius);
+  box-shadow: 10px 10px 0 0 var(--retro-dark);
   font-weight: 900;
 }
 
@@ -1235,9 +1323,9 @@ body {
 }
 .sala-podium-step.rank-1 .avatar { font-size: 3.6rem; }
 
-.sala-podium-step.rank-1 { background: var(--primary-container);  order: 2; padding-bottom: 3.5rem; transform: rotate(-1deg); }
-.sala-podium-step.rank-2 { background: var(--retro-teal); color: var(--white); order: 1; padding-bottom: 2rem; transform: rotate(1.5deg); }
-.sala-podium-step.rank-3 { background: var(--retro-ochre); order: 3; padding-bottom: 1.25rem; transform: rotate(-2deg); }
+.sala-podium-step.rank-1 { background: var(--logo-yellow); order: 2; padding-bottom: 3.5rem; }
+.sala-podium-step.rank-2 { background: var(--indigo); color: var(--white); order: 1; padding-bottom: 2rem; }
+.sala-podium-step.rank-3 { background: var(--amber); order: 3; padding-bottom: 1.25rem; }
 
 .sala-final-list { margin-top: 1.5rem; max-height: 25vh; overflow: hidden; }
 
@@ -1339,12 +1427,15 @@ body {
     --display-lg-mobile: 24px;
     --headline-md:       19px;
     --body-lg:           17px;
+    --hud-logo:          5.25rem;
+    --hud-timer:         5.25rem;
+    --hud-pad:           0.9rem;
   }
-  .sala-top-bar    { margin: 0.6rem 1rem; padding: 0.6rem 1rem; }
-  .sala-logo-wrap  { margin-top: -1.4rem; }
-  .sala-logo-wrap img { width: 2.75rem; height: 2.75rem; }
-  .sala-stage      { padding: 0 1rem 0.75rem; }
-  .q-card          { padding: 1.1rem 1.75rem; }
+  .sala-progress   { padding: 0.5rem 0.9rem; gap: 0.45rem; }
+  .sala-progress .dot { width: 0.8rem; height: 0.8rem; }
+  .sala-progress .dot.is-current { width: 1.25rem; height: 1.25rem; }
+  .sala-stage      { padding: 0 1.25rem 0.75rem; }
+  .q-card          { padding: 1.9rem 1.75rem 1.1rem; }
   .q-text          { margin-bottom: 0.6rem; }
   .q-media         { max-height: 26vh; margin-top: 0.6rem; }
   .sala-options    { gap: 0.9rem; }
@@ -1366,9 +1457,13 @@ body {
     --display-lg-mobile: 42px;
     --headline-md:       30px;
     --body-lg:           26px;
+    --hud-logo:          9rem;
+    --hud-timer:         9rem;
+    --hud-pad:           2rem;
   }
   .sala-option-letter { width: 4rem; height: 4rem; }
-  .sala-logo-wrap img { width: 5rem; height: 5rem; }
+  .sala-progress .dot { width: 1.3rem; height: 1.3rem; }
+  .sala-progress .dot.is-current { width: 2rem; height: 2rem; }
 }
 
 /* ─── Accessibilità del movimento ───────────────────────────────────────── */

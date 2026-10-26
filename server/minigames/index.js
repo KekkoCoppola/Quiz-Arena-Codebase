@@ -167,6 +167,14 @@ function validateDefinition(def, file, expectedType) {
   if (!Number.isFinite(def.defaultTimeLimitS) || def.defaultTimeLimitS <= 0) {
     throw new MinigameContractError(file, '"defaultTimeLimitS" deve essere un numero positivo.');
   }
+  // Facoltativi, ma se ci sono devono essere durate sensate: un `previewMs`
+  // negativo aprirebbe le risposte prima del round, uno non numerico le
+  // terrebbe chiuse per sempre.
+  for (const key of ['previewMs', 'revealMs']) {
+    if (key in def && (!Number.isFinite(def[key]) || def[key] < 0)) {
+      throw new MinigameContractError(file, `"${key}" deve essere un numero di millisecondi >= 0.`);
+    }
+  }
   if (typeof def.build !== 'function' || typeof def.resolve !== 'function') {
     throw new MinigameContractError(file, 'servono entrambe le funzioni build() e resolve().');
   }

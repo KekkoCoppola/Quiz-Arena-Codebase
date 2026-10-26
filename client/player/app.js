@@ -25,6 +25,8 @@ const socket = io();
 let playerId = null;
 let selectedAvatar = null;
 let countdownInterval = null;
+/** Attesa della fine dell'anteprima di un minigioco, prima di aprire le risposte. */
+let previewTimer = null;
 // Round corrente, per il reveal del feedback (il payload game:results non
 // ripete le opzioni): tipo di round + opzioni mostrate.
 let currentRoundKind = 'question';
@@ -103,6 +105,10 @@ function showMessage(text) {
 }
 
 function stopCountdown() {
+  if (previewTimer) {
+    clearTimeout(previewTimer);
+    previewTimer = null;
+  }
   if (countdownInterval) {
     clearInterval(countdownInterval);
     countdownInterval = null;
@@ -254,7 +260,35 @@ function renderQuestion(q, alreadyAnswered = false) {
     answerButtons.appendChild(btn);
   });
 
-  startCountdown(q.endsAt, q.time_limit_s * 1000, q.serverNow);
+  // Minigioco con anteprima (es. i bicchieri da seguire): prima si guarda lo
+  // schermo grande, poi si sceglie. Il server rifiuterebbe comunque una
+  // risposta anticipata; qui la si rende impossibile invece che sbagliata.
+  const openAt = q.answersOpenAt
+    ? ServerClock.localDeadline(q.answersOpenAt, q.serverNow)
+    : 0;
+  const previewLeftMs = openAt ? ServerClock.remainingMs(openAt) : 0;
+  if (!alreadyAnswered && previewLeftMs > 0) {
+    stopCountdown();
+    answerButtons.classList.add('answer-locked');
+    answerSent.textContent = 'Guarda lo schermo!';
+    answerSent.hidden = false;
+    // Il tempo per rispondere non è ancora partito: si mostra pieno e fermo.
+    questionCountdown.textContent = q.time_limit_s;
+    countdownBar.style.transform = 'scaleX(1)';
+    const receivedAt = Date.now();
+    previewTimer = setTimeout(() => {
+      previewTimer = null;
+      answerButtons.classList.remove('answer-locked');
+      answerSent.hidden = true;
+      // `localDeadline` misura lo scarto fra orologi nell'istante in cui la si
+      // chiama: qui `serverNow` va fatto avanzare di quanto è passato dalla
+      // ricezione, o la scadenza slitterebbe di tutta l'anteprima.
+      startCountdown(q.endsAt, q.time_limit_s * 1000, q.serverNow + (Date.now() - receivedAt));
+    }, previewLeftMs);
+  } else {
+    if (alreadyAnswered) answerSent.textContent = 'Risposta inviata!';
+    startCountdown(q.endsAt, q.time_limit_s * 1000, q.serverNow);
+  }
   show('question');
 }
 

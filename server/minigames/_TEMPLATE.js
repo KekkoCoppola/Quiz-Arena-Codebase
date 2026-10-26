@@ -84,6 +84,21 @@ module.exports = {
    */
   defaultTimeLimitS: 8,
 
+  /**
+   * FACOLTATIVO. Millisecondi di anteprima PRIMA che si possa rispondere.
+   * Serve ai giochi "guarda e poi scegli" (es. Tre Bicchieri: si segue il
+   * mescolamento, poi si indica la pallina). Se è > 0:
+   *   - `resolve()` viene chiamata all'APERTURA del round, non alla chiusura,
+   *     perché lo spettacolo deve sapere dove andare a finire;
+   *   - `machineChoice` arriva in anteprima a sala e host (`round.preview`),
+   *     MAI ai telefoni: leggerlo dal payload vorrebbe dire barare;
+   *   - le risposte sono rifiutate finché l'anteprima non è finita, e i
+   *     `defaultTimeLimitS` secondi partono da lì.
+   * Ometterlo (o 0) = il comportamento classico: si sceglie subito, la
+   * macchina decide alla chiusura.
+   */
+  // previewMs: 10000,
+
   /** Testo mostrato all'apertura del round. */
   prompt: 'La domanda che vede il giocatore.',
 

@@ -41,6 +41,8 @@ const socketPlayers = new Map();
 const playerTokens = new Map();
 /** Scadenza assoluta (ms epoch) della domanda corrente, per il rejoin. */
 let currentQuestionEndsAt = null;
+/** Istante assoluto da cui la domanda corrente accetta risposte, per il rejoin. */
+let currentAnswersOpenAt = null;
 /**
  * Giocatori finti della sessione corrente (vedi server/test-bots.js). Non hanno
  * socket: esistono solo dentro la GameSession, e rispondono da qui.
@@ -71,6 +73,7 @@ function destroySession() {
   playerTokens.clear();
   botPlayers.clear();
   currentQuestionEndsAt = null;
+  currentAnswersOpenAt = null;
 }
 
 /** Notifica e disconnette i giocatori della sessione corrente, poi la distrugge. */
@@ -123,15 +126,32 @@ function spawnBots(count) {
 function emitQuestion(io) {
   const q = currentSession.getCurrentRound();
   const now = Date.now();
-  const endsAt = now + q.time_limit_s * 1000;
+  // Un minigioco con anteprima (es. i bicchieri da seguire) mostra prima lo
+  // spettacolo e solo dopo apre le risposte: il tempo per rispondere parte da
+  // `answersOpenAt`, non dall'apertura del round.
+  const answersOpenAt = now + q.previewMs;
+  const endsAt = answersOpenAt + q.time_limit_s * 1000;
   currentQuestionEndsAt = endsAt;
+  currentAnswersOpenAt = answersOpenAt;
   // `serverNow` viaggia insieme a `endsAt`: da soli, due orologi distanti
   // fanno scadere il tempo in sala e sul telefono in momenti diversi.
   // Vedi client/shared/server-clock.js.
-  io.emit('game:question', { ...q, endsAt, serverNow: now });
+  const payload = { ...q, answersOpenAt, endsAt, serverNow: now };
+
+  // L'anteprima porta l'esito (dove finisce la pallina): la sala e l'host ne
+  // hanno bisogno per metterla in scena, i telefoni no — leggerla dal payload
+  // vorrebbe dire conoscere la risposta. Per questo si manda a tutti TRANNE la
+  // room dei giocatori. La sala non entra mai in quella room, l'host nemmeno.
+  const preview = currentSession.getRoundPreview();
+  if (preview) {
+    io.to(ROOM_PLAYERS).emit('game:question', payload);
+    io.except(ROOM_PLAYERS).emit('game:question', { ...payload, preview });
+  } else {
+    io.emit('game:question', payload);
+  }
 
   clearQuestionTimer();
-  questionTimer = setTimeout(() => closeQuestion(io), q.time_limit_s * 1000);
+  questionTimer = setTimeout(() => closeQuestion(io), endsAt - now);
   scheduleBotAnswers(io, q);
 }
 
@@ -148,7 +168,8 @@ function scheduleBotAnswers(io, round) {
   const optionCount = round.options?.length ?? 0;
 
   for (const playerId of botPlayers) {
-    const delay = testBots.answerDelayMs(round.time_limit_s);
+    // Come un umano, un bot non può rispondere durante l'anteprima.
+    const delay = round.previewMs + testBots.answerDelayMs(round.time_limit_s);
     botTimers.push(setTimeout(() => {
       if (!currentSession || currentSession.state !== STATES.QUESTION) return;
       try {
@@ -295,6 +316,7 @@ function attachGameHandlers(io) {
       if (currentSession.state === STATES.QUESTION) {
         data.question = {
           ...currentSession.getCurrentRound(),
+          answersOpenAt: currentAnswersOpenAt,
           endsAt: currentQuestionEndsAt,
           serverNow: Date.now(),
           alreadyAnswered: currentSession.currentAnswers.has(playerId),

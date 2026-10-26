@@ -28,6 +28,7 @@ const {
   AVATAR_IDS,
   InvalidAvatarError,
   InvalidMinigameTypeError,
+  AnswersNotOpenError,
 } = require('../server/game');
 
 // ─── Setup ───────────────────────────────────────────────────────────────────────
@@ -239,7 +240,7 @@ function run() {
   );
 
   // Suspense preservata: submitAnswer su minigioco registra la scelta senza rivelare l'esito.
-  const danMinigameAnswer = g9.submitAnswer(dan.id, 2, 500); // Dan sceglie Forbice
+  const danMinigameAnswer = g9.submitAnswer(dan.id, 2, 1500); // Dan sceglie Forbice
   assert(
     danMinigameAnswer.recorded === true && danMinigameAnswer.correct === undefined,
     'submitAnswer: minigioco ritorna { recorded: true } senza rivelare l\'esito'
@@ -273,7 +274,7 @@ function run() {
   assert(toQ2.finished === false, 'nextQuestion: dal minigioco avanza alla domanda successiva pianificata');
   assert(g9.getCurrentRound().kind === 'question', 'getCurrentRound: round 2 torna a essere una domanda vera');
 
-  g9.submitAnswer(dan.id, 1, 500);
+  g9.submitAnswer(dan.id, 1, 1500);
   g9.endQuestion(1000);
   const finalAdvance9 = g9.nextQuestion(1000);
   assert(finalAdvance9.finished === true, 'nextQuestion: la partita termina regolarmente dopo l\'ultimo round pianificato');
@@ -307,7 +308,7 @@ function run() {
     'insertMinigame: il round corrente è il minigioco appena inserito'
   );
 
-  g9b.submitAnswer(eve.id, 0, 500);
+  g9b.submitAnswer(eve.id, 0, 2500);
   const insertedResults = g9b.endQuestion(1000);
   assert(
     ['win', 'draw', 'lose'].includes(insertedResults.answers.find((a) => a.playerId === eve.id).outcome),
@@ -320,10 +321,50 @@ function run() {
   const afterInsertedMinigame = g9b.nextQuestion(1000);
   assert(afterInsertedMinigame.finished === false, 'nextQuestion: dopo il minigioco ad-hoc avanza alla domanda successiva pianificata');
 
-  g9b.submitAnswer(eve.id, 1, 500);
+  g9b.submitAnswer(eve.id, 1, 1500);
   g9b.endQuestion(1000);
   const finalAfterInsert = g9b.nextQuestion(1000);
   assert(finalAfterInsert.finished === true, 'nextQuestion: la partita termina regolarmente dopo l\'inserimento ad-hoc');
+
+  // ─── Minigioco con anteprima (Tre Bicchieri) ─────────────────────────────────
+  // Lo spettacolo da seguire viene PRIMA della scelta: l'esito si estrae
+  // all'apertura, le risposte restano chiuse per `previewMs`, e la chiusura
+  // non deve estrarre un secondo esito che smentisca quello mostrato.
+
+  console.log('\n  🥤  Fase 9c: Minigioco con anteprima (Tre Bicchieri)\n');
+
+  // Generatore che restituisce 0.99 alla prima estrazione (→ Destra) e 0 dopo:
+  // se la chiusura estraesse di nuovo, il risultato cambierebbe in Sinistra.
+  let estrazioni = 0;
+  const g9c = new GameSession(QUIZ, { rnd: () => (estrazioni++ === 0 ? 0.99 : 0) });
+  const fay = g9c.addPlayer('Fay');
+  g9c.startGame(0);
+  g9c.submitAnswer(fay.id, 0, 500);
+  g9c.endQuestion(1000);
+  g9c.insertMinigame('cup_game', 2000);
+
+  const cupRound = g9c.getCurrentRound();
+  assert(cupRound.previewMs === 10000, 'getCurrentRound: il round con anteprima dichiara previewMs');
+  assert(g9c.answersOpenAt === 12000, 'answersOpenAt: le risposte aprono dopo l\'anteprima');
+  assert(
+    cupRound.machineChoice === undefined && !('preview' in cupRound),
+    'getCurrentRound: il round pubblico non contiene l\'esito'
+  );
+  assert(
+    g9c.getRoundPreview()?.machineChoice === 2,
+    'getRoundPreview: l\'esito è già estratto all\'apertura'
+  );
+  assertThrows(() => g9c.submitAnswer(fay.id, 2, 5000), AnswersNotOpenError,
+    'submitAnswer: rifiutata durante l\'anteprima');
+  g9c.submitAnswer(fay.id, 2, 12500);
+  const cupResults = g9c.endQuestion(15000);
+  assert(cupResults.machineChoice === 2, 'endQuestion: riusa l\'esito dell\'apertura, non ne estrae un altro');
+  assert(
+    cupResults.answers[0].outcome === 'win' && cupResults.answers[0].pointsAwarded === 600,
+    'endQuestion: chi ha seguito la pallina vince 600 punti'
+  );
+  assert(cupResults.revealMs === 4000, 'endQuestion: dopo l\'anteprima resta solo l\'alzata (revealMs)');
+
 
   // ─── Immagine nel round ──────────────────────────────────────────────────────
 

@@ -23,35 +23,32 @@
 <body>
 
   <!-- ═══ SFONDO ═══════════════════════════════════════════════════════════
-       La riga centrale divide il campo in due metà; gli scarabocchi danno il
-       tono "scrapbook". Tutto decorativo, tutto fuori dal flusso.
+       Viene dal logo: la retinatura a puntini del fumetto negli angoli, un
+       grande disco indaco e un'esplosione gialla che sbordano dallo schermo.
+       Tutto ai margini, tutto fuori dal flusso: il centro resta alla domanda.
   ═══════════════════════════════════════════════════════════════════════ -->
   <div class="sala-bg-layer" aria-hidden="true">
-    <div class="sala-bg-split"></div>
-    <svg class="sala-sticker sala-sticker--1" fill="currentColor" viewBox="0 0 100 100">
-      <path d="M50,10 L90,90 L10,90 Z" stroke="#2A2A2A" stroke-linejoin="round" stroke-width="6"></path>
-    </svg>
-    <svg class="sala-sticker sala-sticker--2" fill="currentColor" viewBox="0 0 100 100">
-      <circle cx="50" cy="50" r="40" stroke="#2A2A2A" stroke-dasharray="10 5" stroke-width="6"></circle>
-    </svg>
-    <svg class="sala-sticker sala-sticker--3" fill="none" stroke="#2A2A2A" stroke-linecap="round" stroke-width="8" viewBox="0 0 100 100">
-      <path d="M20,20 L80,80 M80,20 L20,80"></path>
-    </svg>
-    <svg class="sala-sticker sala-sticker--4" fill="currentColor" viewBox="0 0 100 100">
-      <rect height="60" rx="10" stroke="#2A2A2A" stroke-width="6" width="60" x="20" y="20"></rect>
+    <div class="sala-halftone sala-halftone--tl"></div>
+    <div class="sala-halftone sala-halftone--br"></div>
+    <div class="sala-shape sala-shape--orb"></div>
+    <svg class="sala-shape sala-shape--burst" viewBox="0 0 100 100">
+      <polygon points="50.0,1.0 58.0,14.9 71.3,5.9 72.4,21.9 88.3,19.4 82.4,34.4 97.8,39.1 86.0,50.0 97.8,60.9 82.4,65.6 88.3,80.6 72.4,78.1 71.3,94.1 58.0,85.1 50.0,99.0 42.0,85.1 28.7,94.1 27.6,78.1 11.7,80.6 17.6,65.6 2.2,60.9 14.0,50.0 2.2,39.1 17.6,34.4 11.7,19.4 27.6,21.9 28.7,5.9 42.0,14.9"></polygon>
     </svg>
   </div>
 
   <div class="sala-shell">
 
-    <!-- ═══ BARRA SUPERIORE ═══════════════════════════════════════════════ -->
+    <!-- ═══ TESTATA ═══════════════════════════════════════════════════════
+         Niente più barra: tre oggetti tondi sospesi sopra il palco — il logo
+         a sinistra, l'avanzamento al centro, il cronometro a destra. Ognuno
+         compare solo quando ha qualcosa da dire. -->
     <header class="sala-top-bar">
       <div class="sala-progress" id="sala-progress" aria-hidden="true"></div>
       <div class="sala-logo-wrap">
         <img alt="Quiz-Zata!" src="/resources/img/Logo.svg">
       </div>
       <div class="sala-timer-wrap">
-        <div class="sala-timer-badge" id="sala-timer">--:--</div>
+        <div class="sala-timer-badge is-idle" id="sala-timer">--:--</div>
       </div>
     </header>
 
@@ -63,6 +60,7 @@
 
       <!-- ── Attesa: prima che una partita esista ──────────────────────── -->
       <section class="sala-panel" id="sala-idle">
+        <img class="sala-idle-logo" src="/resources/img/Logo.svg" alt="Quiz-Zata!">
         <p class="sala-idle-text" id="sala-idle-text">In attesa dell'host…</p>
       </section>
 
@@ -99,7 +97,6 @@
             <div class="q-media" id="sala-question-media" hidden>
               <span class="material-symbols-outlined" aria-hidden="true">image</span>
             </div>
-            <div class="q-pin" aria-hidden="true"><span></span></div>
           </div>
         </div>
         <ul class="sala-options" id="sala-options"></ul>
@@ -172,6 +169,7 @@
        scandire, va detto cosa caricare. -->
   <script src="/shared/minigames/index.js"></script>
   <script src="/shared/minigames/morra-cinese.js"></script>
+  <script src="/shared/minigames/cup-game.js"></script>
 
   <!-- Comparto audio: le decisioni pure prima del motore che le esegue.
        Vive qui e non su admin-console perché il suono esce dal proiettore

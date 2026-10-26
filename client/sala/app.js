@@ -85,6 +85,9 @@ let currentMinigame = null;
 let countdownTimer  = null;
 let lastPlayerCount = 0;
 let suspenseTimer   = null;
+// Attesa della fine dell'anteprima di un minigioco: il cronometro della
+// risposta parte solo quando si può rispondere davvero.
+let previewTimer    = null;
 // Timer e animazioni della scena dei risultati, tracciati per poterli annullare
 // tutti insieme quando la fase cambia (vedi stopScene).
 let sceneTimers     = [];
@@ -195,6 +198,10 @@ function sceneWait(fn, ms) {
  *   visibile — per questo il tick chiama `stopCountdown(false)`.
  */
 function stopCountdown(reset = true) {
+  if (previewTimer) {
+    clearTimeout(previewTimer);
+    previewTimer = null;
+  }
   if (countdownTimer) {
     clearInterval(countdownTimer);
     countdownTimer = null;
@@ -202,6 +209,9 @@ function stopCountdown(reset = true) {
   els.timer.classList.remove('is-urgent');
   document.body.classList.remove('is-urgent');
   if (reset) els.timer.textContent = '--:--';
+  // Fuori dalla domanda il cronometro esce di scena invece di mostrare
+  // "--:--": un quadrante spento in un angolo del proiettore è rumore.
+  els.timer.classList.toggle('is-idle', reset);
 }
 
 /**
@@ -219,15 +229,28 @@ function pulseTimer() {
  * Countdown calcolato localmente da un timestamp assoluto: la latenza di rete
  * non desincronizza la sala dall'host e dai telefoni.
  */
-function startCountdown(endsAt, serverNow) {
+function startCountdown(endsAt, serverNow, limitS) {
   stopCountdown();
+  els.timer.classList.remove('is-idle');
   const deadline = ServerClock.localDeadline(endsAt, serverNow);
+  // Il pieno dell'anello è la durata della domanda: così chi si ricollega a
+  // metà round (il Pi riavviato) vede l'anello già consumato in proporzione,
+  // non un anello pieno su un tempo quasi scaduto. Senza durata nota, si
+  // parte da quel che resta.
+  const totalMs = Math.max(1, Number.isFinite(limitS) && limitS > 0
+    ? limitS * 1000
+    : ServerClock.remainingMs(deadline));
   const tick = () => {
-    const remaining = Math.ceil(ServerClock.remainingMs(deadline) / 1000);
+    const leftMs = ServerClock.remainingMs(deadline);
+    const remaining = Math.ceil(leftMs / 1000);
     const m = String(Math.floor(remaining / 60)).padStart(2, '0');
     const s = String(remaining % 60).padStart(2, '0');
     const urgent = remaining > 0 && remaining <= 10;
-    const text = `${m}:${s}`;
+    // Sotto il minuto bastano i secondi: "21" si legge da in fondo alla sala,
+    // "00:21" costringe a cercare la cifra che conta.
+    const text = remaining >= 60 ? `${m}:${s}` : String(remaining);
+    els.timer.style.setProperty('--frac', String(Math.max(0, Math.min(1, leftMs / totalMs))));
+    els.timer.classList.toggle('is-long', remaining >= 60);
     if (els.timer.textContent !== text) {
       els.timer.textContent = text;
       // Negli ultimi dieci secondi il colpo si tace: il badge sta già
@@ -435,8 +458,16 @@ function renderQuestion(q) {
 
   // Il round minigioco porta con sé la propria attesa; la domanda vera mostra
   // semplicemente il proprio testo.
+  // `answersOpenAt` è la fine dell'anteprima (es. i bicchieri che si
+  // mescolano prima della scelta), già riportata sull'orologio locale.
+  const answersOpenAt = q.answersOpenAt
+    ? ServerClock.localDeadline(q.answersOpenAt, q.serverNow)
+    : Date.now();
   if (isMinigame) {
-    currentMinigame.sala.startSuspense(minigameEls(), q);
+    currentMinigame.sala.startSuspense(minigameEls(), q, {
+      answersOpenAt,
+      isStale: () => AudioLogic.isStale(token, phaseToken),
+    });
   } else {
     els.questionText.textContent = q.text;
   }
@@ -466,7 +497,24 @@ function renderQuestion(q) {
   });
 
   renderProgress(q.index, q.total);
-  startCountdown(q.endsAt, q.serverNow);
+  const previewLeftMs = ServerClock.remainingMs(answersOpenAt);
+  if (previewLeftMs > 0) {
+    // Durante l'anteprima non si risponde: un cronometro che scende già
+    // direbbe alla sala che il tempo sta passando, e non è vero.
+    stopCountdown();
+    const receivedAt = Date.now();
+    previewTimer = setTimeout(() => {
+      previewTimer = null;
+      if (AudioLogic.isStale(token, phaseToken)) return;
+      // `localDeadline` misura lo scarto fra orologi nell'istante in cui la si
+      // chiama: chiamata qui, a ricezione + anteprima, sposterebbe la scadenza
+      // di tutta l'anteprima. Il `serverNow` va quindi fatto avanzare di quanto
+      // è passato da quando il messaggio è arrivato.
+      startCountdown(q.endsAt, q.serverNow + (Date.now() - receivedAt), q.time_limit_s);
+    }, previewLeftMs);
+  } else {
+    startCountdown(q.endsAt, q.serverNow, q.time_limit_s);
+  }
   showPanel('question');
   SalaAudio.sfx('round-start');
 }
