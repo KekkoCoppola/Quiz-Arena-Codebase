@@ -88,6 +88,8 @@ let suspenseTimer   = null;
 // Attesa della fine dell'anteprima di un minigioco: il cronometro della
 // risposta parte solo quando si può rispondere davvero.
 let previewTimer    = null;
+// Montaggio della scena del minigioco sotto le tende chiuse del sipario.
+let introTimer      = null;
 // Timer e animazioni della scena dei risultati, tracciati per poterli annullare
 // tutti insieme quando la fase cambia (vedi stopScene).
 let sceneTimers     = [];
@@ -158,9 +160,63 @@ function newPhase() {
     clearTimeout(suspenseTimer);
     suspenseTimer = null;
   }
+  if (introTimer) {
+    clearTimeout(introTimer);
+    introTimer = null;
+  }
+  MinigameStageIntro.stopAll();
   currentMinigame?.sala.stopSuspense();
   stopScene();
   return phaseToken;
+}
+
+// ─── Sipario dei minigiochi ──────────────────────────────────────────────────
+//
+// Ogni minigioco si apre con le tende che si chiudono, la ruota che lo estrae e
+// le tende che si riaprono su di esso (client/shared/stage-intro.js). Il tempo
+// lo riserva il server: `introEndsAt` arriva nel round e le risposte aprono
+// solo dopo, quindi qui non si ruba nulla all'anteprima né alla scelta.
+
+// La ruota mostra i minigiochi che questa pagina conosce davvero: il registry
+// di presentazione, non un elenco scritto a mano. Un minigioco nuovo ci
+// compare da solo.
+MinigameStageIntro.setWheelConfig({
+  games: Minigames.types().map((type) => {
+    const mg = Minigames.get(type);
+    return { type, label: mg.label, icon: mg.wheelIcon };
+  }),
+});
+MinigameStageIntro.preload();
+
+/**
+ * Mette in scena il sipario sul pannello della domanda e monta il minigioco
+ * SOTTO le tende nell'istante in cui si chiudono per l'ultima volta: la
+ * riapertura finale lo scopre, invece di scoprire un palco vuoto.
+ *
+ * Il montaggio è a tempo di orologio, non legato all'animazione: se il sipario
+ * non parte (movimento ridotto, niente WebGL) il minigioco comincia comunque
+ * quando il server se lo aspetta.
+ *
+ * @param {object} q payload `game:question`
+ * @param {number} leftMs quanto manca alla fine del sipario, ora locale
+ * @param {() => void} mountScene avvia l'attesa del minigioco
+ * @param {number} token fase corrente
+ */
+function playMinigameIntro(q, leftMs, mountScene, token) {
+  const totalMs = Math.max(leftMs, q.introMs);
+  const reopenMs = totalMs * (1 - MinigameStageIntro.TIMELINE.curtainClose2End);
+  MinigameStageIntro.play(els.panels.question, {
+    targetType: q.minigameType,
+    label: currentMinigame.label,
+    durationMs: totalMs,
+    // Una sala che si ricollega a sipario in corso lo riprende da dov'è.
+    startU: 1 - leftMs / totalMs,
+  });
+  introTimer = setTimeout(() => {
+    introTimer = null;
+    if (AudioLogic.isStale(token, phaseToken)) return;
+    mountScene();
+  }, Math.max(0, leftMs - reopenMs));
 }
 
 /**
@@ -242,7 +298,8 @@ function startCountdown(endsAt, serverNow, limitS) {
     : ServerClock.remainingMs(deadline));
   const tick = () => {
     const leftMs = ServerClock.remainingMs(deadline);
-    const remaining = Math.ceil(leftMs / 1000);
+    // Mai più del tempo del round: al via mancano 6,00x s e il ceil darebbe 7.
+    const remaining = Math.min(Math.ceil(leftMs / 1000), Math.ceil(totalMs / 1000));
     const m = String(Math.floor(remaining / 60)).padStart(2, '0');
     const s = String(remaining % 60).padStart(2, '0');
     const urgent = remaining > 0 && remaining <= 10;
@@ -405,7 +462,9 @@ function renderQuestionMedia(round, token) {
   const image = round?.image ?? null;
   const hasMedia = image !== null && typeof image === 'object' && typeof image.hash === 'string';
 
-  els.questionHint.hidden  = hasMedia;
+  // La riga "scegli l'opzione corretta" parla di una risposta giusta: in un
+  // minigioco (`round` null) non ce n'è una, e la scena ha già la sua regia.
+  els.questionHint.hidden  = hasMedia || round === null;
   els.questionMedia.hidden = !hasMedia;
 
   // Si riparte sempre dal riquadro pulito: l'immagine del round precedente non
@@ -452,9 +511,15 @@ function renderQuestion(q) {
   els.panels.question.classList.toggle('is-minigame', isMinigame);
   // Il nastro adesivo porta l'etichetta del round: la categoria del quiz non
   // arriva in `game:question`, quindi si usa l'informazione che c'è davvero.
-  els.roundKicker.textContent = isMinigame
-    ? (currentMinigame.label ?? 'Minigioco')
+  // Un minigioco può chiedere un nastro diverso dal proprio nome, o nessun
+  // nastro (`salaKicker: null`) quando la sua scena si racconta da sola.
+  const kicker = isMinigame
+    ? (currentMinigame.salaKicker === undefined
+      ? (currentMinigame.label ?? 'Minigioco')
+      : currentMinigame.salaKicker)
     : `Domanda ${q.index + 1} di ${q.total}`;
+  els.roundKicker.textContent = kicker ?? '';
+  els.roundKicker.hidden = !kicker;
 
   // Il round minigioco porta con sé la propria attesa; la domanda vera mostra
   // semplicemente il proprio testo.
@@ -464,10 +529,21 @@ function renderQuestion(q) {
     ? ServerClock.localDeadline(q.answersOpenAt, q.serverNow)
     : Date.now();
   if (isMinigame) {
-    currentMinigame.sala.startSuspense(minigameEls(), q, {
+    const mountScene = () => currentMinigame.sala.startSuspense(minigameEls(), q, {
       answersOpenAt,
       isStale: () => AudioLogic.isStale(token, phaseToken),
     });
+    const introEndsAt = q.introEndsAt
+      ? ServerClock.localDeadline(q.introEndsAt, q.serverNow)
+      : 0;
+    const introLeftMs = introEndsAt ? ServerClock.remainingMs(introEndsAt) : 0;
+    if (introLeftMs > 0) {
+      // Finché le tende non si chiudono l'ultima volta, sotto non c'è nulla.
+      els.questionText.textContent = '';
+      playMinigameIntro(q, introLeftMs, mountScene, token);
+    } else {
+      mountScene();
+    }
   } else {
     els.questionText.textContent = q.text;
   }
@@ -1451,6 +1527,11 @@ socket.on('game:results', (results) => {
   const startScene = () => {
     // Se nel frattempo è arrivata un'altra fase, questa scena è vecchia.
     if (AudioLogic.isStale(token, phaseToken)) return;
+    // Livello intermedio di un minigioco a più round: niente parata né
+    // classifica, il server riparte da solo col livello successivo. Resta a
+    // schermo il verdetto del reveal; la scena completa arriva dopo l'ultimo.
+    const stage = results.stage;
+    if (stage && stage.index < stage.count - 1) return;
     runResultsScene(results, token);
   };
 

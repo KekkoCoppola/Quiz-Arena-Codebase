@@ -1281,8 +1281,15 @@ const minigameEls = () => ({
   correctAnswer: gameCorrectAnswer,
 });
 
+/** Attesa della fine del sipario in sala, prima di far partire il minigioco qui. */
+let hostIntroTimer = null;
+
 /** Ferma un'eventuale animazione di attesa. Idempotente, sicura da chiamare sempre. */
 function stopMinigameSuspense() {
+  if (hostIntroTimer) {
+    clearTimeout(hostIntroTimer);
+    hostIntroTimer = null;
+  }
   currentMinigame?.sala.stopSuspense();
 }
 
@@ -1430,12 +1437,28 @@ function connectGameSocket(quiz, type) {
       // Stesso contesto che riceve la sala: la fine dell'anteprima, se il
       // minigioco ne ha una, sull'orologio locale.
       const roundToken = ++hostRoundToken;
-      currentMinigame.sala.startSuspense(minigameEls(), q, {
+      const ctx = {
         answersOpenAt: q.answersOpenAt
           ? ServerClock.localDeadline(q.answersOpenAt, q.serverNow)
           : Date.now(),
         isStale: () => roundToken !== hostRoundToken,
-      });
+      };
+      // In sala il minigioco si apre col sipario (tende e ruota): qui il
+      // riquadro è troppo piccolo per metterlo in scena, ma il minigioco parte
+      // comunque quando finisce, insieme alla sala.
+      const introLeftMs = q.introEndsAt
+        ? ServerClock.remainingMs(ServerClock.localDeadline(q.introEndsAt, q.serverNow))
+        : 0;
+      if (introLeftMs > 0) {
+        gameQuestionText.textContent = `🎭 Sipario in sala: si estrae ${currentMinigame.label}…`;
+        hostIntroTimer = setTimeout(() => {
+          hostIntroTimer = null;
+          if (ctx.isStale()) return;
+          currentMinigame.sala.startSuspense(minigameEls(), q, ctx);
+        }, introLeftMs);
+      } else {
+        currentMinigame.sala.startSuspense(minigameEls(), q, ctx);
+      }
     } else {
       gameQuestionText.textContent = q.text;
     }

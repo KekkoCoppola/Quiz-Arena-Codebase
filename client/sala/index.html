@@ -10,6 +10,7 @@
   <title>Quiz-Zata! — Sala</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="/shared/minigames/minigames.css">
+  <link rel="stylesheet" href="/shared/stage-intro.css">
   <!-- Movimento della premiazione, identico sul telefono: le due superfici
        proclamano lo stesso vincitore nello stesso istante. -->
   <link rel="stylesheet" href="/shared/final-ceremony.css">
@@ -170,6 +171,10 @@
   <script src="/shared/minigames/index.js"></script>
   <script src="/shared/minigames/morra-cinese.js"></script>
   <script src="/shared/minigames/cup-game.js"></script>
+
+  <!-- Il sipario che apre ogni minigioco: tende, ruota, tende. Solo in sala.
+       Non nomina nessun minigioco: la ruota la riempie app.js dal registry. -->
+  <script src="/shared/stage-intro.js"></script>
 
   <!-- Comparto audio: le decisioni pure prima del motore che le esegue.
        Vive qui e non su admin-console perché il suono esce dal proiettore

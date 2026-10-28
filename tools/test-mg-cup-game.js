@@ -65,8 +65,8 @@ assert(
 
 assert(def.type === 'cup_game', 'type è "cup_game"');
 assert(def.label === 'Tre Bicchieri', 'label è "Tre Bicchieri"');
-assert(def.defaultTimeLimitS === 8, 'defaultTimeLimitS è 8');
-assert(def.previewMs === 10000, 'previewMs è 10000: prima si seguono i bicchieri, poi si sceglie');
+assert(def.defaultTimeLimitS === 6, 'defaultTimeLimitS è 6: la scelta di ogni livello');
+assert(def.previewMs === 12000, 'previewMs è 12000: prima si seguono i bicchieri, poi si sceglie');
 assert(def.revealMs === 4000, 'revealMs è 4000: dopo la chiusura resta solo l\'alzata');
 assert(
   Array.isArray(def.options) &&
@@ -78,10 +78,10 @@ assert(
 );
 assert(
   def.points &&
-    def.points.win === 600 &&
+    def.points.win === 400 &&
     def.points.lose === 0 &&
     !('draw' in def.points),
-  'points vale { win: 600, lose: 0 } senza esito intermedio'
+  'points vale { win: 400, lose: 0 } per livello senza esito intermedio'
 );
 
 {

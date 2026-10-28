@@ -45,6 +45,22 @@
     /** Badge mostrato al giocatore al posto del contatore "3/10". */
     playerBadge: '🎲 Minigioco!',
 
+    /**
+     * Nastro sulla scheda in sala. `undefined` (default) = il nome del
+     * minigioco; una stringa = quel testo; `null` = nessun nastro, quando la
+     * scena si presenta da sola.
+     * @type {string | null | undefined}
+     */
+    salaKicker: undefined,
+
+    /**
+     * Immagine del minigioco sullo spicchio della ruota che, nel sipario
+     * d'apertura in sala (client/shared/stage-intro.js), lo estrae. URL di un
+     * asset quadrato; `null` = lo spicchio porta un emblema generico.
+     * @type {string | null}
+     */
+    wheelIcon: null,
+
     /** Classe aggiunta al contenitore dei bottoni risposta del player. */
     playerLayoutClass: null,
 

@@ -71,8 +71,8 @@ function assertPointsTable(file, points) {
  * Il round di un minigioco NON deve avere `correct_index`: l'esito si decide
  * alla chiusura, non è scritto in anticipo.
  */
-function assertBuildContract(file, def) {
-  const round = def.build();
+function assertBuildContract(file, def, stageIndex) {
+  const round = def.build(stageIndex);
   if (!round || typeof round !== 'object') {
     throw new MinigameContractError(file, 'build() deve restituire un oggetto round.');
   }
@@ -170,6 +170,16 @@ function validateDefinition(def, file, expectedType) {
   // Facoltativi, ma se ci sono devono essere durate sensate: un `previewMs`
   // negativo aprirebbe le risposte prima del round, uno non numerico le
   // terrebbe chiuse per sempre.
+  // `stages`: quanti round di fila produce il minigioco (default 1). Ognuno
+  // passa da `build(stageIndex)`, quindi il validatore li costruisce tutti.
+  if ('stages' in def) {
+    if (!Number.isInteger(def.stages) || def.stages < 1) {
+      throw new MinigameContractError(file, '"stages" deve essere un intero >= 1.');
+    }
+    if (typeof def.build === 'function') {
+      for (let i = 1; i < def.stages; i++) assertBuildContract(file, def, i);
+    }
+  }
   for (const key of ['previewMs', 'revealMs']) {
     if (key in def && (!Number.isFinite(def[key]) || def[key] < 0)) {
       throw new MinigameContractError(file, `"${key}" deve essere un numero di millisecondi >= 0.`);

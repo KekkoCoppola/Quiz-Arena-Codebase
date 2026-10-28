@@ -167,6 +167,7 @@
     hostStatusText: '🎲 Minigioco: Morra Cinese in corso…',
     playerBadge: '🎲 Morra Cinese!',
     playerLayoutClass: 'mg-morra-cinese-choices',
+    wheelIcon: '/resources/img/morra-cinese/forbice.svg',
 
     optionIcon(i) {
       return moveImg(i, 'mg-morra-cinese-move');

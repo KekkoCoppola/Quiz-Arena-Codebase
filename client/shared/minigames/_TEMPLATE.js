@@ -68,6 +68,13 @@
     playerBadge: '🎲 Nome Minigioco!',
 
     /**
+     * Immagine dello spicchio che, nel sipario d'apertura in sala, estrae il
+     * tuo minigioco dalla ruota. Un asset quadrato in
+     * `resources/img/<nome-gioco>/`; `null` = emblema generico.
+     */
+    wheelIcon: null,
+
+    /**
      * Classe applicata al contenitore dei bottoni risposta sul player, se il
      * tuo minigioco vuole una disposizione diversa dalla colonna standard.
      * `null` = disposizione normale.

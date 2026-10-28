@@ -122,7 +122,12 @@ function startServer() {
     process.execPath,
     [path.join(__dirname, '..', 'server', 'index.js')],
     {
-      env: { ...process.env, PORT: String(PORT), DB_PATH: dbPath, QUIZZES_DIR: quizzesDir },
+      // Niente sipario prima dei minigiochi: qui si gioca a ritmo di test,
+      // e i 12 s di tende terrebbero chiuse le risposte del round.
+      env: {
+        ...process.env, PORT: String(PORT), DB_PATH: dbPath, QUIZZES_DIR: quizzesDir,
+        MINIGAME_INTRO_MS: '0',
+      },
       stdio: 'ignore',
     }
   );

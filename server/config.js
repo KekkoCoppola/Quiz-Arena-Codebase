@@ -49,6 +49,17 @@ const config = {
    */
   quizzesDir: process.env.QUIZZES_DIR || './content/quizzes',
 
+  /**
+   * Durata del sipario che apre ogni minigioco in sala (tende, ruota che
+   * estrae il gioco, tende che si riaprono su di esso). Il server la riserva
+   * PRIMA dell'anteprima e delle risposte, così nessuno sceglie mentre la sala
+   * guarda le tende. `0` la spegne (lo fanno i test di integrazione).
+   * Default: 12000 ms, la durata per cui è stata scritta la sequenza.
+   */
+  minigameIntroMs: Number.isFinite(parseInt(process.env.MINIGAME_INTRO_MS, 10))
+    ? Math.max(0, parseInt(process.env.MINIGAME_INTRO_MS, 10))
+    : 12000,
+
   /** true se l'app gira in modalità sviluppo. */
   isDev: process.env.NODE_ENV !== 'production',
 };

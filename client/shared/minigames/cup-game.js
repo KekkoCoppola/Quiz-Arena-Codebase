@@ -56,12 +56,17 @@
   const SWAP_COUNT = 8;
 
   /**
-   * Pesi relativi della durata dei singoli scambi (lento -> veloce -> lento).
-   * I primi due scambi fanno capire subito come si muovono i bicchieri, la
-   * parte centrale accelera lo spettacolo e gli ultimi due rallentano per
-   * consentire a chi è rimasto concentrato di agganciare la posizione finale.
+   * Peso relativo della durata dello scambio `k` su `count` (lento -> veloce
+   * -> lento): i primi fanno capire come si muovono i bicchieri, la parte
+   * centrale accelera, gli ultimi rallentano per agganciare la posizione
+   * finale. È una curva e non una tabella perché ogni livello ha un numero
+   * di scambi diverso (vedi `stage.swaps` lato server).
    */
-  const SWAP_WEIGHTS = [1.35, 1.15, 0.85, 0.75, 0.75, 0.80, 1.10, 1.25];
+  function swapWeight(k, count) {
+    if (count <= 1) return 1;
+    const t = k / (count - 1);
+    return 0.75 + 0.6 * (1 - Math.sin(Math.PI * t));
+  }
 
   /**
    * "Segui i bicchieri": lo spettacolo è diviso in due momenti, separati dalla
@@ -86,6 +91,10 @@
   const PREVIEW_PHASES = Object.freeze({ coverEnd: 0.12, shuffleEnd: 1, pauseEnd: 2, liftWinEnd: 3 });
   const LIFT_PHASES = Object.freeze({ coverEnd: -1, shuffleEnd: 0, pauseEnd: 0.2, liftWinEnd: 0.65 });
 
+  /** Durata dell'avviso "Segui la pallina!" a inizio round, a scena nascosta. */
+  const INTRO_MS = 2000;
+  /** Dal secondo livello l'avviso è solo "Round N di M": basta un attimo. */
+  const STAGE_INTRO_MS = 1200;
   /** Quanto si vede la pallina, prima che il bicchiere la copra. */
   const SHOW_MS = 1800;
   /** Pausa a bicchieri fermi prima che si aprano le risposte: si fissa la posizione. */
@@ -242,7 +251,7 @@
     const weights = [];
     let totalWeight = 0;
     for (let k = 0; k < count; k++) {
-      const w = SWAP_WEIGHTS[k] ?? 1;
+      const w = swapWeight(k, count);
       weights.push(w);
       totalWeight += w;
     }
@@ -982,6 +991,7 @@
     const session = {
       raf: null,
       timer: null,
+      introTimer: null,
       ro: null,
       uses3DCanvas: false,
     };
@@ -1002,6 +1012,10 @@
     if (session.timer !== null) {
       clearTimeout(session.timer);
       session.timer = null;
+    }
+    if (session.introTimer !== null) {
+      clearTimeout(session.introTimer);
+      session.introTimer = null;
     }
     if (session.ro) {
       session.ro.disconnect();
@@ -1154,6 +1168,10 @@
     hostStatusText: '🥤 Minigioco: Tre Bicchieri in corso…',
     playerBadge: '🥤 Tre Bicchieri!',
     playerLayoutClass: 'mg-cup-game-choices',
+    // Nessun nastro col nome sulla scheda in sala: la scena dei bicchieri si
+    // presenta da sola, e il nome scritto sopra la distraeva.
+    salaKicker: null,
+    wheelIcon: CUP_ASSET,
 
     /**
      * Restituisce un `<img>` nuovo di `cup.svg` a ogni chiamata (§6.2).
@@ -1243,24 +1261,39 @@
         const stage = document.createElement('div');
         stage.className = 'mg-cup-game-stage is-suspense';
 
-        const promptEl = document.createElement('p');
-        promptEl.className = 'mg-cup-game-prompt';
-        const choicePrompt = (round && round.text) ? round.text : 'Dov\'è la pallina?';
-
         const viewport = document.createElement('div');
         viewport.className = 'mg-cup-game-viewport';
 
-        stage.append(promptEl, viewport);
+        // Avviso d'apertura: "Segui la pallina!" per INTRO_MS, a scena ancora
+        // nascosta. Vive sopra il riquadro (posizione assoluta) così la sua
+        // comparsa e scomparsa non cambia la misura della scheda.
+        const intro = document.createElement('p');
+        intro.className = 'mg-cup-game-intro';
+        // Primo livello: si spiega il gioco. Dopo: si annuncia il livello.
+        const roundStage = round?.stage ?? null;
+        const isFirstStage = !roundStage || roundStage.index === 0;
+        const introMs = isFirstStage ? INTRO_MS : STAGE_INTRO_MS;
+        intro.textContent = isFirstStage
+          ? 'Segui la pallina!'
+          : `Round ${roundStage.index + 1} di ${roundStage.count}`;
+
+        stage.append(viewport, intro);
         els.questionText.appendChild(stage);
 
         // Senza esito noto (o con l'anteprima già passata, es. una sala che si
         // ricollega a metà scelta) non c'è nulla da seguire: bicchieri coperti.
         const coveredPose = computeRevealKinematics(0, [], machineChoice ?? 1, LIFT_PHASES);
-        const shuffleStart = startAt + SHOW_MS;
+        const shuffleStart = startAt + introMs + SHOW_MS;
         const shuffleEnd = answersOpenAt - SETTLE_MS;
         const hasShow = machineChoice !== null && shuffleEnd - shuffleStart > 1000;
 
-        promptEl.textContent = hasShow ? 'Segui la pallina!' : choicePrompt;
+        if (hasShow) {
+          stage.classList.add('is-intro');
+          session.introTimer = setTimeout(() => {
+            session.introTimer = null;
+            stage.classList.remove('is-intro');
+          }, introMs);
+        }
         let currentPose = hasShow ? computeSuspenseKinematics(0) : coveredPose;
 
         const adapter = mountStageAdapter(viewport, session, () => {
@@ -1269,31 +1302,44 @@
         adapter.paintPose(currentPose, 16.6);
         if (!hasShow) return;
 
+        let settled = false;
         const settle = () => {
+          if (settled) return;
+          settled = true;
+          if (session.raf !== null && typeof cancelAnimationFrame === 'function') {
+            cancelAnimationFrame(session.raf);
+          }
+          session.raf = null;
           currentPose = coveredPose;
           adapter.paintPose(currentPose, 16.6);
-          promptEl.textContent = choicePrompt;
           stage.classList.add('is-choosing');
         };
+
+        // L'arresto dei bicchieri non può dipendere dal solo rAF: quando il
+        // browser lo rallenta (pagina in secondo piano, Pi sotto sforzo) la
+        // scena resterebbe a metà scambio mentre la scelta è già aperta. Un
+        // timer sull'istante esatto lo garantisce; il rAF resta per la fluidità.
+        session.timer = setTimeout(() => {
+          session.timer = null;
+          if (!isStale()) settle();
+        }, Math.max(0, shuffleEnd - Date.now()));
 
         if (isReducedMotionActive()) {
           // Niente scambi: la pallina resta visibile dove finirà, poi si copre.
           // Chi non può guardare il movimento deve comunque poter giocare.
           currentPose = computeStaticFinalKinematics(machineChoice);
           adapter.paintPose(currentPose, 16.6);
-          session.timer = setTimeout(() => {
-            session.timer = null;
-            if (!isStale()) settle();
-          }, Math.max(0, shuffleEnd - Date.now()));
           return;
         }
 
-        const swaps = generateSwapSequence(1, machineChoice, SWAP_COUNT);
+        // La difficoltà del livello è il numero di scambi nello stesso tempo.
+        const swapCount = Number.isInteger(roundStage?.swaps) ? roundStage.swaps : SWAP_COUNT;
+        const swaps = generateSwapSequence(1, machineChoice, swapCount);
         const shuffleMs = shuffleEnd - shuffleStart;
         let lastFrameAt = startAt;
 
         const tick = () => {
-          if (!activeSessions.has(els.questionText) || isStale()) return;
+          if (settled || !activeSessions.has(els.questionText) || isStale()) return;
           const now = Date.now();
           const dt = now - lastFrameAt;
           lastFrameAt = now;
