@@ -217,6 +217,50 @@
   }
 }
 
+/* Attesa (le tre mosse che si alternano): stessa taglia di sempre fuori dalla
+   sala, cioè nel riquadro dell'host. In sala la decide il blocco qui sotto. */
+.mg-morra-cinese-stage.is-suspense .mg-morra-cinese-move-hero {
+  width: clamp(110px, 15vh, 190px);
+  height: clamp(110px, 15vh, 190px);
+  margin: 8px auto;
+  transform: none;
+}
+
+/* In sala il palco è il contenitore `mg-stage` (client/sala/style.css), e la
+   mossa si misura su di lui invece che sulla finestra: è il soggetto della
+   schermata, quindi prende tutta l'altezza che c'è. Attesa, rotazione e
+   atterraggio usano lo STESSO palco e la stessa misura, così passando da una
+   fase all'altra la mossa non salta. Il verdetto è sovrapposto in basso in
+   posizione assoluta, e il fondo del palco gli tiene il posto anche quando
+   ancora non c'è: comparendo non sposta nulla. */
+@container mg-stage (min-width: 0px) {
+  .mg-morra-cinese-stage {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    padding-bottom: 16cqh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mg-morra-cinese-stage:not(.is-compact) .mg-morra-cinese-move-hero {
+    width: min(62cqh, 45cqw);
+    height: min(62cqh, 45cqw);
+    margin: 0;
+  }
+
+  .mg-morra-cinese-stage.is-landed .mg-morra-cinese-verdict {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 2cqh;
+    width: fit-content;
+    margin: 0 auto;
+  }
+}
+
 /* Player: le tre scelte diventano grandi pulsanti rotondi con la sola icona,
    disposti in riga — si gioca d'istinto, non si legge.
    Il selettore include `.answer-stack` di proposito: serve una specificità
@@ -309,6 +353,20 @@
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* In sala il palco è il contenitore `mg-stage` (client/sala/style.css): la
+   scena ne prende tutta l'altezza e la larghezza che serve al tavolo, fino a
+   2,6 volte l'altezza. Più larga, il canvas dipingerebbe solo sfondo vuoto ai
+   lati — e sul Raspberry ogni pixel dipinto costa. La camera si riadatta da
+   sé a qualunque proporzione (`fitCamera`). */
+@container mg-stage (min-width: 0px) {
+  .mg-cup-game-stage { height: 100%; }
+
+  .mg-cup-game-viewport {
+    width: min(100%, 260cqh);
+    height: 100%;
+  }
 }
 
 /* ── Sticker del verdetto all'atterraggio (ctx.revealAt - 2000 ms) ────────

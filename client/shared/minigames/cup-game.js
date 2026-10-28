@@ -779,13 +779,99 @@
     return cachedAssets3D;
   }
 
+  // ─── Inquadratura ────────────────────────────────────────────────────────────
+  //
+  // La camera non sta in un punto fisso: a ogni cambio di misura del canvas si
+  // avvicina finché la scena riempie il quadro. Con una posizione fissa un
+  // canvas più largo mostrava solo più sfondo vuoto ai lati, e i bicchieri
+  // restavano piccoli quanto prima.
+
+  /** Direzione da cui la camera guarda la scena (dall'alto, di tre quarti). */
+  const CAMERA_DIR = { y: 3.4 / Math.hypot(3.4, 7.65), z: 7.65 / Math.hypot(3.4, 7.65) };
+  /**
+   * Ingombri da tenere sempre in quadro, come scatole [x, yMin, yMax, z]
+   * simmetriche in x e z. Tre e non una: una scatola unica alta quanto il
+   * bicchiere sollevato e profonda quanto il tavolo avrebbe un angolo davanti
+   * in alto dove non passa mai niente, e la camera si terrebbe lontana per lui.
+   * - il tavolo intero, bordo compreso;
+   * - i bicchieri durante gli scambi (escono in avanti e indietro, saltando poco);
+   * - un bicchiere sollevato (anteprima e alzata finale), che resta in fila.
+   */
+  const SCENE_BOXES = [
+    [3.8, -0.42, 0.05, 1.75],
+    [3.15, 0, 2.05, 1.7],
+    [3.15, 0, 3.05, 0.95],
+  ];
+  const SCENE_Y_MIN = -0.42;
+  const SCENE_Y_MAX = 3.05;
+  /** Quanto del quadro può occupare la scena (coordinate normalizzate). */
+  const FRAME_FILL = 0.92;
+  /** Avvicinamento della camera nel finale (`cameraZoom` = 1). */
+  const CAMERA_ZOOM_IN = 0.05;
+
+  /**
+   * Distanza e punto di mira con cui la scena riempie il quadro all'aspetto
+   * corrente. Ricerca binaria sulla distanza (la scena sta in quadro o no) e
+   * ternaria sull'altezza di mira (la distanza minima centra la scena in
+   * verticale): una manciata di proiezioni, solo quando cambia la misura.
+   * @param {object} camera PerspectiveCamera con `aspect` già aggiornato
+   * @returns {{ dist: number, targetY: number }}
+   */
+  function fitCamera(camera) {
+    const corners = [];
+    for (const [bx, yMin, yMax, bz] of SCENE_BOXES) {
+      for (const x of [-bx, bx]) {
+        for (const y of [yMin, yMax]) {
+          for (const z of [-bz, bz]) corners.push(new THREE.Vector3(x, y, z));
+        }
+      }
+    }
+    const probe = new THREE.Vector3();
+    const fits = (dist, targetY) => {
+      camera.position.set(0, targetY + CAMERA_DIR.y * dist, CAMERA_DIR.z * dist);
+      camera.lookAt(0, targetY, 0);
+      camera.updateMatrixWorld();
+      return corners.every((c) => {
+        probe.copy(c).project(camera);
+        return Math.abs(probe.x) <= FRAME_FILL && Math.abs(probe.y) <= FRAME_FILL;
+      });
+    };
+    const minDist = (targetY) => {
+      let lo = 2;
+      let hi = 40;
+      for (let i = 0; i < 24; i++) {
+        const mid = (lo + hi) / 2;
+        if (fits(mid, targetY)) hi = mid;
+        else lo = mid;
+      }
+      return hi;
+    };
+    let a = SCENE_Y_MIN;
+    let b = SCENE_Y_MAX;
+    for (let i = 0; i < 24; i++) {
+      const m1 = a + (b - a) / 3;
+      const m2 = b - (b - a) / 3;
+      if (minDist(m1) <= minDist(m2)) b = m2;
+      else a = m1;
+    }
+    const targetY = (a + b) / 2;
+    return { dist: minDist(targetY), targetY };
+  }
+
+  /** Mette la camera all'inquadratura calcolata, più vicina di `zoom` (0 -> 1). */
+  function placeCamera(camera, zoom = 0) {
+    const fit = camera.userData.fit ?? { dist: Math.hypot(3.4, 7.65), targetY: 0.55 };
+    const dist = fit.dist * (1 - zoom * CAMERA_ZOOM_IN);
+    camera.position.set(0, fit.targetY + CAMERA_DIR.y * dist, CAMERA_DIR.z * dist);
+    camera.lookAt(0, fit.targetY, 0);
+  }
+
   function buildSceneGraph() {
     const assets = ensureCached3DAssets();
     const scene = new THREE.Scene();
 
-    const camera = new THREE.PerspectiveCamera(35, 16 / 9, 0.1, 40);
-    camera.position.set(0, 3.95, 7.65);
-    camera.lookAt(0, 0.55, 0);
+    const camera = new THREE.PerspectiveCamera(35, 16 / 9, 0.1, 60);
+    placeCamera(camera);
 
     const hemiLight = new THREE.HemisphereLight(0xfff8f1, 0x4f4000, 1.15);
     scene.add(hemiLight);
@@ -879,9 +965,7 @@
       ballShadow.scale.setScalar(Math.max(0.28, 0.46 - state.ballY * 0.25));
     }
 
-    const zoom = state.cameraZoom || 0;
-    camera.position.set(0, 3.95 - zoom * 0.25, 7.65 - zoom * 0.55);
-    camera.lookAt(0, 0.55, 0);
+    placeCamera(camera, state.cameraZoom || 0);
   }
 
   function syncRendererSize(viewportEl, camera) {
@@ -895,8 +979,11 @@
     if (sharedCanvas.width !== renderW || sharedCanvas.height !== renderH) {
       sharedRenderer.setSize(renderW, renderH, false);
     }
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
+    if (camera.aspect !== w / h || !camera.userData.fit) {
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      camera.userData.fit = fitCamera(camera);
+    }
   }
 
   function recordFrameDelta(dtMs, viewportEl, camera) {

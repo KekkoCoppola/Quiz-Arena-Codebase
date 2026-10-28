@@ -860,6 +860,44 @@ body {
 /* Accento del round minigioco: il nastro cambia colore, il resto no. */
 .sala-panel.is-minigame .q-tape { background: var(--logo-yellow); color: var(--retro-dark); }
 
+/* Round minigioco: la scheda diventa il palco. Una domanda è un titolo e la
+   sua scheda si misura sul testo; un minigioco è una scena, e misurata così
+   restava un riquadro da 58rem in mezzo a uno schermo vuoto. Qui la scheda
+   prende tutta la larghezza e tutta l'altezza che le risposte le lasciano.
+
+   Il titolo diventa un contenitore di misura con nome `mg-stage`: è il
+   contratto con client/shared/minigames/minigames.css, dove ogni minigioco
+   si dimensiona su di lui con `@container mg-stage`. Fuori dalla sala (il
+   riquadro dell'host) quel contenitore non esiste, e le stesse regole non
+   si applicano. */
+.sala-panel.is-minigame .q-card-wrap {
+  width: 100%;
+  max-width: none;
+  flex: 1 1 auto;
+  display: flex;
+}
+
+.sala-panel.is-minigame .q-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 2.25rem 1.5rem 1.25rem;
+}
+
+/* Senza nastro (`salaKicker: null`) l'alto della scheda non deve fargli posto. */
+.sala-panel.is-minigame .q-card:has(> .q-tape[hidden]) { padding-top: 1.25rem; }
+
+.sala-panel.is-minigame .q-text {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  container: mg-stage / size;
+}
+
 /* ─── Lobby ─────────────────────────────────────────────────────────────── */
 
 #sala-lobby { justify-content: center; }

@@ -177,15 +177,23 @@
       /**
        * Attesa: le tre mosse si alternano rapidamente al posto del titolo,
        * così la sala capisce che il computer non ha ancora deciso.
+       *
+       * Stesso palcoscenico del reveal, costruito una volta: cambia solo la
+       * sorgente dell'icona. Così la mossa resta nello stesso punto e alla
+       * stessa misura quando l'attesa lascia il posto alla rotazione.
        */
       startSuspense(els) {
         this.stopSuspense();
-        let i = 0;
+        els.questionText.innerHTML = '';
+        const stage = document.createElement('div');
+        stage.className = 'mg-morra-cinese-stage is-suspense';
+        const img = moveImg(0, 'mg-morra-cinese-move mg-morra-cinese-move-hero');
+        stage.appendChild(img);
+        els.questionText.appendChild(stage);
+        let i = 1;
         suspenseInterval = setInterval(() => {
-          els.questionText.innerHTML = '';
-          els.questionText.appendChild(
-            moveImg(i % ASSETS.length, 'mg-morra-cinese-move mg-morra-cinese-move-hero')
-          );
+          img.src = ASSETS[i % ASSETS.length];
+          img.alt = LABELS[i % ASSETS.length];
           i++;
         }, SUSPENSE_MS);
       },
