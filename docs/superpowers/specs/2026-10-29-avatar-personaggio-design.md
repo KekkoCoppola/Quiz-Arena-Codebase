@@ -17,7 +17,8 @@ e vuole che diventi l'avatar del gioco: scelto all'ingresso, visto ovunque.
   dell'app; due frecce nude ai lati della faccia scorrono le espressioni; sotto il
   personaggio una fila di pallini per il colore. Bozza approvata:
   `.superpowers/brainstorm/4387-1793285396/content/scelta-avatar-minimal.html`.
-- Molte espressioni, ben diverse. Outfit **fuori** per ora (divisa uguale per tutti).
+- Molte espressioni, ben diverse. Outfit fuori dal primo giro, aggiunti dopo (vedi
+  "Outfit" in fondo): solo colori, stessa forma, scelti da me.
 - Il personaggio sostituisce l'emoji **ovunque**: lobby e classifica sul telefono,
   sala (pedine, parata, podio, classifica), pannello host.
 - Fuori: la scena 3D della premiazione (luci, coppa, confetti) — l'utente ci sta lavorando.
@@ -48,12 +49,12 @@ classifica e bot non cambiano forma: `"<colore>:<faccia>"`, es. `"sunny_yellow:h
 - **Foto PNG del modello 3D** (decisione dell'utente, dopo una prima versione disegnata in
   2D su canvas): il telefono non deve scaricare nulla oltre alla pagina e alle sue
   immagini, quindi niente three.js sui client. `tools/render-avatars.js` apre una pagina
-  locale che disegna con three.js ogni combinazione (96 + il neutro) e salva i PNG in
-  `resources/img/avatars/{face,lg}/<colore>-<faccia>.png`: `face` 176×128, **solo la
+  locale che disegna con three.js ogni combinazione e salva i PNG in
+  `resources/img/avatars/`: `face/<colore>-<faccia>.png` 176×128, **solo la
   testa** (decisione dell'utente: nei mini avatar — pedine sulle risposte, liste,
-  badge — il corpo intero era troppo piccolo per leggersi), `lg` 432×540 (~60 KB, il
-  personaggio intero per la scelta sul telefono). Si rilancia quando cambia il
-  catalogo o il modello.
+  badge — il corpo intero era troppo piccolo per leggersi), e il personaggio intero
+  432×540 per la scelta sul telefono, a strati da quando ci sono gli outfit (vedi
+  "Outfit"). Si rilancia quando cambia il catalogo o il modello.
 - `client/shared/avatar-sprite.js` — sceglie il file: `AvatarSprite.fill(el, id)` mette un
   `<img>` alto ~1,25em nell'elemento, quindi ogni punto che aveva
   `el.textContent = avatarOf(id)` cambia di una riga e la misura la dà ancora il
@@ -78,3 +79,27 @@ pallini colore come radiogroup. Scelta salvata in `localStorage` (try/catch).
 
 ## Lasciato a chi costruisce
 Disegno esatto delle 6 facce nuove e proporzioni del corpo 2D, dentro lo stile del modulo.
+
+## Outfit (aggiunti il 2026-10-29)
+
+**Decisione dell'utente:** 4-5 outfit prestabiliti, **solo colori** (la forma della divisa
+resta una), scelti da me. Le forme nuove (cappelli, felpe) sarebbero lavoro di modellazione
+nel modulo dell'utente: fuori.
+
+- **Cinque tavolozze** in `OUTFIT_PRESETS` di `mii-character.js`, una per i sette materiali
+  della divisa: `classic` (la divisa originale, default), `sport` (tuta verde e bianca),
+  `denim` (camicia e jeans blu), `explorer` (kaki e scarponi), `elegant` (abito scuro,
+  cravatta e fibbia oro). Camicie di cinque colori diversi fra loro e lontani dagli otto
+  colori della pelle, perché testa e camicia si toccano. `setOutfit(id)` ricolora al volo.
+- **Il dato:** `"<colore>:<faccia>:<outfit>"`. La forma a due parti resta valida con la
+  divisa classica: è quella che i telefoni hanno salvato in `localStorage` prima.
+- **Le foto, a strati:** l'outfit moltiplicava le foto intere per cinque (480, ~29 MB).
+  Ma l'espressione è una decalcomania davanti alla testa, indipendente dal colore della
+  pelle: il personaggio intero è il corpo senza faccia (`body/<colore>-<outfit>.png`, 41)
+  con sopra la faccia da sola (`expr/<faccia>.png`, 12), nella stessa inquadratura. La
+  sovrapposizione è identica alla foto intera, e `render-avatars.js` lo verifica a ogni
+  giro su una combinazione di prova. Scorrere le espressioni scarica solo la faccia.
+  Le teste dei mini avatar (`face/`) non cambiano: l'outfit sta sotto il collo.
+- **La scelta sul telefono:** un secondo paio di frecce nude, più piccole, all'altezza
+  della camicia. Le frecce stanno accanto alla cosa che cambiano.
+- **La premiazione 3D** riceve l'outfit come il colore e l'espressione.

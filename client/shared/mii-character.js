@@ -19,9 +19,10 @@
  *      il catalogo di espressioni 2D integrate (`'angry'` identica al mockup
  *      di riferimento, `'happy'`, `'cool'`, `'surprised'`, `'wink'`,
  *      `'fierce'`) sia qualsiasi URL immagine/SVG 2D esterno.
- *   3. Divisa Uniforme per tutti i giocatori: camicia bianca a maniche corte
- *      con colletto 3D, cravattino geometrico con folgore, cintura con fibbia
- *      ottagonale, pantaloni squadrati con cuciture e suole grigie.
+ *   3. Divisa: camicia a maniche corte con colletto 3D, cravattino geometrico
+ *      con folgore, cintura con fibbia ottagonale, pantaloni squadrati con
+ *      cuciture e suole. La forma è una sola; `outfit` ne sceglie i colori
+ *      (`OUTFIT_PRESETS`, default `'classic'`: camicia bianca e suole grigie).
  *
  * Sicuro da caricare in Node.js con `require()` per i test unitari.
  */
@@ -68,6 +69,34 @@
     Object.freeze({ id: 'tongue', label: 'Linguaccia' }),
     Object.freeze({ id: 'nervous', label: 'Nervoso' }),
   ]);
+
+  /**
+   * Gli outfit: la stessa divisa con altri colori, uno per ciascuno dei sette
+   * materiali (le maniche prendono il colore della camicia, il bordo della
+   * fibbia quello della cintura). Aggiunti in Quiz-Zata! per la scelta
+   * dell'avatar: gli id sono quelli di client/shared/avatar-catalog.js.
+   */
+  const OUTFIT_PRESETS = Object.freeze([
+    Object.freeze({ id: 'classic', label: 'Classico', colors: Object.freeze({
+      shirt: 0xffffff, collar: 0xd8dce0, tie: 0xe05a47, belt: 0x6e533c, buckle: 0x353839, pants: 0x8c6d68, shoes: 0x8d9499,
+    }) }),
+    Object.freeze({ id: 'sport', label: 'Sportivo', colors: Object.freeze({
+      shirt: 0x1f8a5b, collar: 0xf4f1e8, tie: 0xf4f1e8, belt: 0xf4f1e8, buckle: 0x1f8a5b, pants: 0x175c40, shoes: 0xf4f1e8,
+    }) }),
+    Object.freeze({ id: 'denim', label: 'Jeans', colors: Object.freeze({
+      shirt: 0x3f6fb8, collar: 0x2f5795, tie: 0xf4f1e8, belt: 0x7a4b2a, buckle: 0xc9ccd1, pants: 0x263c63, shoes: 0xf4f1e8,
+    }) }),
+    Object.freeze({ id: 'explorer', label: 'Esploratore', colors: Object.freeze({
+      shirt: 0xc9b27c, collar: 0xab9360, tie: 0x56702f, belt: 0x5a3e26, buckle: 0xd4a72c, pants: 0x6e5b3a, shoes: 0x4a3222,
+    }) }),
+    Object.freeze({ id: 'elegant', label: 'Elegante', colors: Object.freeze({
+      shirt: 0x2a2733, collar: 0xf4f1e8, tie: 0xe8b730, belt: 0x18161d, buckle: 0xe8b730, pants: 0x2a2733, shoes: 0x121016,
+    }) }),
+  ]);
+
+  function outfitColors(outfitId) {
+    return (OUTFIT_PRESETS.find((o) => o.id === outfitId) || OUTFIT_PRESETS[0]).colors;
+  }
 
   const RETRO_STREET_PALETTE = Object.freeze(
     SKIN_COLOR_PRESETS.map((p) =>
@@ -212,6 +241,7 @@
       badgeTextColor: INK_HEX,
       expression: expr.expressionId,
       expressionUrl: raw.expressionUrl || expr.expressionUrl || null,
+      outfit: OUTFIT_PRESETS.some((o) => o.id === raw.outfit) ? raw.outfit : OUTFIT_PRESETS[0].id,
       avatar: avatarValue,
       avatarType,
       avatarValue,
@@ -1466,9 +1496,10 @@
 
   /**
    * Costruisce il personaggio 3D "Blocky Toy" fedele al mockup di riferimento:
-   *   - Modello 3D monoblocco smussato con divisa uniforme per tutti i giocatori
-   *     (camicia bianca con colletto e cravattino 3D, cintura marrone con fibbia
-   *     ottagonale, pantaloni squadrati con intaglio a V e suole grigie).
+   *   - Modello 3D monoblocco smussato con la stessa divisa per tutti i giocatori
+   *     (camicia con colletto e cravattino 3D, cintura con fibbia ottagonale,
+   *     pantaloni squadrati con intaglio a V e suole), nei colori dell'`outfit`
+   *     scelto, modificabile al volo con `.setOutfit(id)`.
    *   - Colore della pelle (`skinColor`) separato dal modello e modificabile al volo
    *     con `.setSkinColor(hex)` (colora il blocco testa superiore e gli avambracci).
    *   - Espressione facciale 2D (`expression` / `expressionUrl`) separata dal modello
@@ -1512,46 +1543,48 @@
     });
 
     // =========================================================================
-    // MATERIALI DIVISA UNIFORME (Uguali per tutti i giocatori!)
+    // MATERIALI DELLA DIVISA (forma uguale per tutti, colori dall'`outfit`)
     // =========================================================================
+    const outfit = outfitColors(cfg.outfit);
+
     const shirtMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
+      color: outfit.shirt,
       roughness: 0.45,
       metalness: 0.04,
     });
 
     const collarLineMat = new THREE.MeshStandardMaterial({
-      color: 0xd8dce0,
+      color: outfit.collar,
       roughness: 0.5,
       metalness: 0.05,
     });
 
     const tieMat = new THREE.MeshStandardMaterial({
-      color: 0xe05a47,
+      color: outfit.tie,
       roughness: 0.42,
       metalness: 0.06,
     });
 
     const beltMat = new THREE.MeshStandardMaterial({
-      color: 0x6e533c,
+      color: outfit.belt,
       roughness: 0.55,
       metalness: 0.12,
     });
 
     const buckleCenterMat = new THREE.MeshStandardMaterial({
-      color: 0x353839,
+      color: outfit.buckle,
       roughness: 0.4,
       metalness: 0.25,
     });
 
     const pantsMat = new THREE.MeshStandardMaterial({
-      color: 0x8c6d68,
+      color: outfit.pants,
       roughness: 0.62,
       metalness: 0.05,
     });
 
     const shoeMat = new THREE.MeshStandardMaterial({
-      color: 0x8d9499,
+      color: outfit.shoes,
       roughness: 0.5,
       metalness: 0.1,
     });
@@ -1648,6 +1681,8 @@
       polygonOffsetUnits: -1,
     });
     const faceDecalMesh = new THREE.Mesh(geos.faceDecalGeo, faceDecalMat);
+    // Il nome serve a tools/render-avatars.js, che fotografa la faccia da sola.
+    faceDecalMesh.name = 'faceDecal';
     faceDecalMesh.position.set(0, 0.33, 0.368);
     headPivot.add(faceDecalMesh);
 
@@ -1727,6 +1762,22 @@
       faceDecalMat.needsUpdate = true;
     }
 
+    /**
+     * Cambia i colori della divisa (un id di `OUTFIT_PRESETS`; sconosciuto → 'classic').
+     */
+    function setOutfit(nextOutfitId) {
+      cfg = normalizeMiiConfig({ ...cfg, outfit: nextOutfitId });
+      controller.config = cfg;
+      const c = outfitColors(cfg.outfit);
+      shirtMat.color.set(c.shirt);
+      collarLineMat.color.set(c.collar);
+      tieMat.color.set(c.tie);
+      beltMat.color.set(c.belt);
+      buckleCenterMat.color.set(c.buckle);
+      pantsMat.color.set(c.pants);
+      shoeMat.color.set(c.shoes);
+    }
+
     function applyPose(poseName = 'idle', tSec = 0, poseOpts = {}) {
       const p = computeMiiPose(poseName, tSec, {
         phaseOffset: cfg.phaseOffset,
@@ -1800,6 +1851,7 @@
       nameTagMesh,
       setSkinColor,
       setExpression,
+      setOutfit,
       applyPose,
       setNameTagState,
       dispose,
@@ -1812,6 +1864,7 @@
   return Object.freeze({
     SKIN_COLOR_PRESETS,
     EXPRESSION_PRESETS,
+    OUTFIT_PRESETS,
     RETRO_STREET_PALETTE,
     SKIN_TONES,
     extractInitials,

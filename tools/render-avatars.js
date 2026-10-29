@@ -3,10 +3,10 @@
 /**
  * tools/render-avatars.js
  *
- * Genera i ritratti PNG dell'avatar dal modello 3D di client/shared/mii-character.js:
- * una foto per ogni combinazione colore × espressione del catalogo
- * (client/shared/avatar-catalog.js), più il personaggio neutro per gli id
- * sconosciuti, in due misure.
+ * Genera i ritratti PNG dell'avatar dal modello 3D di client/shared/mii-character.js,
+ * per ogni voce del catalogo (client/shared/avatar-catalog.js), più il personaggio
+ * neutro per gli id sconosciuti. Tre serie, descritte in ALL_SIZES; come si
+ * usano lo dice client/shared/avatar-sprite.js.
  *
  *   node tools/render-avatars.js
  *   → apre un server su http://localhost:3999 : aprire quell'indirizzo in un
@@ -35,14 +35,18 @@ const PORT = 3999;
  *       risposte, lobby, classifiche, badge), mostrati a ~20-70 px. A quella
  *       misura il corpo intero era un francobollo; la testa porta già tutto
  *       quello che distingue un giocatore: il colore e l'espressione.
- * lg:   il personaggio intero, per la scelta sul telefono (fino a ~180 px a
- *       densità 2-3).
+ *       Una per colore × espressione (l'outfit lì non si vede).
+ * body: il personaggio intero SENZA la faccia disegnata, per la scelta sul
+ *       telefono (fino a ~180 px a densità 2-3). Una per colore × outfit.
+ * expr: SOLO la faccia disegnata, nella stessa inquadratura di `body`: il
+ *       telefono la sovrappone al corpo. Una per espressione.
  */
 const ALL_SIZES = Object.freeze([
   // Orizzontale come la testa del modello (più larga che alta): in un quadrato
   // occupava solo la fascia di mezzo e restava piccola accanto al nome.
-  Object.freeze({ name: 'face', w: 176, h: 128, head: true }),
-  Object.freeze({ name: 'lg', w: 432, h: 540, head: false }),
+  Object.freeze({ name: 'face', w: 176, h: 128, show: 'head' }),
+  Object.freeze({ name: 'body', w: 432, h: 540, show: 'body' }),
+  Object.freeze({ name: 'expr', w: 432, h: 540, show: 'decal' }),
 ]);
 
 /** `node tools/render-avatars.js face` rigenera solo quella misura. */
@@ -55,8 +59,8 @@ if (SIZES.length === 0) {
   process.exit(1);
 }
 
-/** Il personaggio degli id sconosciuti: lo stesso grigio di avatar-sprite.js. */
-const NEUTRAL = Object.freeze({ name: 'neutral', hex: '#d4d2ea', face: 'happy' });
+/** Il personaggio degli id sconosciuti, con la faccia di avatar-sprite.js. */
+const NEUTRAL = Object.freeze({ name: 'neutral', hex: '#d4d2ea', face: 'happy', outfit: 'classic' });
 
 const FILES = {
   '/three.js': path.join(ROOT, 'client', 'shared', 'vendor', 'three', 'three.module.min.js'),
@@ -102,45 +106,93 @@ headCamera.lookAt(0, 1.19, 0);
 /** Sotto questa quota sta il corpo: nel ritratto della testa non si disegna. */
 const HEAD_MIN_Y = 0.95;
 
-/** Nasconde tutto ciò che non è la testa (corpo, braccia, ombra a terra). */
-function showHeadOnly(group, headOnly) {
+/**
+ * Cosa resta visibile: 'head' la testa con la faccia, 'body' tutto tranne la
+ * faccia disegnata, 'decal' solo la faccia disegnata, 'all' tutto.
+ */
+function show(group, what) {
   group.updateMatrixWorld(true);
   const box = new THREE.Box3();
   const center = new THREE.Vector3();
   group.traverse((o) => {
     if (!o.isMesh) return;
-    if (!headOnly) { o.visible = true; return; }
-    box.setFromObject(o).getCenter(center);
-    o.visible = center.y >= HEAD_MIN_Y;
+    const decal = o.name === 'faceDecal';
+    if (what === 'head') o.visible = box.setFromObject(o).getCenter(center).y >= HEAD_MIN_Y;
+    else if (what === 'body') o.visible = !decal;
+    else if (what === 'decal') o.visible = decal;
+    else o.visible = true;
   });
 }
 
-const jobs = [];
-for (const c of AvatarCatalog.COLORS) {
-  for (const f of AvatarCatalog.FACES) jobs.push({ name: c.id + '-' + f.id, hex: c.hex, face: f.id });
-}
-jobs.push(NEUTRAL);
-
-let done = 0;
-for (const job of jobs) {
-  const mii = MiiCharacter3D.createMii(THREE, { skinColor: job.hex, expression: job.face });
-  scene.add(mii.group);
-  for (const s of SIZES) {
-    // La testa da sola gira meno: la faccia deve leggersi anche a 20 px.
-    mii.group.rotation.y = s.head ? -0.22 : -0.32;
-    showHeadOnly(mii.group, s.head);
-    renderer.setSize(s.w, s.h, false);
-    renderer.render(scene, s.head ? headCamera : bodyCamera);
-    const blob = await new Promise((r) => renderer.domElement.toBlob(r, 'image/png'));
-    const res = await fetch('/save?size=' + s.name + '&name=' + job.name, { method: 'POST', body: blob });
-    if (!res.ok) throw new Error('salvataggio rifiutato: ' + job.name);
+function jobsFor(size) {
+  const { COLORS, FACES, OUTFITS } = AvatarCatalog;
+  const jobs = [];
+  if (size.name === 'face') {
+    for (const c of COLORS) for (const f of FACES) jobs.push({ name: c.id + '-' + f.id, hex: c.hex, face: f.id });
+  } else if (size.name === 'body') {
+    for (const c of COLORS) for (const o of OUTFITS) jobs.push({ name: c.id + '-' + o.id, hex: c.hex, outfit: o.id });
+  } else {
+    // La faccia non dipende dal colore della pelle: il disegno è inchiostro su trasparente.
+    for (const f of FACES) jobs.push({ name: f.id, hex: NEUTRAL.hex, face: f.id });
+    return jobs;
   }
+  jobs.push(NEUTRAL);
+  return jobs;
+}
+
+/** Disegna un personaggio e restituisce il canvas di WebGL (letto subito dopo). */
+function draw(job, size, what) {
+  const mii = MiiCharacter3D.createMii(THREE, { skinColor: job.hex, expression: job.face, outfit: job.outfit });
+  scene.add(mii.group);
+  // La testa da sola gira meno: la faccia deve leggersi anche a 20 px.
+  mii.group.rotation.y = what === 'head' ? -0.22 : -0.32;
+  show(mii.group, what);
+  renderer.setSize(size.w, size.h, false);
+  renderer.render(scene, what === 'head' ? headCamera : bodyCamera);
   scene.remove(mii.group);
   mii.dispose();
-  stato.textContent = 'Disegnati ' + (++done) + ' di ' + jobs.length;
+  return renderer.domElement;
 }
-await fetch('/done', { method: 'POST' });
-stato.textContent = 'Fatto: ' + jobs.length + ' personaggi. Si può chiudere la pagina.';
+
+const total = SIZES.reduce((n, s) => n + jobsFor(s).length, 0);
+let done = 0;
+for (const s of SIZES) {
+  for (const job of jobsFor(s)) {
+    const blob = await new Promise((r) => draw(job, s, s.show).toBlob(r, 'image/png'));
+    const res = await fetch('/save?size=' + s.name + '&name=' + job.name, { method: 'POST', body: blob });
+    if (!res.ok) throw new Error('salvataggio rifiutato: ' + job.name);
+    stato.textContent = 'Disegnati ' + (++done) + ' di ' + total;
+  }
+}
+
+// Controllo della sovrapposizione: corpo + faccia devono dare la foto intera.
+// Se un giorno qualcosa del modello finisse davanti alla faccia, qui si vede.
+function pixels(canvases) {
+  const c = document.createElement('canvas');
+  c.width = 432; c.height = 540;
+  const ctx = c.getContext('2d');
+  for (const src of canvases) ctx.drawImage(src, 0, 0);
+  return ctx.getImageData(0, 0, c.width, c.height).data;
+}
+function snapshot(job, what) {
+  const c = document.createElement('canvas');
+  c.width = 432; c.height = 540;
+  c.getContext('2d').drawImage(draw(job, { w: 432, h: 540 }, what), 0, 0);
+  return c;
+}
+const probe = { hex: '#f26b5e', face: 'laugh', outfit: 'elegant' };
+const whole = pixels([snapshot(probe, 'all')]);
+const stacked = pixels([snapshot(probe, 'body'), snapshot(probe, 'decal')]);
+let off = 0;
+for (let i = 0; i < whole.length; i += 4) {
+  // Confronto premoltiplicato: sui bordi semitrasparenti il colore puro non conta.
+  for (let k = 0; k < 4; k++) {
+    const a = k === 3 ? 255 : whole[i + 3], b = k === 3 ? 255 : stacked[i + 3];
+    if (Math.abs(whole[i + k] * a - stacked[i + k] * b) / 255 > 6) { off++; break; }
+  }
+}
+await fetch('/done?off=' + off, { method: 'POST' });
+stato.textContent = 'Fatto: ' + total + ' immagini. Si può chiudere la pagina.';
 </script>
 </body></html>`;
 
@@ -182,6 +234,10 @@ const server = http.createServer((req, res) => {
   if (req.method === 'POST' && url.pathname === '/done') {
     res.writeHead(204).end();
     console.log(`  Salvati ${saved} PNG in ${path.relative(ROOT, OUT_DIR)}`);
+    const off = Number(url.searchParams.get('off'));
+    console.log(off === 0
+      ? '  Corpo + faccia sovrapposti = foto intera: OK'
+      : `  ATTENZIONE: corpo + faccia sovrapposti differiscono dalla foto intera in ${off} pixel`);
     server.close();
     return;
   }

@@ -47,8 +47,12 @@ const screens = {
 
 const nicknameInput     = document.getElementById('nickname-input');
 const avatarPortrait    = document.getElementById('avatar-portrait');
+const avatarBody        = document.getElementById('avatar-body');
+const avatarFace        = document.getElementById('avatar-face');
 const avatarPrev        = document.getElementById('avatar-prev');
 const avatarNext        = document.getElementById('avatar-next');
+const outfitPrev        = document.getElementById('outfit-prev');
+const outfitNext        = document.getElementById('outfit-next');
 const avatarColors      = document.getElementById('avatar-colors');
 const joinBtn           = document.getElementById('join-btn');
 const joinError         = document.getElementById('join-error');
@@ -150,14 +154,14 @@ function renderPlayerBadge(p) {
 }
 
 // ─── Scelta del personaggio ──────────────────────────────────────────────────
-// Le frecce ai lati della faccia scorrono le espressioni (in cerchio), i
-// pallini sotto scelgono il colore. Si parte dall'ultima scelta fatta su
-// questo telefono, o da una combinazione a caso: chi va di fretta tocca
-// "Entra" e basta.
+// Le frecce ai lati della faccia scorrono le espressioni, quelle ai lati del
+// corpo gli outfit (in cerchio), i pallini sotto scelgono il colore. Si parte
+// dall'ultima scelta fatta su questo telefono, o da una combinazione a caso:
+// chi va di fretta tocca "Entra" e basta.
 
 const AVATAR_KEY = 'quizzata-avatar';
 
-const avatarPick = { color: 0, face: 0 };
+const avatarPick = { color: 0, face: 0, outfit: 0 };
 
 function loadAvatarChoice() {
   try { return AvatarCatalog.parse(localStorage.getItem(AVATAR_KEY)); }
@@ -169,10 +173,11 @@ function saveAvatarChoice(id) {
 }
 
 function buildAvatarPicker() {
-  const { COLORS, FACES } = AvatarCatalog;
+  const { COLORS, FACES, OUTFITS } = AvatarCatalog;
   const start = loadAvatarChoice() ?? AvatarCatalog.parse(AvatarCatalog.random());
   avatarPick.color = COLORS.indexOf(start.color);
   avatarPick.face = FACES.indexOf(start.face);
+  avatarPick.outfit = OUTFITS.indexOf(start.outfit);
 
   COLORS.forEach((c, i) => {
     const btn = document.createElement('button');
@@ -185,27 +190,37 @@ function buildAvatarPicker() {
     avatarColors.appendChild(btn);
   });
 
-  const step = (delta) => {
-    avatarPick.face = (avatarPick.face + delta + FACES.length) % FACES.length;
+  const step = (key, list, delta) => {
+    avatarPick[key] = (avatarPick[key] + delta + list.length) % list.length;
     renderAvatarPick();
   };
-  avatarPrev.addEventListener('click', () => step(-1));
-  avatarNext.addEventListener('click', () => step(1));
+  avatarPrev.addEventListener('click', () => step('face', FACES, -1));
+  avatarNext.addEventListener('click', () => step('face', FACES, 1));
+  outfitPrev.addEventListener('click', () => step('outfit', OUTFITS, -1));
+  outfitNext.addEventListener('click', () => step('outfit', OUTFITS, 1));
 
   renderAvatarPick();
 }
 
 function renderAvatarPick() {
-  const color = AvatarCatalog.COLORS[avatarPick.color];
-  const face = AvatarCatalog.FACES[avatarPick.face];
-  selectedAvatar = AvatarCatalog.encode(color.id, face.id);
-  avatarPortrait.src = AvatarSprite.url(selectedAvatar, 'lg');
-  avatarPortrait.alt = `Il tuo personaggio: ${face.label}, ${color.label}`;
-  // Le facce accanto si scaricano adesso: al tocco della freccia sono già qui.
-  const { FACES } = AvatarCatalog;
+  const { COLORS, FACES, OUTFITS } = AvatarCatalog;
+  const color = COLORS[avatarPick.color];
+  const face = FACES[avatarPick.face];
+  const outfit = OUTFITS[avatarPick.outfit];
+  selectedAvatar = AvatarCatalog.encode(color.id, face.id, outfit.id);
+  const layers = AvatarSprite.layers(selectedAvatar);
+  avatarBody.src = layers.body;
+  avatarFace.src = layers.face;
+  avatarPortrait.setAttribute('aria-label',
+    `Il tuo personaggio: ${face.label}, ${color.label}, outfit ${outfit.label}`);
+  // Le facce e gli outfit accanto si scaricano adesso: al tocco della freccia
+  // sono già qui.
+  const near = (list, i, d) => list[(i + d + list.length) % list.length].id;
   for (const d of [-1, 1]) {
-    const near = FACES[(avatarPick.face + d + FACES.length) % FACES.length];
-    AvatarSprite.preload(AvatarCatalog.encode(color.id, near.id), 'lg');
+    AvatarSprite.preload(AvatarSprite.layers(
+      AvatarCatalog.encode(color.id, near(FACES, avatarPick.face, d), outfit.id)).face);
+    AvatarSprite.preload(AvatarSprite.layers(
+      AvatarCatalog.encode(color.id, face.id, near(OUTFITS, avatarPick.outfit, d))).body);
   }
   [...avatarColors.children].forEach((el, i) => {
     const selected = i === avatarPick.color;

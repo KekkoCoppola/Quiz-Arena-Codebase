@@ -35,12 +35,17 @@ const NOMI = [
 const AvatarCatalog = require('../client/shared/avatar-catalog');
 
 /**
- * Avatar dell'i-esimo bot: colore e faccia avanzano a passi diversi (7 è primo
- * con 12), così una sala piena di bot non è un muro di personaggi uguali.
+ * Avatar dell'i-esimo bot: colore, faccia e outfit avanzano a passi diversi
+ * (7 è primo con 12), così una sala piena di bot non è un muro di personaggi
+ * uguali.
  */
 function botAvatar(i) {
-  const { COLORS, FACES } = AvatarCatalog;
-  return AvatarCatalog.encode(COLORS[i % COLORS.length].id, FACES[(i * 7) % FACES.length].id);
+  const { COLORS, FACES, OUTFITS } = AvatarCatalog;
+  return AvatarCatalog.encode(
+    COLORS[i % COLORS.length].id,
+    FACES[(i * 7) % FACES.length].id,
+    OUTFITS[i % OUTFITS.length].id,
+  );
 }
 
 /**

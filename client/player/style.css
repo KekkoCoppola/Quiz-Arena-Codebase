@@ -180,7 +180,8 @@ body {
 
 /* ─── Scelta del personaggio ───────────────────────────────────────────────
    Niente riquadri, per scelta dell'utente: il personaggio sta sullo sfondo,
-   le frecce sono nude ai lati della faccia, i colori sono pallini sotto.
+   le frecce sono nude ai lati della faccia (espressione) e del corpo
+   (outfit), i colori sono pallini sotto.
    --avatar-w comanda tutto: le altezze piccole la riducono più sotto. */
 
 .avatar-picker {
@@ -189,7 +190,9 @@ body {
   width: var(--avatar-w);
   margin: 4px auto 0;
 }
-.avatar-portrait { display: block; width: var(--avatar-w); height: calc(var(--avatar-w) * 1.25); user-select: none; -webkit-user-drag: none; }
+.avatar-portrait { position: relative; width: var(--avatar-w); height: calc(var(--avatar-w) * 1.25); user-select: none; }
+/* Due foto della stessa inquadratura: la faccia disegnata sopra il corpo. */
+.avatar-portrait img { position: absolute; inset: 0; width: 100%; height: 100%; -webkit-user-drag: none; }
 
 /* Nel ritratto la faccia sta intorno a un terzo dell'altezza: la freccia
    ci si centra sopra, qualunque sia la misura. */
@@ -205,6 +208,10 @@ body {
 }
 .avatar-arrow--prev { left: -48px; }
 .avatar-arrow--next { right: -48px; }
+/* Le frecce dell'outfit stanno all'altezza della camicia e sono più piccole:
+   la faccia resta la scelta principale. */
+.avatar-arrow--outfit { top: calc(var(--avatar-w) * 0.74 - 24px); }
+.avatar-arrow--outfit svg { width: 17px; height: 29px; stroke-width: 5; }
 .avatar-arrow svg {
   width: 22px; height: 38px;
   fill: none; stroke: currentColor; stroke-width: 6;

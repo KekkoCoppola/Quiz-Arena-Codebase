@@ -1360,7 +1360,7 @@ function renderFinalFrame(leaderboard) {
   els.podium.classList.add('is-settled');
 }
 
-/** Il giocatore come lo vuole la scena 3D: nome, posto, colore ed espressione. */
+/** Il giocatore come lo vuole la scena 3D: nome, posto, colore, espressione e outfit. */
 function podiumPlayer(p) {
   const parsed = AvatarCatalog.parse(p.avatar);
   return {
@@ -1369,6 +1369,7 @@ function podiumPlayer(p) {
     rank: p.rank,
     skinColor: parsed ? parsed.color.hex : '#d4d2ea',
     expression: parsed ? parsed.face.id : 'happy',
+    outfit: parsed ? parsed.outfit.id : 'classic',
   };
 }
 
