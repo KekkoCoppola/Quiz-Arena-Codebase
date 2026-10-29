@@ -176,7 +176,7 @@ Palette calda, satura, da sala giochi — mai tenue, mai desaturata. Il fondo ca
 - **Ticket Ochre** (#f2a65a): accento decorativo secondario nella schermata di gioco, mai su testo.
 
 ### Neutral
-- **Warm Paper** (#fff8f1): sfondo di pagina, con pattern a puntini (`radial-gradient` 24px) che rompe la piattezza.
+- **Warm Paper** (#fff8f1): era lo sfondo di pagina; oggi nessuna superficie lo usa più come fondo. Sala, player e pannello admin stanno tutti sulla carta fredda del logo (`#f1f0fa`, pois `#d9d6f2`), vedi §7.
 - **Paper White** (#ffffff): superficie di card, input, modali — il bianco "pulito" sopra il fondo caldo.
 - **Ink** (#201b0d): testo primario e, soprattutto, **il colore di ogni bordo strutturale del sistema** — non solo testo.
 - **Ink Muted** (#4a4731): testo secondario, descrizioni, placeholder scuri.
@@ -270,7 +270,9 @@ Badge a pillola usati nella schermata di conduzione partita ("2 domande", "Perso
 
 ## 7. Superficie admin (pannello host)
 
-Il pannello di chi conduce (`client/host/`) tiene la **forma** di Retro Street — bordi inchiostro, ombre piene senza sfocatura, Quicksand in grassetto, tasti che si abbassano sotto il dito — ma prende i **colori dal logo**: giallo delle lettere (`logo-yellow`), indaco elettrico dell'ombra (`electric-indigo`), contorno blu-nero (`logo-ink`), su un fondo carta appena freddo (`admin-paper`). La terna crema/teal/terracotta non aveva legami con il marchio ed è stata tolta da questa superficie. Sala e player restano per ora sulla palette dei §2.
+Il pannello di chi conduce (`client/host/`) tiene la **forma** di Retro Street — bordi inchiostro, ombre piene senza sfocatura, Quicksand in grassetto, tasti che si abbassano sotto il dito — ma prende i **colori dal logo**: giallo delle lettere (`logo-yellow`), indaco elettrico dell'ombra (`electric-indigo`), contorno blu-nero (`logo-ink`), su un fondo carta appena freddo (`admin-paper`). La terna crema/teal/terracotta non aveva legami con il marchio ed è stata tolta da questa superficie.
+
+**Il fondo è uno solo per tutte e tre le superfici**: carta `#f1f0fa` con pois `#d9d6f2`. Sala e player aggiungono la retinatura indaco negli angoli, il disco indaco e la stella gialla del logo (`.sala-bg-layer`, `.player-bg-layer`); sul telefono le forme stanno in angoli opposti e sbordano quasi del tutto, per non finire dietro al testo. Il pannello admin resta senza forme (vedi sotto, "Niente decorazione"). Bottoni, adesivi e risposte di sala e player restano sulla palette dei §2.
 
 ### Regole della superficie
 - **Un'azione principale per schermata**, gialla. Tutto il resto è secondario (bianco) o di testo.

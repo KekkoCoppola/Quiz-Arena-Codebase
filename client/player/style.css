@@ -23,7 +23,6 @@
   --game-over-red:      #ab3425;
   --terracotta-alert:   #e05a47;
   --ticket-ochre:       #f2a65a;
-  --warm-paper:         #fff8f1;
   --paper-white:        #ffffff;
   --ink:                #201b0d;
   --ink-muted:          #4a4731;
@@ -33,6 +32,15 @@
   --stamp-sm:           4px 4px 0px 0px var(--ink);
   --radius:             16px;
   --radius-lg:          32px;
+
+  /* Il fondo: gli stessi valori della sala e del pannello admin, presi dal
+     logo (DESIGN.md §7). La carta calda di prima era l'unica superficie fuori
+     famiglia: il telefono si guarda nello stesso momento del proiettore. */
+  --paper-base:         #f1f0fa;
+  --paper-dot:          #d9d6f2;
+  --logo-yellow:        #ffe500;
+  --indigo:             #443be0;
+  --retro-dark:         #1c1c26;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -41,14 +49,93 @@ body {
   font-family: 'Quicksand', system-ui, sans-serif;
   font-weight: 700;
   color: var(--ink);
-  background-color: var(--warm-paper);
-  background-image: radial-gradient(var(--ink) 0.75px, transparent 0.75px);
-  background-size: 24px 24px;
+  background-color: var(--paper-base);
+  background-image: radial-gradient(var(--paper-dot) 1.5px, transparent 1.5px);
+  background-size: 22px 22px;
   min-height: 100dvh;
   padding: 16px 20px 40px;
 }
 
 [hidden] { display: none !important; }
+
+/* ─── Sfondo: la retinatura e le forme del logo ───────────────────────────
+   Lo stesso fondo della sala, ridotto al telefono. Le due forme stanno in
+   angoli opposti e sbordano quasi del tutto: in alto a destra la stella
+   accanto al logo, dove non c'è testo; in basso a sinistra solo uno spicchio
+   del disco, sotto le risposte. Misure in vmin, così ruotando il telefono
+   restano della stessa grandezza.
+
+   z-index -1 e non 0: body non apre un contesto di impilamento, quindi lo
+   strato si dipinge fra il fondo della pagina e il contenuto, senza dover
+   posizionare una per una le schermate. */
+
+.player-bg-layer {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Retinatura da fumetto: piena nell'angolo, sfuma verso il centro. */
+.player-halftone {
+  position: absolute;
+  width: 85vmin;
+  height: 85vmin;
+  background-image: radial-gradient(circle, var(--indigo) 0 1.8px, transparent 2.2px);
+  background-size: 13px 13px;
+  opacity: 0.2;
+}
+.player-halftone--tl {
+  top: -22vmin;
+  left: -22vmin;
+  -webkit-mask-image: radial-gradient(circle at 30% 30%, #000 0, transparent 62%);
+  mask-image: radial-gradient(circle at 30% 30%, #000 0, transparent 62%);
+}
+.player-halftone--br {
+  bottom: -24vmin;
+  right: -24vmin;
+  -webkit-mask-image: radial-gradient(circle at 70% 70%, #000 0, transparent 62%);
+  mask-image: radial-gradient(circle at 70% 70%, #000 0, transparent 62%);
+}
+
+.player-shape { position: absolute; }
+
+/* Il disco indaco: l'ombra elettrica del logo. */
+.player-shape--orb {
+  left: -15vmin;
+  bottom: -18vmin;
+  width: 38vmin;
+  height: 38vmin;
+  border-radius: 50%;
+  background: var(--indigo);
+  border: 4px solid var(--retro-dark);
+  box-shadow: 6px -6px 0 0 var(--retro-dark);
+  animation: bg-orb 29s ease-in-out infinite;
+}
+
+/* L'esplosione gialla: il fumetto del logo. */
+.player-shape--burst {
+  right: -10vmin;
+  top: -9vmin;
+  width: 30vmin;
+  height: 30vmin;
+  fill: var(--logo-yellow);
+  stroke: var(--retro-dark);
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+  overflow: visible;
+  animation: bg-burst-spin 61s linear infinite;
+}
+
+/* Gli stessi cicli della sala, più corti di corsa: si notano se li cerchi. */
+@keyframes bg-orb {
+  0%, 100% { transform: translate(0, 0); }
+  50%      { transform: translate(8px, -6px); }
+}
+@keyframes bg-burst-spin {
+  to { transform: rotate(1turn); }
+}
 
 .player-header { display: flex; justify-content: center; padding: 8px 0 16px; }
 .player-logo   { width: 140px; }
@@ -404,6 +491,9 @@ body { padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
    risposte, quindi vanno a due per riga e il logo lascia il posto. */
 @media (max-height: 480px) and (orientation: landscape) {
   .player-header { display: none; }
+  /* Senza testata in alto a destra c'è il countdown: la stella scende
+     nell'angolo in basso, dove sta anche in sala. */
+  .player-shape--burst { top: auto; bottom: -9vmin; }
   .screen        { max-width: 720px; gap: 8px; }
   .answer-stack  { display: grid; grid-template-columns: 1fr 1fr; }
   .question-text { font-size: 17px; line-height: 22px; text-align: center; }

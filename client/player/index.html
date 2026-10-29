@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="description" content="Quiz-Zata! — Unisciti alla partita dal tuo smartphone.">
-  <meta name="theme-color" content="#fff8f1">
+  <meta name="theme-color" content="#f1f0fa">
   <title>Quiz-Zata! — Gioca</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="/shared/minigames/minigames.css">
@@ -14,6 +14,16 @@
   <link rel="stylesheet" href="/shared/final-ceremony.css">
 </head>
 <body>
+  <!-- Lo sfondo della sala, in piccolo: retinatura e forme del logo. -->
+  <div class="player-bg-layer" aria-hidden="true">
+    <div class="player-halftone player-halftone--tl"></div>
+    <div class="player-halftone player-halftone--br"></div>
+    <div class="player-shape player-shape--orb"></div>
+    <svg class="player-shape player-shape--burst" viewBox="0 0 100 100">
+      <polygon points="50.0,1.0 58.0,14.9 71.3,5.9 72.4,21.9 88.3,19.4 82.4,34.4 97.8,39.1 86.0,50.0 97.8,60.9 82.4,65.6 88.3,80.6 72.4,78.1 71.3,94.1 58.0,85.1 50.0,99.0 42.0,85.1 28.7,94.1 27.6,78.1 11.7,80.6 17.6,65.6 2.2,60.9 14.0,50.0 2.2,39.1 17.6,34.4 11.7,19.4 27.6,21.9 28.7,5.9 42.0,14.9"></polygon>
+    </svg>
+  </div>
+
   <header class="player-header">
     <img class="player-logo" src="/resources/img/Logo.svg" alt="Quiz-Zata!">
   </header>
