@@ -65,23 +65,23 @@ assert(
 
 assert(def.type === 'cup_game', 'type è "cup_game"');
 assert(def.label === 'Tre Bicchieri', 'label è "Tre Bicchieri"');
-assert(def.defaultTimeLimitS === 8, 'defaultTimeLimitS è 8');
-assert(def.previewMs === 10000, 'previewMs è 10000: prima si seguono i bicchieri, poi si sceglie');
+assert(def.defaultTimeLimitS === 6, 'defaultTimeLimitS è 6: la scelta di ogni livello');
+assert(def.previewMs === 12000, 'previewMs è 12000: prima si seguono i bicchieri, poi si sceglie');
 assert(def.revealMs === 4000, 'revealMs è 4000: dopo la chiusura resta solo l\'alzata');
 assert(
   Array.isArray(def.options) &&
     def.options.length === 3 &&
-    def.options[0] === 'Sinistra' &&
-    def.options[1] === 'Centro' &&
-    def.options[2] === 'Destra',
-  'options è ["Sinistra", "Centro", "Destra"]'
+    def.options[0] === 'A' &&
+    def.options[1] === 'B' &&
+    def.options[2] === 'C',
+  'options è ["A", "B", "C"]: si sceglie per lettera, da sinistra a destra'
 );
 assert(
   def.points &&
-    def.points.win === 600 &&
+    def.points.win === 400 &&
     def.points.lose === 0 &&
     !('draw' in def.points),
-  'points vale { win: 600, lose: 0 } senza esito intermedio'
+  'points vale { win: 400, lose: 0 } per livello senza esito intermedio'
 );
 
 {
@@ -135,6 +135,10 @@ assert(clientDef.label === 'Tre Bicchieri', 'presentazione client ha label "Tre 
 assert(
   clientDef.playerLayoutClass === 'mg-cup-game-choices',
   'playerLayoutClass è "mg-cup-game-choices"'
+);
+assert(
+  clientDef.salaOptions === false,
+  'in sala è tutto palco: niente carte delle scelte, parata né reveal (salaOptions false)'
 );
 assert(typeof clientDef.optionIcon === 'function', 'espone optionIcon(i)');
 assert(typeof clientDef.sala.startSuspense === 'function', 'espone sala.startSuspense');

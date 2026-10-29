@@ -35,6 +35,18 @@ let currentSession = null;
 let currentQuiz = null;
 /** Handle del setTimeout della domanda corrente. */
 let questionTimer = null;
+/** Avanzamento automatico al livello successivo di un minigioco a più round. */
+let stageTimer = null;
+/**
+ * Pausa fra il reveal di un livello e l'apertura del successivo: il tempo di
+ * leggere il verdetto e il proprio esito sul telefono prima di ripartire.
+ */
+const STAGE_GAP_MS = 1500;
+/**
+ * Opzioni di ogni GameSession creata qui. Il sipario dei minigiochi è messa in
+ * scena, non regola: la sessione pura lo tiene a 0 finché non glielo si chiede.
+ */
+const SESSION_OPTIONS = { minigameIntroMs: config.minigameIntroMs };
 /** @type {Map<string, string>} socket.id -> playerId */
 const socketPlayers = new Map();
 /** @type {Map<string, string>} token segreto -> playerId (riconnessione Fase 7) */
@@ -58,6 +70,12 @@ function clearQuestionTimer() {
   if (questionTimer) {
     clearTimeout(questionTimer);
     questionTimer = null;
+  }
+  // Un avanzamento automatico fra i livelli di un minigioco è superato da
+  // qualunque altra mossa: l'host che va avanti a mano, un reset, la fine.
+  if (stageTimer) {
+    clearTimeout(stageTimer);
+    stageTimer = null;
   }
   // Le risposte dei bot appartengono alla domanda che sta chiudendo: una in
   // ritardo arriverebbe sul round successivo.
@@ -95,7 +113,12 @@ function ok(cb, data = {})  { ack(cb, { ok: true, ...data }); }
 function fail(cb, error)    { ack(cb, { ok: false, error }); }
 
 function broadcastLobby(io) {
-  io.emit('game:lobby-update', { players: currentSession.getPlayers() });
+  // Arriva anche a partita in corso (ogni disconnessione e rientro): `state`
+  // dice ai client se è davvero il momento di mostrare la lobby.
+  io.emit('game:lobby-update', {
+    players: currentSession.getPlayers(),
+    state: currentSession.state,
+  });
 }
 
 /**
@@ -126,17 +149,19 @@ function spawnBots(count) {
 function emitQuestion(io) {
   const q = currentSession.getCurrentRound();
   const now = Date.now();
-  // Un minigioco con anteprima (es. i bicchieri da seguire) mostra prima lo
-  // spettacolo e solo dopo apre le risposte: il tempo per rispondere parte da
-  // `answersOpenAt`, non dall'apertura del round.
-  const answersOpenAt = now + q.previewMs;
+  // Un minigioco si apre col sipario in sala (`introEndsAt`) e, se ha
+  // un'anteprima (es. i bicchieri da seguire), mostra poi lo spettacolo: solo
+  // dopo si risponde. Il tempo per rispondere parte da `answersOpenAt`, non
+  // dall'apertura del round.
+  const introEndsAt = now + q.introMs;
+  const answersOpenAt = introEndsAt + q.previewMs;
   const endsAt = answersOpenAt + q.time_limit_s * 1000;
   currentQuestionEndsAt = endsAt;
   currentAnswersOpenAt = answersOpenAt;
   // `serverNow` viaggia insieme a `endsAt`: da soli, due orologi distanti
   // fanno scadere il tempo in sala e sul telefono in momenti diversi.
   // Vedi client/shared/server-clock.js.
-  const payload = { ...q, answersOpenAt, endsAt, serverNow: now };
+  const payload = { ...q, introEndsAt, answersOpenAt, endsAt, serverNow: now };
 
   // L'anteprima porta l'esito (dove finisce la pallina): la sala e l'host ne
   // hanno bisogno per metterla in scena, i telefoni no — leggerla dal payload
@@ -168,8 +193,8 @@ function scheduleBotAnswers(io, round) {
   const optionCount = round.options?.length ?? 0;
 
   for (const playerId of botPlayers) {
-    // Come un umano, un bot non può rispondere durante l'anteprima.
-    const delay = round.previewMs + testBots.answerDelayMs(round.time_limit_s);
+    // Come un umano, un bot non può rispondere durante sipario e anteprima.
+    const delay = round.introMs + round.previewMs + testBots.answerDelayMs(round.time_limit_s);
     botTimers.push(setTimeout(() => {
       if (!currentSession || currentSession.state !== STATES.QUESTION) return;
       try {
@@ -200,6 +225,19 @@ function closeQuestion(io) {
     results.revealAt = results.serverNow + results.revealMs;
   }
   io.emit('game:results', results);
+
+  // Minigioco a più round: fra un livello e l'altro non decide l'host, la
+  // filata va avanti da sola appena il reveal è atterrato. Solo l'ultimo
+  // livello si ferma sulla classifica e aspetta "avanti" come ogni round.
+  const { stage } = results;
+  if (stage && stage.index < stage.count - 1) {
+    stageTimer = setTimeout(() => {
+      stageTimer = null;
+      if (!currentSession || currentSession.state !== STATES.RESULTS) return;
+      const next = currentSession.nextQuestion();
+      if (!next.finished) emitQuestion(io);
+    }, results.revealMs + STAGE_GAP_MS);
+  }
 }
 
 /** Conta i giocatori attualmente connessi. */
@@ -373,7 +411,7 @@ function attachGameHandlers(io) {
       // ancora connessi vanno notificati e disconnessi, non solo scartati.
       endCurrentGame(io);
       currentQuiz = quiz;
-      currentSession = new GameSession(quiz);
+      currentSession = new GameSession(quiz, SESSION_OPTIONS);
       ok(cb);
       broadcastLobby(io);
     });
@@ -438,7 +476,7 @@ function attachGameHandlers(io) {
         if (player) oldIdentities.set(sockId, { nickname: player.nickname, avatar: player.avatar });
       }
 
-      currentSession = new GameSession(currentQuiz);
+      currentSession = new GameSession(currentQuiz, SESSION_OPTIONS);
       socketPlayers.clear();
       playerTokens.clear();
 

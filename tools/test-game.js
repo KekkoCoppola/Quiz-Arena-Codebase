@@ -333,8 +333,8 @@ function run() {
 
   console.log('\n  🥤  Fase 9c: Minigioco con anteprima (Tre Bicchieri)\n');
 
-  // Generatore che restituisce 0.99 alla prima estrazione (→ Destra) e 0 dopo:
-  // se la chiusura estraesse di nuovo, il risultato cambierebbe in Sinistra.
+  // Generatore che restituisce 0.99 alla prima estrazione (→ C, a destra) e 0
+  // dopo: se la chiusura estraesse di nuovo, il risultato cambierebbe in A.
   let estrazioni = 0;
   const g9c = new GameSession(QUIZ, { rnd: () => (estrazioni++ === 0 ? 0.99 : 0) });
   const fay = g9c.addPlayer('Fay');
@@ -344,8 +344,8 @@ function run() {
   g9c.insertMinigame('cup_game', 2000);
 
   const cupRound = g9c.getCurrentRound();
-  assert(cupRound.previewMs === 10000, 'getCurrentRound: il round con anteprima dichiara previewMs');
-  assert(g9c.answersOpenAt === 12000, 'answersOpenAt: le risposte aprono dopo l\'anteprima');
+  assert(cupRound.previewMs === 12000, 'getCurrentRound: il round con anteprima dichiara previewMs');
+  assert(g9c.answersOpenAt === 14000, 'answersOpenAt: le risposte aprono dopo l\'anteprima');
   assert(
     cupRound.machineChoice === undefined && !('preview' in cupRound),
     'getCurrentRound: il round pubblico non contiene l\'esito'
@@ -356,14 +356,72 @@ function run() {
   );
   assertThrows(() => g9c.submitAnswer(fay.id, 2, 5000), AnswersNotOpenError,
     'submitAnswer: rifiutata durante l\'anteprima');
-  g9c.submitAnswer(fay.id, 2, 12500);
-  const cupResults = g9c.endQuestion(15000);
+  g9c.submitAnswer(fay.id, 2, 14500);
+  const cupResults = g9c.endQuestion(17000);
   assert(cupResults.machineChoice === 2, 'endQuestion: riusa l\'esito dell\'apertura, non ne estrae un altro');
   assert(
-    cupResults.answers[0].outcome === 'win' && cupResults.answers[0].pointsAwarded === 600,
-    'endQuestion: chi ha seguito la pallina vince 600 punti'
+    cupResults.answers[0].outcome === 'win' && cupResults.answers[0].pointsAwarded === 400,
+    'endQuestion: chi ha seguito la pallina vince 400 punti al livello'
   );
   assert(cupResults.revealMs === 4000, 'endQuestion: dopo l\'anteprima resta solo l\'alzata (revealMs)');
+
+  // ─── Minigioco a più livelli ─────────────────────────────────────────────────
+  // `stages: 5` → l'inserimento aggiunge cinque round di fila, ognuno con il
+  // proprio livello; la difficoltà (scambi) cresce e l'anteprima si accorcia
+  // dopo il primo, che apre con l'avviso.
+  const cupStages = g9c.rounds.filter((r) => r.minigameType === 'cup_game');
+  assert(cupStages.length === 5, 'stages: l\'inserimento di cup_game aggiunge 5 round');
+  assert(
+    cupStages.every((r, i) => r.stage.index === i && r.stage.count === 5),
+    'stages: ogni round porta il proprio { index, count }'
+  );
+  assert(
+    cupStages.every((r, i) => i === 0 || r.stage.swaps > cupStages[i - 1].stage.swaps),
+    'stages: gli scambi crescono a ogni livello'
+  );
+  assert(cupResults.stage?.index === 0 && cupResults.stage?.count === 5,
+    'endQuestion: i risultati dicono a che livello si è');
+  g9c.nextQuestion(19000);
+  assert(g9c.getCurrentRound().previewMs === 9000 && g9c.answersOpenAt === 28000,
+    'stages: dal secondo livello l\'anteprima è più corta');
+  assert(g9c.getRoundPreview() !== null, 'stages: ogni livello estrae il proprio esito all\'apertura');
+
+  // ─── Sipario prima del minigioco ─────────────────────────────────────────────
+  // In sala ogni minigioco si apre con le tende e la ruota: il server riserva
+  // quel tempo PRIMA dell'anteprima e delle risposte, una volta sola anche per
+  // un minigioco a più livelli. Le domande non hanno sipario.
+
+  console.log('\n  🎭  Fase 9d: Sipario prima del minigioco\n');
+
+  const g9d = new GameSession(QUIZ, { rnd: () => 0, minigameIntroMs: 12000 });
+  const gus = g9d.addPlayer('Gus');
+  g9d.startGame(0);
+  assert(g9d.getCurrentRound().introMs === 0 && g9d.answersOpenAt === 0,
+    'sipario: una domanda non ce l\'ha, si risponde subito');
+  g9d.submitAnswer(gus.id, 0, 500);
+  g9d.endQuestion(1000);
+
+  g9d.insertMinigame('morra_cinese', 2000);
+  const morraRound = g9d.getCurrentRound();
+  assert(morraRound.introMs === 12000 && morraRound.previewMs === 0,
+    'sipario: un minigioco senza anteprima dichiara solo il sipario');
+  assert(g9d.answersOpenAt === 14000, 'sipario: le risposte aprono a sipario finito');
+  assertThrows(() => g9d.submitAnswer(gus.id, 0, 8000), AnswersNotOpenError,
+    'sipario: risposta rifiutata a tende ancora in scena');
+  g9d.submitAnswer(gus.id, 0, 14000);
+  g9d.endQuestion(20000);
+
+  g9d.insertMinigame('cup_game', 30000);
+  const cupFirst = g9d.getCurrentRound();
+  assert(cupFirst.introMs === 12000 && cupFirst.previewMs === 12000,
+    'sipario: col sipario l\'anteprima resta intera, non si accorcia');
+  assert(g9d.introEndsAt === 42000 && g9d.answersOpenAt === 54000,
+    'sipario: prima le tende, poi l\'anteprima, poi le risposte');
+  g9d.endQuestion(60000);
+  g9d.nextQuestion(65000);
+  assert(g9d.getCurrentRound().stage.index === 1 && g9d.getCurrentRound().introMs === 0,
+    'sipario: dal secondo livello niente tende, la scena continua');
+  assert(g9d.answersOpenAt === 65000 + 9000, 'sipario: al secondo livello resta solo l\'anteprima');
 
 
   // ─── Immagine nel round ──────────────────────────────────────────────────────

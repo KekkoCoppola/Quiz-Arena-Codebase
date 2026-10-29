@@ -68,6 +68,37 @@
     playerBadge: '🎲 Nome Minigioco!',
 
     /**
+     * Immagine dello spicchio che, nel sipario d'apertura in sala, estrae il
+     * tuo minigioco dalla ruota. Un asset quadrato in
+     * `resources/img/<nome-gioco>/`; `null` = emblema generico.
+     */
+    wheelIcon: null,
+
+    /**
+     * `false` se la tua scena in sala basta da sola: niente carte delle
+     * scelte sotto il palco (che si prende tutto lo schermo), niente parata
+     * degli avatar né riga di reveal a round chiuso. Ha senso quando l'esito
+     * lo mostra già la scena e le scelte si leggono sopra di essa (es. le
+     * lettere sui bicchieri di Tre Bicchieri). Default `true`.
+     */
+    salaOptions: true,
+
+    /**
+     * Audio del tuo minigioco in sala, file in `resources/audio/<nome-gioco>/`
+     * (percorsi relativi a `/resources/audio/`). La colonna sonora prende il
+     * posto della musica della partita dalla riapertura delle tende alla
+     * classifica; gli effetti li suoni tu con `ctx.sfx?.('evento')` dentro
+     * `sala.startSuspense` e `sala.playReveal` (il `?.` serve: sul riquadro
+     * dell'host `ctx.sfx` non c'è). `null` = la partita continua con la sua
+     * musica. Esempio:
+     *   audio: {
+     *     music: { file: 'nome-gioco/music.ogg', gain: 1 },
+     *     sfx: { colpo: [{ file: 'nome-gioco/colpo-01.wav' }] },
+     *   },
+     */
+    audio: null,
+
+    /**
      * Classe applicata al contenitore dei bottoni risposta sul player, se il
      * tuo minigioco vuole una disposizione diversa dalla colonna standard.
      * `null` = disposizione normale.

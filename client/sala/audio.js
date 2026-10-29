@@ -111,13 +111,35 @@
    * un <audio> che decodifica al play introduce un ritardo udibile, tanto più
    * sul Raspberry.
    */
-  function preloadSfx() {
+  function preloadSfx(sfx = state.catalog.sfx) {
     const files = new Set();
-    for (const list of Object.values(state.catalog.sfx)) {
+    for (const list of Object.values(sfx)) {
       for (const entry of list) files.add(entry.file);
     }
     // Nessun await: il precarico non deve trattenere l'apertura della schermata.
     for (const file of files) preloadFile(file);
+  }
+
+  // ---------------------------------------------------------- minigiochi
+
+  /**
+   * Aggiunge al catalogo l'audio dichiarato da un minigioco (`audio` nel suo
+   * contratto di presentazione), nel suo spazio dei nomi: la colonna sonora
+   * diventa la traccia `<tipo>`, gli effetti `<tipo>/<evento>`. Il manifest
+   * resta della sala; un minigioco porta il proprio audio con sé, come le
+   * proprie immagini, e nessun elenco centrale va aggiornato.
+   *
+   * Se la sala è già armata gli effetti si decodificano subito; altrimenti
+   * ci pensa `armNow`, che precarica l'intero catalogo.
+   */
+  function registerNow(type, audio) {
+    const L = logic();
+    if (!state.enabled || !L) return;
+    const part = L.validateManifest(L.minigameManifest(type, audio));
+    for (const e of part.errors) warn(`minigioco ${type}: ${e}`);
+    Object.assign(state.catalog.music, part.music);
+    Object.assign(state.catalog.sfx, part.sfx);
+    if (state.armed) preloadSfx(part.sfx);
   }
 
   // ------------------------------------------------------------------ armo
@@ -376,6 +398,7 @@
     arm:   ()    => whenReady(armNow),
     sfx:   (key) => whenReady(() => sfxNow(key)),
     music: (key) => whenReady(() => musicNow(key)),
+    register: (type, audio) => whenReady(() => registerNow(type, audio)),
     stop,
     info,
   };

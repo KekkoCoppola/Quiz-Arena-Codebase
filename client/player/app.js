@@ -121,7 +121,8 @@ function startCountdown(endsAt, totalMs, serverNow) {
   const deadline = ServerClock.localDeadline(endsAt, serverNow);
   const tick = () => {
     const remainingMs = ServerClock.remainingMs(deadline);
-    questionCountdown.textContent = Math.ceil(remainingMs / 1000);
+    // Mai più del tempo del round: al via mancano 6,00x s e il ceil darebbe 7.
+    questionCountdown.textContent = Math.min(Math.ceil(remainingMs / 1000), Math.ceil(totalMs / 1000));
     countdownBar.style.transform = `scaleX(${totalMs > 0 ? remainingMs / totalMs : 0})`;
     if (remainingMs === 0) stopCountdown();
   };
@@ -316,10 +317,20 @@ function ordinale(n) { return `${n}°`; }
 // Il punteggio resta: è solo il proprio, e da solo non dice dove si è arrivati.
 const WAIT_NEXT  = 'In attesa della prossima domanda…';
 const WAIT_FINAL = 'Attendi la premiazione 🏆';
+const WAIT_STAGE = 'Prossimo round in arrivo…';
 
-/** Riga d'attesa in fondo al feedback: prossima domanda o premiazione. */
-function setWaiting(isLastRound) {
-  feedbackWaiting.textContent = isLastRound ? WAIT_FINAL : WAIT_NEXT;
+/**
+ * Livello intermedio di un minigioco a più round: il server riparte da solo
+ * col livello successivo, e la classifica arriva solo dopo l'ultimo.
+ */
+function isIntermediateStage(results) {
+  const stage = results?.stage;
+  return Boolean(stage) && stage.index < stage.count - 1;
+}
+
+/** Riga d'attesa in fondo al feedback: prossima domanda, livello o premiazione. */
+function setWaiting(isLastRound, stageNext = false) {
+  feedbackWaiting.textContent = stageNext ? WAIT_STAGE : (isLastRound ? WAIT_FINAL : WAIT_NEXT);
 }
 
 /**
@@ -364,14 +375,19 @@ function renderFeedback({
 
   const me = leaderboard.find((p) => p.id === playerId);
   feedbackScore.textContent = me ? me.score : '—';
+  const stageNext = isIntermediateStage(results);
   if (isLastRound) {
     feedbackRank.textContent = 'Classifica sigillata';
+  } else if (stageNext) {
+    // Fra un livello e l'altro la posizione non si dice: si scopre alla fine
+    // dei cinque round, insieme alla sala.
+    feedbackRank.textContent = '';
   } else {
     feedbackRank.textContent = me
       ? `Sei ${ordinale(me.rank)} su ${leaderboard.length}`
       : '';
   }
-  setWaiting(isLastRound);
+  setWaiting(isLastRound, stageNext);
   show('feedback');
 }
 
@@ -670,7 +686,7 @@ socket.on('game:results', (results) => {
     feedbackSticker.classList.add('is-neutral');
     feedbackScore.textContent = '—';
     feedbackRank.textContent = '';
-    setWaiting(Boolean(results.isLastRound));
+    setWaiting(Boolean(results.isLastRound), isIntermediateStage(results));
     show('feedback');
 
     if (presentation.player.playReveal) {

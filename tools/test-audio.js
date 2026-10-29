@@ -18,6 +18,8 @@ const {
   tensionPlan,
   resolveGain,
   validateManifest,
+  minigameSfxKey,
+  minigameManifest,
 } = require('../client/sala/audio-logic');
 
 // ─── Setup ───────────────────────────────────────────────────────────────────────
@@ -207,6 +209,32 @@ section('validateManifest — tollera qualunque input');
   const m = validateManifest({ vo: { rotto: [{ gain: 1 }] } });
   assert(m.vo.rotto === undefined, 'voce senza "file" scartata');
   assert(m.errors.length > 0,      'voce senza "file" segnalata');
+}
+
+// ─── Audio dei minigiochi ────────────────────────────────────────────────────────
+
+section('minigameManifest — l\'audio di un minigioco nel suo spazio dei nomi');
+
+{
+  const m = validateManifest(minigameManifest('cup_game', {
+    music: { file: 'cup-game/music.ogg', gain: 0.9 },
+    sfx: { swap: [{ file: 'cup-game/swap-01.wav' }], ball: { file: 'cup-game/ball-01.wav' } },
+  }));
+  assert(m.music.cup_game.file === 'cup-game/music.ogg', 'la colonna sonora prende il nome del tipo');
+  assert(m.sfx['cup_game/swap'].length === 1,           'gli effetti stanno sotto <tipo>/<evento>');
+  assert(Array.isArray(m.sfx['cup_game/ball']),          'un effetto singolo viene avvolto come nel manifest');
+  assert(m.sfx.swap === undefined,                       'un effetto di minigioco non occupa il nome nudo della sala');
+  assert(m.errors.length === 0,                          'nessun errore');
+}
+
+{
+  assert(minigameSfxKey('morra_cinese', 'tick') === 'morra_cinese/tick', 'chiave di un effetto: <tipo>/<evento>');
+  const empty = validateManifest(minigameManifest('morra_cinese', null));
+  assert(Object.keys(empty.music).length === 0 && Object.keys(empty.sfx).length === 0,
+    'un minigioco senza audio non aggiunge nulla al catalogo');
+  const broken = validateManifest(minigameManifest('x', { sfx: { rotto: [{ gain: 1 }] } }));
+  assert(broken.sfx['x/rotto'] === undefined && broken.errors.length > 0,
+    'una voce rotta di un minigioco si scarta e si segnala, come nel manifest');
 }
 
 // ─── Esito ───────────────────────────────────────────────────────────────────────

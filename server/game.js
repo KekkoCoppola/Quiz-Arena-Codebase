@@ -171,6 +171,24 @@ function resolveMinigameDef(type, bag) {
 }
 
 /**
+ * I round di UN minigioco. Di solito uno solo; un minigioco che dichiara
+ * `stages: N` ne produce N di fila, con difficoltà crescente decisa dal suo
+ * `build(stageIndex)`. Ognuno è un round vero (risposte, punti, timer propri)
+ * ma porta `stage: { index, count }`: game-socket.js li concatena da solo e i
+ * client mostrano la classifica solo dopo l'ultimo.
+ * @param {object} def definizione del minigioco
+ * @returns {Array<object>}
+ */
+function buildMinigameRounds(def) {
+  const count = def.stages ?? 1;
+  if (count === 1) return [def.build()];
+  return Array.from({ length: count }, (_, index) => {
+    const round = def.build(index);
+    return { ...round, stage: { ...(round.stage ?? {}), index, count } };
+  });
+}
+
+/**
  * Costruisce la sequenza di round di una partita: le domande del quiz, con gli
  * eventuali minigiochi pianificati in editor (`quiz.minigames`) inseriti
  * nella posizione richiesta. Lo splice avviene dal fondo verso l'inizio così
@@ -193,7 +211,7 @@ function buildRounds(quiz, bag) {
   for (const slot of sortedSlots) {
     const def = resolveMinigameDef(slot.type, bag);
     if (!def) continue; // tipo sconosciuto: validato a monte in routes, qui difesa in profondità
-    rounds.splice(slot.afterQuestionIndex + 1, 0, def.build());
+    rounds.splice(slot.afterQuestionIndex + 1, 0, ...buildMinigameRounds(def));
   }
 
   return rounds;
@@ -204,9 +222,13 @@ function buildRounds(quiz, bag) {
 class GameSession {
   /**
    * @param {{ title?: string, questions: Array<{ text: string, options: string[], correct_index: number, time_limit_s: number }> }} quiz
-   * @param {{ rnd?: () => number }} [options] `rnd` è il generatore casuale usato
-   *   dai minigiochi (estrazione del tipo e stato macchina). Iniettabile per i
-   *   test, stessa filosofia del parametro `now`: in produzione resta Math.random.
+   * @param {{ rnd?: () => number, minigameIntroMs?: number }} [options] `rnd` è
+   *   il generatore casuale usato dai minigiochi (estrazione del tipo e stato
+   *   macchina). Iniettabile per i test, stessa filosofia del parametro `now`:
+   *   in produzione resta Math.random. `minigameIntroMs` è il sipario che apre
+   *   ogni minigioco (vedi `_enterRound`); 0 di default, perché la durata è una
+   *   scelta di messa in scena e la decide chi crea la sessione (game-socket.js,
+   *   da config).
    */
   constructor(quiz, options = {}) {
     if (!quiz || !Array.isArray(quiz.questions) || quiz.questions.length === 0) {
@@ -214,6 +236,7 @@ class GameSession {
     }
 
     this._rnd = options.rnd ?? Math.random;
+    this._minigameIntroMs = Math.max(0, options.minigameIntroMs ?? 0);
 
     /**
      * Sacchetto di estrazione dei minigiochi, condiviso fra gli slot `random`
@@ -230,9 +253,16 @@ class GameSession {
     this.roundStartedAt = null;
 
     /**
+     * Fine del sipario che apre un minigioco. Coincide con `roundStartedAt` per
+     * le domande e per i livelli successivi al primo di un minigioco a più round.
+     */
+    this.introEndsAt = null;
+
+    /**
      * Istante da cui il round accetta risposte. Coincide con `roundStartedAt`
-     * tranne per i minigiochi con anteprima (`previewMs`), dove la sala mostra
-     * prima uno spettacolo da seguire e solo dopo si sceglie.
+     * per le domande; per un minigioco viene dopo il sipario e, se il modulo ne
+     * ha una (`previewMs`), dopo l'anteprima: lo spettacolo da seguire viene
+     * prima della scelta.
      */
     this.answersOpenAt = null;
 
@@ -381,10 +411,18 @@ class GameSession {
     // Minigioco con anteprima: l'esito si estrae ORA, non alla chiusura, perché
     // lo spettacolo che lo racconta viene prima della scelta. Le risposte
     // restano chiuse finché l'anteprima non è finita.
+    // Un minigioco a più round può dare a ogni livello un'anteprima sua
+    // (`round.previewMs` da `build(stageIndex)`); altrimenti vale quella del modulo.
     const def = this._currentMinigameDef();
-    const previewMs = def?.previewMs ?? 0;
+    const previewMs = def ? (this.currentRound.previewMs ?? def.previewMs ?? 0) : 0;
     this._openResolution = previewMs > 0 ? def.resolve(this._rnd) : null;
-    this.answersOpenAt = now + previewMs;
+
+    // Il sipario apre il minigioco una volta sola: i livelli successivi di un
+    // minigioco a più round sono la stessa scena che continua.
+    const stage = this.currentRound.stage;
+    const opensMinigame = def !== null && (!stage || stage.index === 0);
+    this.introEndsAt = now + (opensMinigame ? this._minigameIntroMs : 0);
+    this.answersOpenAt = this.introEndsAt + previewMs;
   }
 
   /** Definizione del minigioco del round corrente, `null` per una domanda. */
@@ -421,11 +459,16 @@ class GameSession {
       text: r.text,
       options: r.options,
       time_limit_s: r.time_limit_s,
-      // Durata dell'anteprima prima che si possa rispondere (0 = si risponde
-      // subito). Il countdown di `time_limit_s` parte dopo.
-      previewMs: this.answersOpenAt - this.roundStartedAt,
+      // Sipario che apre il minigioco (0 per domande e livelli successivi),
+      // poi l'anteprima prima che si possa rispondere (0 = si risponde subito).
+      // Il countdown di `time_limit_s` parte dopo entrambi.
+      introMs: this.introEndsAt - this.roundStartedAt,
+      previewMs: this.answersOpenAt - this.introEndsAt,
       kind: r.kind,
       minigameType: r.minigameType ?? null,
+      // Round di un minigioco a più livelli: `{ index, count, ... }`, con i
+      // parametri di difficoltà che il modulo ha messo in `build(stageIndex)`.
+      stage: r.stage ?? null,
       // Un round minigioco non ha immagine: `r.image` è undefined e diventa
       // null, che è la stessa cosa che dice una domanda senza immagine.
       // Il campo arriva anche ai telefoni — sono ~90 byte, e non vale un emit
@@ -557,6 +600,7 @@ class GameSession {
       questionIndex: this.currentRoundIndex,
       kind: round.kind,
       minigameType: round.minigameType ?? null,
+      stage: round.stage ?? null,
       correctIndex: round.kind === 'minigame' ? null : round.correct_index,
       machineChoice,
       revealMs,
@@ -615,7 +659,7 @@ class GameSession {
     if (!def) {
       throw new InvalidMinigameTypeError();
     }
-    this.rounds.splice(this.currentRoundIndex + 1, 0, def.build());
+    this.rounds.splice(this.currentRoundIndex + 1, 0, ...buildMinigameRounds(def));
     return this.nextQuestion(now);
   }
 

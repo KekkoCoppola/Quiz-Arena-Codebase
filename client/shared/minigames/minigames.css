@@ -44,6 +44,9 @@
 /* Player: icona dentro la casella della lettera opzione. */
 .answer-btn .letter .mg-morra-cinese-move { width: 28px; height: 28px; }
 
+/* Sala: nella casella tonda della lettera opzione, che scala con lo schermo. */
+.sala-option-letter .mg-morra-cinese-move { width: 72%; height: 72%; }
+
 .mg-morra-cinese-move-inline { width: 1.3em; height: 1.3em; }
 
 /* Hero: la mossa in grande. La misura è legata all'altezza della finestra e
@@ -217,6 +220,50 @@
   }
 }
 
+/* Attesa (le tre mosse che si alternano): stessa taglia di sempre fuori dalla
+   sala, cioè nel riquadro dell'host. In sala la decide il blocco qui sotto. */
+.mg-morra-cinese-stage.is-suspense .mg-morra-cinese-move-hero {
+  width: clamp(110px, 15vh, 190px);
+  height: clamp(110px, 15vh, 190px);
+  margin: 8px auto;
+  transform: none;
+}
+
+/* In sala il palco è il contenitore `mg-stage` (client/sala/style.css), e la
+   mossa si misura su di lui invece che sulla finestra: è il soggetto della
+   schermata, quindi prende tutta l'altezza che c'è. Attesa, rotazione e
+   atterraggio usano lo STESSO palco e la stessa misura, così passando da una
+   fase all'altra la mossa non salta. Il verdetto è sovrapposto in basso in
+   posizione assoluta, e il fondo del palco gli tiene il posto anche quando
+   ancora non c'è: comparendo non sposta nulla. */
+@container mg-stage (min-width: 0px) {
+  .mg-morra-cinese-stage {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    padding-bottom: 16cqh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mg-morra-cinese-stage:not(.is-compact) .mg-morra-cinese-move-hero {
+    width: min(62cqh, 45cqw);
+    height: min(62cqh, 45cqw);
+    margin: 0;
+  }
+
+  .mg-morra-cinese-stage.is-landed .mg-morra-cinese-verdict {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 2cqh;
+    width: fit-content;
+    margin: 0 auto;
+  }
+}
+
 /* Player: le tre scelte diventano grandi pulsanti rotondi con la sola icona,
    disposti in riga — si gioca d'istinto, non si legge.
    Il selettore include `.answer-stack` di proposito: serve una specificità
@@ -277,9 +324,75 @@
   height: 1.3em;
 }
 
+/* ── Frecce di posizione (← A, — B, → C) ───────────────────────────────────
+   SVG 2:1 disegnato a tratto in `currentColor`: prende il colore del testo
+   della carta o del bottone in cui sta. */
+.mg-cup-game-arrow {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 2em;
+  height: 1em;
+  vertical-align: middle;
+  overflow: visible;
+}
+
+/* Sala: nella casella tonda della lettera opzione. */
+.sala-option-letter .mg-cup-game-arrow { width: 72%; height: auto; }
+
+/* Host: nella casella della lettera opzione e nella distribuzione. */
+.game-option-letter .mg-cup-game-arrow { width: 24px; height: 12px; }
+.game-dist-label .mg-cup-game-arrow { width: 1.6em; height: 0.8em; }
+
+/* Dentro una frase ("La pallina era sotto: B →"). */
+.mg-cup-game-arrow-inline { width: 1.6em; height: 0.8em; }
+
+/* ── Lettere sopra i bicchieri, a scena ferma ──────────────────────────────
+   Posizionate da JS sulla testa di ogni bicchiere (left/top in px sul palco),
+   centrate e appena sopra. Stesso colore della carta opzione corrispondente
+   in sala (giallo, teal, ocra): lettera sul bicchiere e carta sotto si
+   riconoscono a colpo d'occhio. */
+.mg-cup-game-letters {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.mg-cup-game-letter {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 1.7em;
+  height: 1.7em;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1;
+  color: #201b0d;
+  background: #f7d708;
+  border: 4px solid #201b0d;
+  border-radius: 9999px;
+  box-shadow: 4px 4px 0 0 #201b0d;
+  opacity: 0;
+  transform: translate(-50%, calc(-100% - 0.3em)) scale(0.4);
+  transition: opacity 160ms ease-out, transform 280ms cubic-bezier(0.2, 1.5, 0.4, 1);
+}
+
+.mg-cup-game-letter:nth-child(1) { color: #4f4000; }
+.mg-cup-game-letter:nth-child(2) { background: #90efef; color: #006a6a; transition-delay: 70ms; }
+.mg-cup-game-letter:nth-child(3) { background: #f2a65a; transition-delay: 140ms; }
+
+.mg-cup-game-stage.is-choosing .mg-cup-game-letter {
+  opacity: 1;
+  transform: translate(-50%, calc(-100% - 0.3em)) scale(1);
+}
+
 /* ── Palcoscenico in sala (vive dentro h2.q-text) ──────────────────────────
    Riporta il font-size a una misura controllabile e riserva un'altezza legata
    alla viewport così da non coprire mai le carte opzione sottostanti. */
+/* La scheda ha UNA misura per tutto il round: attesa, avviso, scelta e
+   reveal. Tutto ciò che compare e scompare (avviso iniziale, verdetto) è
+   sovrapposto alla scena in posizione assoluta, mai aggiunto sotto: altrimenti
+   la scheda e le carte opzione sotto di lei sobbalzerebbero a ogni fase. */
 .mg-cup-game-stage {
   position: relative;
   display: flex;
@@ -290,23 +403,10 @@
   margin: 0 auto;
 }
 
-.mg-cup-game-prompt {
-  margin: 0 0 clamp(6px, 1vh, 14px);
-  padding: 0.2em 0.75em;
-  font-size: 0.56em;
-  font-weight: 900;
-  line-height: 1.15;
-  color: #201b0d;
-  background: #fff8f1;
-  border: 4px solid #201b0d;
-  border-radius: 9999px;
-  box-shadow: 4px 4px 0 0 #201b0d;
-}
-
 .mg-cup-game-viewport {
   position: relative;
-  width: min(100%, clamp(320px, 68vw, 760px));
-  height: clamp(190px, 26vh, 320px);
+  width: min(100%, clamp(360px, 82vw, 1200px));
+  height: clamp(230px, 40vh, 500px);
   margin: 0 auto;
   display: flex;
   align-items: center;
@@ -320,13 +420,91 @@
   height: 100%;
 }
 
+/* In sala il palco è il contenitore `mg-stage` (client/sala/style.css): la
+   scena ne prende tutta l'altezza e la larghezza che serve al tavolo, fino a
+   2,6 volte l'altezza. Più larga, il canvas dipingerebbe solo sfondo vuoto ai
+   lati — e sul Raspberry ogni pixel dipinto costa. La camera si riadatta da
+   sé a qualunque proporzione (`fitCamera`). */
+@container mg-stage (min-width: 0px) {
+  .mg-cup-game-stage { height: 100%; }
+
+  .mg-cup-game-viewport {
+    width: min(100%, 260cqh);
+    height: 100%;
+  }
+
+  /* Le lettere si leggono dal fondo della sala: crescono col palco. */
+  .mg-cup-game-letter { font-size: clamp(24px, 8cqh, 72px); }
+
+  /* Scena 2D (niente WebGL, movimento ridotto): i tetti in px servono al
+     riquadro dell'host; sul palco della sala la scena scala con lui, nelle
+     stesse proporzioni della 3D. Il prefisso `.mg-cup-game-stage` alza la
+     specificità sopra le regole base, che in questo file vengono dopo. */
+  .mg-cup-game-stage .mg-cup-game-2d { max-width: 175cqh; }
+  .mg-cup-game-stage .mg-cup-game-2d-cup,
+  .mg-cup-game-stage .mg-cup-game-2d-ball { max-height: none; }
+  .mg-cup-game-stage .mg-cup-game-2d-shadow { max-width: none; max-height: none; }
+  .mg-cup-game-stage .mg-cup-game-2d-table { height: 9%; max-height: none; }
+}
+
 /* ── Sticker del verdetto all'atterraggio (ctx.revealAt - 2000 ms) ────────
    Come nella Morra, .q-text ha un font enorme (48-64px): riportiamo la base a
    0.46em così lo sticker resta un badge incisivo sotto il tavolo. */
 .mg-cup-game-verdict {
   display: none;
-  margin: clamp(8px, 1.4vh, 18px) auto 0;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 6%;
+  width: fit-content;
+  margin: 0 auto;
   font-size: 0.46em;
+  z-index: 5;
+}
+
+/* ── Avviso d'apertura "Segui la pallina!" ─────────────────────────────────
+   Per i primi INTRO_MS la scena è nascosta e al suo posto c'è solo lo
+   sticker; poi lo sticker esce e la scena entra. Entrambi solo opacity e
+   transform: è un one-shot, ma sul Pi resta comunque sul compositore. */
+.mg-cup-game-intro {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: fit-content;
+  height: fit-content;
+  padding: 0.35em 1.2em;
+  font-size: 0.8em;
+  font-weight: 900;
+  line-height: 1.1;
+  color: #4f4000;
+  background: #f7d708;
+  border: 4px solid #201b0d;
+  border-radius: 9999px;
+  box-shadow: 8px 8px 0 0 #201b0d;
+  opacity: 0;
+  transform: rotate(-3deg) scale(0.7);
+  transition: opacity 220ms ease-out, transform 220ms ease-out;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.mg-cup-game-stage.is-intro .mg-cup-game-intro {
+  opacity: 1;
+  transform: rotate(-3deg) scale(1);
+  animation: mg-cup-game-intro-in 460ms cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+
+.mg-cup-game-stage .mg-cup-game-viewport {
+  transition: opacity 260ms ease-out;
+}
+
+.mg-cup-game-stage.is-intro .mg-cup-game-viewport {
+  opacity: 0;
+}
+
+@keyframes mg-cup-game-intro-in {
+  0%   { opacity: 0; transform: rotate(-3deg) scale(1.6); }
+  100% { opacity: 1; transform: rotate(-3deg) scale(1); }
 }
 
 .mg-cup-game-stage.is-landed .mg-cup-game-verdict {
@@ -473,10 +651,14 @@
   transition: transform 140ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 140ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Stesso colore della lettera sopra il bicchiere e della carta in sala:
+   A gialla, B teal, C ocra. Dal telefono si cerca un colore, non si legge. */
+.answer-btn.mg-cup-game-choice:nth-child(1) { background: #f7d708; color: #4f4000; }
+.answer-btn.mg-cup-game-choice:nth-child(2) { background: #90efef; color: #006a6a; }
+.answer-btn.mg-cup-game-choice:nth-child(3) { background: #f2a65a; color: #201b0d; }
+
 .answer-btn.mg-cup-game-choice:hover,
 .answer-btn.mg-cup-game-choice:focus-visible {
-  background: #f7d708;
-  color: #4f4000;
   transform: translate(-2px, -2px);
   box-shadow: 8px 8px 0 0 #201b0d;
 }
@@ -486,17 +668,16 @@
   box-shadow: 2px 2px 0 0 #201b0d;
 }
 
-.answer-btn.mg-cup-game-choice .mg-cup-game-icon-choice {
-  width: 52px;
-  height: 52px;
-  object-fit: contain;
+/* La lettera è la scelta: grande. La freccia sotto dice dove sta. */
+.mg-cup-game-choice-label {
+  font-size: 44px;
+  font-weight: 900;
+  line-height: 1;
 }
 
-.mg-cup-game-choice-label {
-  font-size: 16px;
-  font-weight: 900;
-  line-height: 1.15;
-  letter-spacing: 0.02em;
+.mg-cup-game-arrow-choice {
+  width: 52px;
+  height: 26px;
 }
 
 .mg-cup-game-player-await {
@@ -514,16 +695,25 @@
   font-weight: 800;
 }
 
-.mg-cup-game-icon-await {
-  width: 24px;
-  height: 24px;
-  object-fit: contain;
+.mg-cup-game-arrow-await {
+  width: 32px;
+  height: 16px;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .mg-cup-game-letter {
+    transition: none;
+  }
   .mg-cup-game-stage.is-landed .mg-cup-game-verdict {
     animation: none;
     transform: rotate(0deg);
+  }
+  .mg-cup-game-stage.is-intro .mg-cup-game-intro {
+    animation: none;
+  }
+  .mg-cup-game-intro,
+  .mg-cup-game-stage .mg-cup-game-viewport {
+    transition: none;
   }
   .answer-btn.mg-cup-game-choice {
     transition: none;

@@ -15,6 +15,7 @@
     "test:quizzes": "node tools/test-quizzes.js",
     "test:final": "node tools/test-final.js",
     "test:clock": "node tools/test-clock.js",
+    "test:intro": "node tools/test-stage-intro.js",
     "test:image": "node tools/test-image.js",
     "quizzes": "node tools/check-quizzes.js"
   },

@@ -45,6 +45,46 @@
     /** Badge mostrato al giocatore al posto del contatore "3/10". */
     playerBadge: '🎲 Minigioco!',
 
+    /**
+     * Nastro sulla scheda in sala. `undefined` (default) = il nome del
+     * minigioco; una stringa = quel testo; `null` = nessun nastro, quando la
+     * scena si presenta da sola.
+     * @type {string | null | undefined}
+     */
+    salaKicker: undefined,
+
+    /**
+     * Immagine del minigioco sullo spicchio della ruota che, nel sipario
+     * d'apertura in sala (client/shared/stage-intro.js), lo estrae. URL di un
+     * asset quadrato; `null` = lo spicchio porta un emblema generico.
+     * @type {string | null}
+     */
+    wheelIcon: null,
+
+    /**
+     * Se in sala, sotto la scena, compaiono le carte delle scelte. `false` =
+     * il minigioco è tutto palco: la scena prende anche lo spazio delle
+     * carte, e a round chiuso non ci sono né la parata degli avatar (non c'è
+     * dove posarli) né la riga di reveal sopra la classifica, perché l'esito
+     * l'ha già messo in scena il palco. Si passa dritti alla classifica.
+     * @type {boolean}
+     */
+    salaOptions: true,
+
+    /**
+     * Audio del minigioco in sala, con la stessa forma del manifest
+     * (`resources/audio/manifest.json`) e percorsi relativi a
+     * `/resources/audio/`:
+     *   { music: { file, gain }, sfx: { evento: [{ file, gain }, ...] } }
+     * La colonna sonora suona dall'apertura delle tende alla classifica, al
+     * posto della musica della partita. Gli effetti li fa suonare il modulo
+     * con `ctx.sfx('evento')` dentro `sala.startSuspense` / `sala.playReveal`:
+     * `ctx.sfx` esiste solo in sala (il riquadro dell'host è muto), quindi va
+     * chiamato come `ctx.sfx?.(…)`. `null` = nessun audio proprio.
+     * @type {{ music?: object, sfx?: object } | null}
+     */
+    audio: null,
+
     /** Classe aggiunta al contenitore dei bottoni risposta del player. */
     playerLayoutClass: null,
 

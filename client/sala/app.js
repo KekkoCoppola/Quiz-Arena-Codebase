@@ -40,6 +40,8 @@ const els = {
   players:      document.getElementById('sala-players'),
   lobbyEmpty:   document.getElementById('sala-lobby-empty'),
 
+  questionWrap: document.querySelector('#sala-question .q-card-wrap'),
+  questionCard: document.querySelector('#sala-question .q-card'),
   roundKicker:  document.getElementById('sala-round-kicker'),
   questionText: document.getElementById('sala-question-text'),
   questionHint: document.getElementById('sala-question-hint'),
@@ -59,6 +61,8 @@ const els = {
 
   podium:       document.getElementById('sala-podium'),
   finalList:    document.getElementById('sala-final-list'),
+
+  introLayer:   document.getElementById('sala-intro-layer'),
 };
 
 // Elementi che la presentazione di un minigioco può disegnare. Stessi nomi del
@@ -88,6 +92,8 @@ let suspenseTimer   = null;
 // Attesa della fine dell'anteprima di un minigioco: il cronometro della
 // risposta parte solo quando si può rispondere davvero.
 let previewTimer    = null;
+// Montaggio della scena del minigioco sotto le tende chiuse del sipario.
+let introTimer      = null;
 // Timer e animazioni della scena dei risultati, tracciati per poterli annullare
 // tutti insieme quando la fase cambia (vedi stopScene).
 let sceneTimers     = [];
@@ -158,9 +164,93 @@ function newPhase() {
     clearTimeout(suspenseTimer);
     suspenseTimer = null;
   }
+  if (introTimer) {
+    clearTimeout(introTimer);
+    introTimer = null;
+  }
+  MinigameStageIntro.stopAll();
   currentMinigame?.sala.stopSuspense();
   stopScene();
   return phaseToken;
+}
+
+// ─── Sipario dei minigiochi ──────────────────────────────────────────────────
+//
+// Ogni minigioco si apre con le tende che si chiudono, la ruota che lo estrae e
+// le tende che si riaprono su di esso (client/shared/stage-intro.js). Il tempo
+// lo riserva il server: `introEndsAt` arriva nel round e le risposte aprono
+// solo dopo, quindi qui non si ruba nulla all'anteprima né alla scelta.
+
+// La ruota mostra i minigiochi che questa pagina conosce davvero: il registry
+// di presentazione, non un elenco scritto a mano. Un minigioco nuovo ci
+// compare da solo.
+MinigameStageIntro.setWheelConfig({
+  games: Minigames.types().map((type) => {
+    const mg = Minigames.get(type);
+    return { type, label: mg.label, icon: mg.wheelIcon };
+  }),
+});
+MinigameStageIntro.preload();
+
+// ─── Audio dei minigiochi ────────────────────────────────────────────────────
+//
+// Ogni minigioco porta con sé colonna sonora ed effetti (`audio` nel suo
+// contratto di presentazione): qui si registrano nel catalogo, ognuno nel
+// proprio spazio dei nomi. Come la ruota del sipario, l'elenco viene dal
+// registry: un minigioco nuovo suona senza toccare questo file.
+for (const type of Minigames.types()) {
+  const { audio } = Minigames.get(type);
+  if (audio) SalaAudio.register(type, audio);
+}
+
+/** `ctx.sfx` di un minigioco: suona i SUOI effetti, mai quelli della sala. */
+const minigameSfx = (type) => (name) => SalaAudio.sfx(AudioLogic.minigameSfxKey(type, name));
+
+/**
+ * La musica sotto un round minigioco: la sua colonna sonora se ne ha una,
+ * altrimenti quella della partita. Su un livello successivo al primo la
+ * traccia è già in corso e la chiamata non la fa ripartire.
+ */
+function playMinigameMusic(q) {
+  SalaAudio.music(currentMinigame.audio?.music ? q.minigameType : 'bed');
+}
+
+/**
+ * Mette in scena il sipario a tutto schermo e monta il minigioco SOTTO le
+ * tende nell'istante in cui si chiudono per l'ultima volta: la riapertura
+ * finale lo scopre, invece di scoprire un palco vuoto.
+ *
+ * Le tende stanno su uno strato proprio (`#sala-intro-layer`), non dentro il
+ * pannello della domanda: chiuse dentro la scheda erano un teatrino in mezzo
+ * allo schermo, mentre il sipario deve coprire l'intero proiettore.
+ *
+ * Il montaggio è a tempo di orologio, non legato all'animazione: se il sipario
+ * non parte (movimento ridotto, niente WebGL) il minigioco comincia comunque
+ * quando il server se lo aspetta.
+ *
+ * @param {object} q payload `game:question`
+ * @param {number} leftMs quanto manca alla fine del sipario, ora locale
+ * @param {() => void} mountScene avvia l'attesa del minigioco
+ * @param {number} token fase corrente
+ */
+function playMinigameIntro(q, leftMs, mountScene, token) {
+  const totalMs = Math.max(leftMs, q.introMs);
+  const reopenMs = totalMs * (1 - MinigameStageIntro.TIMELINE.curtainClose2End);
+  // Le tende hanno la loro fanfara: la musica della partita sfuma e lascia il
+  // posto a quella del minigioco, che parte quando si riaprono su di lui.
+  SalaAudio.music(null);
+  MinigameStageIntro.play(els.introLayer, {
+    targetType: q.minigameType,
+    label: currentMinigame.label,
+    durationMs: totalMs,
+    // Una sala che si ricollega a sipario in corso lo riprende da dov'è.
+    startU: 1 - leftMs / totalMs,
+  });
+  introTimer = setTimeout(() => {
+    introTimer = null;
+    if (AudioLogic.isStale(token, phaseToken)) return;
+    mountScene();
+  }, Math.max(0, leftMs - reopenMs));
 }
 
 /**
@@ -242,7 +332,8 @@ function startCountdown(endsAt, serverNow, limitS) {
     : ServerClock.remainingMs(deadline));
   const tick = () => {
     const leftMs = ServerClock.remainingMs(deadline);
-    const remaining = Math.ceil(leftMs / 1000);
+    // Mai più del tempo del round: al via mancano 6,00x s e il ceil darebbe 7.
+    const remaining = Math.min(Math.ceil(leftMs / 1000), Math.ceil(totalMs / 1000));
     const m = String(Math.floor(remaining / 60)).padStart(2, '0');
     const s = String(remaining % 60).padStart(2, '0');
     const urgent = remaining > 0 && remaining <= 10;
@@ -405,7 +496,9 @@ function renderQuestionMedia(round, token) {
   const image = round?.image ?? null;
   const hasMedia = image !== null && typeof image === 'object' && typeof image.hash === 'string';
 
-  els.questionHint.hidden  = hasMedia;
+  // La riga "scegli l'opzione corretta" parla di una risposta giusta: in un
+  // minigioco (`round` null) non ce n'è una, e la scena ha già la sua regia.
+  els.questionHint.hidden  = hasMedia || round === null;
   els.questionMedia.hidden = !hasMedia;
 
   // Si riparte sempre dal riquadro pulito: l'immagine del round precedente non
@@ -450,11 +543,21 @@ function renderQuestion(q) {
   currentMinigame  = isMinigame ? Minigames.get(q.minigameType) : null;
 
   els.panels.question.classList.toggle('is-minigame', isMinigame);
+  // Minigioco tutto palco (`salaOptions: false`): le carte delle scelte non
+  // compaiono e la scena si prende anche il loro spazio.
+  els.panels.question.classList.toggle('is-stage-only',
+    isMinigame && currentMinigame.salaOptions === false);
   // Il nastro adesivo porta l'etichetta del round: la categoria del quiz non
   // arriva in `game:question`, quindi si usa l'informazione che c'è davvero.
-  els.roundKicker.textContent = isMinigame
-    ? (currentMinigame.label ?? 'Minigioco')
+  // Un minigioco può chiedere un nastro diverso dal proprio nome, o nessun
+  // nastro (`salaKicker: null`) quando la sua scena si racconta da sola.
+  const kicker = isMinigame
+    ? (currentMinigame.salaKicker === undefined
+      ? (currentMinigame.label ?? 'Minigioco')
+      : currentMinigame.salaKicker)
     : `Domanda ${q.index + 1} di ${q.total}`;
+  els.roundKicker.textContent = kicker ?? '';
+  els.roundKicker.hidden = !kicker;
 
   // Il round minigioco porta con sé la propria attesa; la domanda vera mostra
   // semplicemente il proprio testo.
@@ -464,12 +567,30 @@ function renderQuestion(q) {
     ? ServerClock.localDeadline(q.answersOpenAt, q.serverNow)
     : Date.now();
   if (isMinigame) {
-    currentMinigame.sala.startSuspense(minigameEls(), q, {
-      answersOpenAt,
-      isStale: () => AudioLogic.isStale(token, phaseToken),
-    });
+    const mountScene = () => {
+      playMinigameMusic(q);
+      currentMinigame.sala.startSuspense(minigameEls(), q, {
+        answersOpenAt,
+        isStale: () => AudioLogic.isStale(token, phaseToken),
+        sfx: minigameSfx(q.minigameType),
+      });
+    };
+    const introEndsAt = q.introEndsAt
+      ? ServerClock.localDeadline(q.introEndsAt, q.serverNow)
+      : 0;
+    const introLeftMs = introEndsAt ? ServerClock.remainingMs(introEndsAt) : 0;
+    if (introLeftMs > 0) {
+      // Finché le tende non si chiudono l'ultima volta, sotto non c'è nulla.
+      els.questionText.textContent = '';
+      playMinigameIntro(q, introLeftMs, mountScene, token);
+    } else {
+      mountScene();
+    }
   } else {
     els.questionText.textContent = q.text;
+    // Dopo un minigioco si torna alla musica della partita; altrimenti è
+    // già in corso e la chiamata non la tocca.
+    SalaAudio.music('bed');
   }
 
   // Un minigioco non ha immagine: la sua scena la disegna la presentazione.
@@ -516,8 +637,85 @@ function renderQuestion(q) {
     startCountdown(q.endsAt, q.serverNow, q.time_limit_s);
   }
   showPanel('question');
+  // Dopo `showPanel`: un pannello nascosto non ha misure da prendere.
+  fitQuestionLayout();
   SalaAudio.sfx('round-start');
 }
+
+// ─── Disposizione della domanda ──────────────────────────────────────────────
+//
+// Di norma la scheda sta sopra e le risposte sotto. Una domanda lunga (o con
+// immagine) però non ci sta: la scheda cedeva spazio come previsto, ma il testo
+// proseguiva oltre il suo bordo e finiva sotto le carte delle risposte. Il CSS
+// non sa quando un testo trabocca, quindi qui lo si misura: se la scheda non ci
+// sta il pannello passa a due colonne (`.is-split`: domanda a sinistra,
+// risposte a destra), e se nemmeno così ci sta si rimpicciolisce a passi la
+// sola colonna che trabocca: il testo della domanda (`--q-fit`) o quello delle
+// risposte (`--o-fit`). Con una scala sola, quattro risposte lunghe
+// rimpicciolivano anche una domanda che aveva spazio da vendere.
+
+/** Sotto questa scala il testo non si legge più dal fondo della sala. */
+const MIN_QUESTION_FIT = 0.6;
+const QUESTION_FIT_STEP = 0.05;
+
+/** true se la scheda della domanda trabocca dal suo spazio. */
+function questionCardOverflows() {
+  const card = els.questionCard;
+  return card.offsetHeight > els.questionWrap.clientHeight + 1
+    || card.scrollHeight > card.clientHeight + 1;
+}
+
+/** true se le risposte traboccano dalla loro colonna (solo in `.is-split`). */
+function questionOptionsOverflow() {
+  return els.options.scrollHeight > els.options.clientHeight + 1;
+}
+
+/** Rimpicciolisce `prop` a passi finché `overflows()` smette di essere vero. */
+function shrinkToFit(prop, overflows) {
+  let fit = 1;
+  while (fit > MIN_QUESTION_FIT && overflows()) {
+    fit = Math.max(MIN_QUESTION_FIT, fit - QUESTION_FIT_STEP);
+    els.panels.question.style.setProperty(prop, fit.toFixed(2));
+  }
+}
+
+/**
+ * Sceglie la disposizione del pannello della domanda per il round corrente.
+ * Si misura coi vassoi degli avatar già occupati da una fila (`.is-fitting`):
+ * a round chiuso le pedine fanno crescere le carte, e la disposizione va
+ * scelta per allora, non cambiata a metà parata con gli avatar in volo.
+ */
+function fitQuestionLayout() {
+  const panel = els.panels.question;
+  panel.classList.remove('is-split');
+  panel.style.removeProperty('--q-fit');
+  panel.style.removeProperty('--o-fit');
+  if (panel.hidden) return;
+
+  // Un minigioco ha la sua scena, che si dimensiona da sé sul palco: niente
+  // da misurare. Se ha le carte delle scelte, stanno in colonna a destra e il
+  // palco si prende tutta l'altezza — sotto la scena, in una fascia, le carte
+  // lasciavano un palco basso e larghissimo con la mossa piccola in mezzo.
+  if (panel.classList.contains('is-minigame')) {
+    panel.classList.toggle('is-split', !panel.classList.contains('is-stage-only'));
+    return;
+  }
+
+  panel.classList.add('is-fitting');
+  try {
+    if (!questionCardOverflows()) return;
+    panel.classList.add('is-split');
+    shrinkToFit('--q-fit', questionCardOverflows);
+    shrinkToFit('--o-fit', questionOptionsOverflow);
+  } finally {
+    panel.classList.remove('is-fitting');
+  }
+}
+
+// Il font del titolo può arrivare dopo la prima domanda e cambiarne l'altezza;
+// la finestra cambia misura solo sul desktop di sviluppo, ma costa poco.
+window.addEventListener('resize', fitQuestionLayout);
+document.fonts?.ready.then(fitQuestionLayout);
 
 // ─── Scena dei risultati sulle opzioni ───────────────────────────────────────
 //
@@ -738,6 +936,13 @@ function runResultsScene(results, token) {
   // "Scegli l'opzione corretta prima che scada il tempo" non ha più senso: il
   // tempo è scaduto. La domanda resta, l'istruzione no.
   els.questionHint.hidden = true;
+  // Minigioco tutto palco: non ci sono carte su cui far posare gli avatar né
+  // risposte da timbrare, e l'esito l'ha già raccontato la scena. Dritti
+  // alla classifica.
+  if (currentMinigame?.salaOptions === false) {
+    renderResults(results, token);
+    return;
+  }
   runParade(results, token, () => {
     if (AudioLogic.isStale(token, phaseToken)) return;
     runVerdict(results, token, () => {
@@ -1028,8 +1233,17 @@ function renderStandings(results, token) {
 
 function renderResults(results, token) {
   const isMinigame = results.kind === 'minigame';
+  // Sopra la classifica di un minigioco tutto palco non si ripete l'esito:
+  // la scena l'ha già mostrato, livello per livello.
+  const stageOnly = isMinigame && currentMinigame?.salaOptions === false;
+  els.reveal.hidden = stageOnly;
+  // La classifica è della partita: se suonava la colonna sonora di un
+  // minigioco, qui finisce.
+  SalaAudio.music('bed');
 
-  if (isMinigame && currentMinigame) {
+  if (stageOnly) {
+    els.reveal.textContent = '';
+  } else if (isMinigame && currentMinigame) {
     currentMinigame.sala.reveal(minigameEls(), results, currentOptions);
   } else {
     els.reveal.textContent =
@@ -1414,7 +1628,16 @@ socket.on('game:snapshot', (snap) => {
   showPanel('idle');
 });
 
-socket.on('game:lobby-update', ({ players }) => {
+socket.on('game:lobby-update', ({ players, state }) => {
+  // Il server lo manda anche a partita in corso, a ogni telefono che si
+  // disconnette o rientra (uno schermo che si spegne basta). Prima la sala
+  // tornava alla lobby nel mezzo di un round: scena del minigioco, cronometro
+  // e reveal spariti dal proiettore. Fuori dalla lobby si aggiorna solo il
+  // conteggio; `state` assente vale come lobby, per un server più vecchio.
+  if (state && state !== 'LOBBY') {
+    lastPlayerCount = players.length;
+    return;
+  }
   newPhase();
   stopCountdown();
   // Il letto musicale parte con la partita e non si ferma più fino alla fine:
@@ -1451,6 +1674,11 @@ socket.on('game:results', (results) => {
   const startScene = () => {
     // Se nel frattempo è arrivata un'altra fase, questa scena è vecchia.
     if (AudioLogic.isStale(token, phaseToken)) return;
+    // Livello intermedio di un minigioco a più round: niente parata né
+    // classifica, il server riparte da solo col livello successivo. Resta a
+    // schermo il verdetto del reveal; la scena completa arriva dopo l'ultimo.
+    const stage = results.stage;
+    if (stage && stage.index < stage.count - 1) return;
     runResultsScene(results, token);
   };
 
@@ -1458,6 +1686,7 @@ socket.on('game:results', (results) => {
     currentMinigame.sala.playReveal(minigameEls(), results, currentOptions, {
       revealAt: ServerClock.localDeadline(results.revealAt, results.serverNow),
       isStale: () => AudioLogic.isStale(token, phaseToken),
+      sfx: minigameSfx(results.minigameType),
       done: startScene,
     });
   } else {

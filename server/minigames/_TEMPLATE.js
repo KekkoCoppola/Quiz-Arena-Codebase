@@ -99,6 +99,18 @@ module.exports = {
    */
   // previewMs: 10000,
 
+  /**
+   * FACOLTATIVO. Quanti round di fila produce il minigioco (default 1).
+   * Con `stages: N` l'inserimento aggiunge N round, ognuno costruito da
+   * `build(stageIndex)` (0..N-1) e marcato `stage: { index, count }` — qui
+   * si alza la difficoltà, e `build` può mettere in `stage` i propri
+   * parametri (es. `{ swaps: 12 }`) e un `previewMs` per livello.
+   * Fra un livello e l'altro il server riparte da solo dopo il reveal; sala
+   * e telefoni mostrano la classifica solo dopo l'ultimo. Ogni livello ha
+   * risposte, esito e punti propri.
+   */
+  // stages: 5,
+
   /** Testo mostrato all'apertura del round. */
   prompt: 'La domanda che vede il giocatore.',
 
