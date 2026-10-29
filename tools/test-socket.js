@@ -59,6 +59,11 @@ function emitAck(socket, event, payload, timeoutMs = 5000) {
   return socket.timeout(timeoutMs).emitWithAck(event, payload);
 }
 
+/** Come once(), ma allo scadere risolve null invece di fallire: per provare che un evento NON arriva. */
+function onceOrNull(socket, event, timeoutMs) {
+  return once(socket, event, timeoutMs).catch(() => null);
+}
+
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
 // ─── Setup DB temporaneo ─────────────────────────────────────────────────────────
@@ -280,6 +285,12 @@ async function run() {
     const restartAgain = await emitAck(host, 'host:restart-game', null);
     assert(restartAgain.ok === false, 'host:restart-game fuori da FINAL_LEADERBOARD rifiutato');
 
+    // Il riavvio è arrivato a cerimonia ancora in corso: il suo segnale di fine
+    // appartiene alla partita chiusa e non deve raggiungere quella nuova.
+    const strayCeremonyDone = await onceOrNull(p1, 'game:ceremony-done', 6000);
+    assert(strayCeremonyDone === null,
+      'host:restart-game annulla la fine cerimonia della partita chiusa');
+
     // 6bis. Riconnessione con token (Fase 7)
     console.log('\n  🔌  Fase 6bis: Riconnessione con token');
 
@@ -342,7 +353,7 @@ async function run() {
 
     const createdMinigameQuiz = await emitAck(host, 'host:create-game', { quizId: quizWithMinigameId, quizType: 'preloaded' });
     assert(createdMinigameQuiz.ok === true, 'host:create-game con quiz "minigioco pianificato" accettato');
-    await emitAck(p3, 'player:join', { nickname: 'Zoe' });
+    const joined3 = await emitAck(p3, 'player:join', { nickname: 'Zoe' });
 
     // insertMinigame è consentito solo da RESULTS: rifiutato mentre la partita è ancora in LOBBY.
     const insertOutsideResults = await emitAck(host, 'host:insert-minigame', { type: 'morra_cinese' });
@@ -405,6 +416,19 @@ async function run() {
     await emitAck(host, 'host:next-question', null);
     const final8 = await final8Promise;
     assert(final8.leaderboard.length === 1, 'game:final: partita "minigioco" conclusa correttamente');
+
+    // Chi rientra a cerimonia in corso aspetta il segnale del server; chi rientra
+    // dopo trova la cerimonia già chiusa.
+    const p3r = ioc(URL);
+    sockets.push(p3r);
+    await once(p3r, 'connect');
+    const midRejoin = await emitAck(p3r, 'player:rejoin', { token: joined3.token });
+    assert(midRejoin.state === 'FINAL_LEADERBOARD' && midRejoin.ceremonyDone === false,
+      'player:rejoin a cerimonia in corso: ceremonyDone false');
+    const ceremonyDone = await onceOrNull(p3r, 'game:ceremony-done', 5000);
+    assert(ceremonyDone !== null, 'game:ceremony-done arriva alla fine della cerimonia');
+    const lateRejoin = await emitAck(p3r, 'player:rejoin', { token: midRejoin.token ?? joined3.token });
+    assert(lateRejoin.ceremonyDone === true, 'player:rejoin a cerimonia finita: ceremonyDone true');
 
     await emitAck(host, 'host:end-game', null);
 

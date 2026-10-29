@@ -21,6 +21,9 @@ const config = require('./config');
 const db     = require('./quiz-manager');
 const { GameSession, STATES } = require('./game');
 const testBots = require('./test-bots');
+// Il calendario della premiazione è un modulo UMD puro condiviso coi client:
+// il server ne legge la durata, così il segnale di fine non diverge dalla sala.
+const FinalSchedule = require('../client/shared/final-schedule');
 
 // ─── Room Socket.io ──────────────────────────────────────────────────────────────
 
@@ -37,6 +40,14 @@ let currentQuiz = null;
 let questionTimer = null;
 /** Avanzamento automatico al livello successivo di un minigioco a più round. */
 let stageTimer = null;
+/**
+ * Fine della premiazione: allo scadere i telefoni passano dal "Guarda lo
+ * schermo!" alla propria posizione. Il telefono non si cronometra da solo
+ * perché chi si riconnette a metà cerimonia non saprebbe quanto ne resta.
+ */
+let ceremonyTimer = null;
+/** La premiazione della partita conclusa è terminata (vale in FINAL_LEADERBOARD). */
+let ceremonyDone = false;
 /**
  * Pausa fra il reveal di un livello e l'apertura del successivo: il tempo di
  * leggere il verdetto e il proprio esito sul telefono prima di ripartire.
@@ -77,10 +88,26 @@ function clearQuestionTimer() {
     clearTimeout(stageTimer);
     stageTimer = null;
   }
+  // Un riavvio o una chiusura a cerimonia in corso: il suo segnale di fine
+  // apparterrebbe alla partita che non c'è più.
+  if (ceremonyTimer) {
+    clearTimeout(ceremonyTimer);
+    ceremonyTimer = null;
+  }
   // Le risposte dei bot appartengono alla domanda che sta chiudendo: una in
   // ritardo arriverebbe sul round successivo.
   for (const t of botTimers) clearTimeout(t);
   botTimers = [];
+}
+
+/** Avvia il conto alla rovescia della premiazione appena trasmessa con `game:final`. */
+function startCeremonyTimer(io, playerCount) {
+  ceremonyDone = false;
+  ceremonyTimer = setTimeout(() => {
+    ceremonyTimer = null;
+    ceremonyDone = true;
+    io.emit('game:ceremony-done', {});
+  }, FinalSchedule.ceremonyDurationMs(playerCount));
 }
 
 function destroySession() {
@@ -366,6 +393,7 @@ function attachGameHandlers(io) {
         data.leaderboard = currentSession.getLeaderboard();
         data.isLastRound =
           currentSession.state === STATES.RESULTS && currentSession.isLastRound;
+        if (currentSession.state === STATES.FINAL_LEADERBOARD) data.ceremonyDone = ceremonyDone;
       }
 
       ok(cb, data);
@@ -438,6 +466,7 @@ function attachGameHandlers(io) {
         ok(cb);
         if (result.finished) {
           io.emit('game:final', { leaderboard: result.leaderboard });
+          startCeremonyTimer(io, result.leaderboard.length);
         } else {
           emitQuestion(io);
         }

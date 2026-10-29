@@ -47,6 +47,11 @@
     </div>
     <div class="countdown-track" aria-hidden="true"><div id="countdown-bar" class="countdown-bar"></div></div>
     <h1 id="question-text" class="question-text"></h1>
+    <!-- Una domanda lunga si tronca a tre righe: "Leggi tutta" la apre in un
+         riquadro che scorre da solo, così le risposte non si spostano mai. -->
+    <button id="question-more" class="question-more" type="button" hidden>Leggi tutta</button>
+    <!-- L'immagine si vede solo in sala: qui si avvisa di guardarla. -->
+    <div id="question-image-hint" class="question-image-hint" hidden>📺 Guarda l'immagine sul maxischermo</div>
     <div id="answer-buttons" class="answer-stack"></div>
     <div id="answer-sent" class="sticker sticker-teal" hidden>Risposta inviata!</div>
   </section>
@@ -68,15 +73,20 @@
 
   <!-- FINAL -->
   <section id="screen-final" class="screen" hidden>
-    <h1 class="screen-title">Classifica finale</h1>
-    <!-- La propria posizione, scoperta nello stesso istante in cui la sala la
-         proclama. Durante la cerimonia è l'unica cosa a schermo: la classifica
-         completa arriva solo alla fine, per non anticipare nulla. -->
-    <div id="final-me-card" class="me-card"></div>
-    <div id="final-podium" class="podium" hidden></div>
-    <div id="final-me" class="me-rank" hidden></div>
-    <ol id="final-rest" class="final-list" hidden></ol>
-    <p class="waiting-text" id="final-waiting">Grazie per aver giocato!</p>
+    <!-- Durante la premiazione: solo l'invito a guardare il proiettore, uguale
+         per tutti. Se cambiasse per chi sta sul podio, la sala lo capirebbe
+         dal telefono prima di vederlo sullo schermo. -->
+    <div id="final-placeholder" class="final-placeholder">
+      <span class="sticker sticker-red final-corner">Premiazione</span>
+      <span class="final-placeholder-icon" aria-hidden="true">📺</span>
+      <h1 class="screen-title">Guarda lo schermo!</h1>
+      <p class="waiting-text">La tua posizione arriva subito dopo.</p>
+    </div>
+    <!-- A premiazione finita (game:ceremony-done): la propria posizione in
+         grande, poi la classifica intera con la propria riga evidenziata. -->
+    <div id="final-me-card" hidden></div>
+    <ol id="final-list" class="final-list" hidden></ol>
+    <div id="final-bar" class="final-bar" hidden>Grazie per aver giocato!</div>
   </section>
 
   <!-- MESSAGE -->
@@ -97,11 +107,6 @@
   <!-- Effetto coriandoli, condiviso con la vista sala. Facoltativo: chi lo usa
        controlla `window.Confetti` prima di chiamarlo. -->
   <script src="/shared/confetti.js"></script>
-
-  <!-- Calendario della premiazione, lo stesso file che carica la vista sala:
-       è ciò che fa scoprire la propria posizione sul telefono nell'istante in
-       cui viene proclamata in sala. -->
-  <script src="/shared/final-schedule.js"></script>
 
   <!-- Correzione dello scarto fra orologi: senza, in sala e sul telefono
        il tempo scade in momenti diversi. -->

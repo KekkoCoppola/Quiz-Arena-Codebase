@@ -8,7 +8,7 @@
  * feedback con posizione, podio finale, riavvio, riconnessione con token.
  */
 
-/* global io, Minigames, FinalSchedule, ServerClock */
+/* global io, Minigames, ServerClock */
 
 // Mappa avatar: id stabile → emoji TEMPORANEA (futuri SVG: cambiare solo qui).
 const AVATARS = {
@@ -58,6 +58,8 @@ const lobbyPlayers      = document.getElementById('lobby-players');
 const lobbyMe           = document.getElementById('lobby-me');
 const questionProgress  = document.getElementById('question-progress');
 const questionText      = document.getElementById('question-text');
+const questionMore      = document.getElementById('question-more');
+const questionImageHint = document.getElementById('question-image-hint');
 const questionCountdown = document.getElementById('question-countdown');
 const countdownBar      = document.getElementById('countdown-bar');
 const answerButtons     = document.getElementById('answer-buttons');
@@ -68,11 +70,10 @@ const feedbackPoints    = document.getElementById('feedback-points');
 const feedbackScore     = document.getElementById('feedback-score');
 const feedbackRank      = document.getElementById('feedback-rank');
 const feedbackWaiting   = document.getElementById('feedback-waiting');
-const finalPodium       = document.getElementById('final-podium');
-const finalRest         = document.getElementById('final-rest');
-const finalMe           = document.getElementById('final-me');
-const meCard            = document.getElementById('final-me-card');
-const finalWaiting      = document.getElementById('final-waiting');
+const finalPlaceholder  = document.getElementById('final-placeholder');
+const finalMeCard       = document.getElementById('final-me-card');
+const finalList         = document.getElementById('final-list');
+const finalBar          = document.getElementById('final-bar');
 const messageText       = document.getElementById('message-text');
 const reconnectOverlay  = document.getElementById('reconnect-overlay');
 
@@ -233,6 +234,13 @@ function renderQuestion(q, alreadyAnswered = false) {
   questionProgress.classList.toggle('badge-yellow', !isMinigame);
   questionProgress.classList.toggle('badge-ochre', isMinigame);
   questionText.textContent = q.text;
+  // Ogni domanda riparte chiusa; "Leggi tutta" compare solo se il testo
+  // trabocca davvero dalle tre righe (misurato, non stimato dalla lunghezza).
+  questionText.classList.remove('is-open');
+  questionText.classList.add('is-clamped');
+  questionText.style.maxHeight = '';
+  questionMore.textContent = 'Leggi tutta';
+  questionImageHint.hidden = !q.image;
   answerSent.hidden = !alreadyAnswered;
   answerButtons.classList.toggle('answer-locked', alreadyAnswered);
   if (currentMinigame?.playerLayoutClass) {
@@ -291,7 +299,20 @@ function renderQuestion(q, alreadyAnswered = false) {
     startCountdown(q.endsAt, q.time_limit_s * 1000, q.serverNow);
   }
   show('question');
+  // Misurabile solo a schermata visibile: nascosta, ogni altezza vale zero.
+  questionMore.hidden = questionText.scrollHeight <= questionText.clientHeight;
 }
+
+questionMore.addEventListener('click', () => {
+  // Aperta, la domanda tiene l'altezza che aveva chiusa e scorre dentro:
+  // più alta spingerebbe giù i bottoni di risposta sotto il pollice.
+  const closedHeight = questionText.clientHeight;
+  const open = questionText.classList.toggle('is-open');
+  questionText.classList.toggle('is-clamped', !open);
+  questionText.style.maxHeight = open ? `${closedHeight}px` : '';
+  if (!open) questionText.scrollTop = 0;
+  questionMore.textContent = open ? 'Chiudi' : 'Leggi tutta';
+});
 
 function submitAnswer(optionIndex, btn) {
   socket.emit('player:answer', { optionIndex }, (res) => {
@@ -393,70 +414,33 @@ function renderFeedback({
 
 // ─── Premiazione ─────────────────────────────────────────────────────────────
 //
-// Il telefono non è una seconda classifica: mostra SOLO la propria posizione, e
-// la scopre nell'istante in cui la sala la proclama. I tempi li detta
-// `/shared/final-schedule.js`, lo stesso calendario che segue il proiettore —
-// più PLAYER_LAG_MS, il margine che rende impossibile arrivare in anticipo.
-// La classifica completa compare solo alla fine: prima sarebbe uno spoiler.
+// Durante la cerimonia il telefono non mostra nessuna posizione: invita a
+// guardare il proiettore, uguale per tutti — se cambiasse solo per i premiati,
+// la sala capirebbe chi sta sul podio prima di vederlo. La fine la annuncia il
+// server con `game:ceremony-done`, a una durata presa dallo stesso calendario
+// della sala (/shared/final-schedule.js): solo allora compaiono la propria
+// posizione e la classifica intera.
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 const FINAL_SPARKLES = 10;
 const SPARKLE_GLYPHS = ['✦', '✧', '⭐'];
 
-/** Durata di `fc-pop` in /shared/final-ceremony.css: solo come scadenza. */
-const POP_MS = 620;
+/** Coriandoli del podio a cerimonia finita: più ricchi salendo. */
+const PODIUM_CONFETTI = { 1: { count: 120, power: 18 }, 2: { count: 70, power: 15 }, 3: { count: 50, power: 13 } };
 
-/** Timer della cerimonia, tracciati per poterli spegnere tutti insieme. */
-let ceremonyTimers = [];
+/** Classifica di `game:final`, tenuta finché il server non dice che la sala ha finito. */
+let finalLeaderboard = null;
 
-function stopCeremony() {
-  for (const t of ceremonyTimers) clearTimeout(t);
-  ceremonyTimers = [];
+function clearFinal() {
+  finalLeaderboard = null;
   window.Confetti?.stop();
 }
 
-/** Un gradino del podio. Usato sia per la propria card sia per il podio finale. */
-function buildPodiumStep(p, rank) {
-  const step = document.createElement('div');
-  step.className = `podium-step rank-${rank}`;
-
-  const medal = document.createElement('span');
-  medal.className = 'medal';
-  medal.textContent = MEDALS[rank - 1];
-  const av = document.createElement('span');
-  av.className = 'avatar fc-avatar';
-  av.textContent = avatarOf(p.avatar);
-  const name = document.createElement('span');
-  name.className = 'name fc-name';
-  name.textContent = p.nickname;
-  const points = document.createElement('span');
-  points.className = 'points fc-points';
-  points.textContent = `${p.score} punti`;
-
-  step.append(medal, av, name, points);
-  return step;
-}
-
-/** La propria posizione fuori dal podio: una fascia grande, leggibile al volo. */
-function buildMyTailCard(p) {
-  const card = document.createElement('div');
-  card.className = 'me-card-row';
-
-  const pos = document.createElement('span');
-  pos.className = 'pos';
-  pos.textContent = ordinale(p.rank);
-  const av = document.createElement('span');
-  av.className = 'avatar fc-avatar';
-  av.textContent = avatarOf(p.avatar);
-  const name = document.createElement('span');
-  name.className = 'name fc-name';
-  name.textContent = p.nickname;
-  const pts = document.createElement('span');
-  pts.className = 'points fc-points';
-  pts.textContent = `${p.score} punti`;
-
-  card.append(pos, av, name, pts);
-  return card;
+function rankLeaderboard(entries) {
+  return entries
+    .slice()
+    .sort((a, b) => b.score - a.score)
+    .map((p, i) => ({ ...p, rank: i + 1 }));
 }
 
 /** Le stelline del vincitore, come in sala. */
@@ -478,166 +462,97 @@ function addSparkles(el) {
   el.appendChild(layer);
 }
 
-/** La classifica completa: podio, propria posizione, resto. Solo a fine corsa. */
-function renderFinalFrame(leaderboard) {
-  finalPodium.innerHTML = '';
-  finalRest.innerHTML = '';
+/** La propria posizione: il numero prima di tutto, poi chi si è. */
+function buildMyResultCard(me, total) {
+  const card = document.createElement('div');
+  card.className = me.rank <= 3 ? `final-me-card rank-${me.rank}` : 'final-me-card';
 
-  for (const p of leaderboard.slice(0, 3)) {
-    finalPodium.appendChild(buildPodiumStep(p, p.rank));
+  const corner = document.createElement('span');
+  corner.className = 'sticker sticker-red final-corner';
+  corner.textContent = `su ${total}`;
+  const label = document.createElement('span');
+  label.className = 'final-me-label';
+  label.textContent = 'La tua posizione';
+  const rank = document.createElement('span');
+  rank.className = 'final-me-rank';
+  rank.textContent = me.rank <= 3 ? `${MEDALS[me.rank - 1]} ${ordinale(me.rank)}` : ordinale(me.rank);
+
+  const who = document.createElement('div');
+  who.className = 'final-me-who';
+  const av = document.createElement('span');
+  av.className = 'avatar';
+  av.textContent = avatarOf(me.avatar);
+  const text = document.createElement('div');
+  const name = document.createElement('div');
+  name.className = 'name';
+  name.textContent = me.nickname;
+  const pts = document.createElement('div');
+  pts.className = 'points';
+  pts.textContent = `${me.score} punti`;
+  text.append(name, pts);
+  who.append(av, text);
+
+  card.append(corner, label, rank, who);
+  return card;
+}
+
+/** Durante la cerimonia: solo l'invito a guardare lo schermo. */
+function showFinalPlaceholder(entries) {
+  // Un esito di minigioco ancora trattenuto fino a `revealAt` (l'host può
+  // chiudere la partita durante la sospensione) coprirebbe il segnaposto.
+  revealToken++;
+  finalLeaderboard = rankLeaderboard(entries);
+  finalPlaceholder.hidden = false;
+  finalMeCard.hidden = true;
+  finalList.hidden = true;
+  finalBar.hidden = true;
+  screens.final.classList.remove('has-bar');
+  show('final');
+}
+
+/** A cerimonia finita: posizione in grande, classifica intera, barra del grazie. */
+function renderFinalResult(entries) {
+  revealToken++;
+  const leaderboard = rankLeaderboard(entries);
+  finalLeaderboard = leaderboard;
+  const me = leaderboard.find((p) => p.id === playerId);
+
+  finalMeCard.replaceChildren();
+  if (me) {
+    const card = buildMyResultCard(me, leaderboard.length);
+    if (!reducedMotion) card.classList.add('fc-pop');
+    finalMeCard.append(card);
   }
 
-  for (const p of leaderboard.slice(3)) {
+  finalList.replaceChildren();
+  for (const p of leaderboard) {
     const li = document.createElement('li');
+    if (p.id === playerId) li.className = 'is-me';
     const pos = document.createElement('span');
     pos.className = 'pos';
     pos.textContent = String(p.rank);
     const av = document.createElement('span');
     av.textContent = avatarOf(p.avatar);
     const name = document.createElement('span');
+    name.className = 'name';
     name.textContent = p.nickname;
     const pts = document.createElement('span');
     pts.className = 'pts';
     pts.textContent = String(p.score);
     li.append(pos, av, name, pts);
-    finalRest.appendChild(li);
+    finalList.appendChild(li);
   }
 
-  const me = leaderboard.find((p) => p.id === playerId);
-  if (me && me.rank > 3) {
-    finalMe.textContent = `La tua posizione: ${ordinale(me.rank)}`;
-    finalMe.hidden = false;
-  }
-
-  finalPodium.hidden = false;
-  finalRest.hidden = leaderboard.length <= 3;
-  finalWaiting.textContent = 'Grazie per aver giocato!';
-  finalWaiting.classList.remove('fc-pending');
-}
-
-/**
- * @param {Array} entries classifica finale.
- * @param {{ animate?: boolean }} [opts] `animate: false` salta la cerimonia —
- *   serve a chi rientra da `player:rejoin` a premiazione già avvenuta, che deve
- *   ritrovare la classifica e non una proclamazione in ritardo.
- */
-function renderFinal(entries, { animate = true } = {}) {
-  const token = ++revealToken;
-  stopCeremony();
-
-  const leaderboard = entries
-    .slice()
-    .sort((a, b) => b.score - a.score)
-    .map((p, i) => ({ ...p, rank: i + 1 }));
-
-  meCard.innerHTML = '';
-  finalPodium.hidden = true;
-  finalRest.hidden = true;
-  finalMe.hidden = true;
+  finalPlaceholder.hidden = true;
+  finalMeCard.hidden = !me;
+  finalList.hidden = leaderboard.length === 0;
+  finalBar.hidden = false;
+  screens.final.classList.add('has-bar');
   show('final');
 
-  const me = leaderboard.find((p) => p.id === playerId);
-
-  // Senza cerimonia anche se non ci si ritrova in classifica: non deve capitare,
-  // ma restare davanti a uno schermo vuoto sarebbe il modo peggiore di scoprirlo.
-  if (!animate || reducedMotion || !me) {
-    renderFinalFrame(leaderboard);
-    return;
-  }
-
-  runCeremony(leaderboard, me, token);
-}
-
-/**
- * Esegue solo gli atti che riguardano il proprietario del telefono.
- *
- * Ogni atto è pianificato come scarto dalla RICEZIONE di `game:final`, mai da un
- * orario: sala e telefoni partono dalla stessa trasmissione, quindi lo scarto
- * fra gli orologi dei dispositivi esce dal problema. Il ritardo aggiunto è ciò
- * che garantisce che il telefono non possa mai precedere il proiettore.
- */
-function runCeremony(leaderboard, me, token) {
-  const schedule = FinalSchedule.buildFinalSchedule({ playerCount: leaderboard.length });
-  const mine = FinalSchedule.stepsForRank(schedule, me.rank);
-
-  finalWaiting.textContent = 'La premiazione è iniziata…';
-  finalWaiting.classList.add('fc-pending');
-
-  for (const beat of mine) {
-    const id = setTimeout(() => {
-      if (token !== revealToken) return;
-      playBeat(beat, leaderboard, me);
-    }, beat.at + FinalSchedule.PLAYER_LAG_MS);
-    ceremonyTimers.push(id);
-  }
-}
-
-/** Cosa mostra ciascun atto sul telefono di chi lo riceve. */
-function playBeat(beat, leaderboard, me) {
-  switch (beat.kind) {
-    // ── La propria riga in coda ──
-    case 'tail':
-      meCard.replaceChildren(buildMyTailCard(me));
-      meCard.firstElementChild.classList.add('fc-enter');
-      break;
-
-    // ── Sul podio, ma senza nome: si resta in sospeso quanto la sala ──
-    case 'podium-2-covered': {
-      const step = buildPodiumStep(me, 2);
-      step.classList.add('fc-covered', 'fc-pop');
-      meCard.replaceChildren(step);
-      // Il respiro dell'attesa arriva a salita finita: `fc-waiting` anima anche
-      // lui il transform e vincerebbe sul pop. "Finita" è l'evento OPPURE una
-      // scadenza: a schermo bloccato l'animazione non parte e `animationend`
-      // non arriverebbe mai, lasciando la card immobile fino alla scopertura.
-      let armed = false;
-      const breathe = () => {
-        if (armed) return;
-        armed = true;
-        step.classList.remove('fc-pop');
-        step.classList.add('fc-waiting');
-      };
-      step.addEventListener('animationend', breathe, { once: true });
-      ceremonyTimers.push(setTimeout(breathe, POP_MS + 120));
-      break;
-    }
-
-    // ── Il bronzo ──
-    case 'podium-3': {
-      const step = buildPodiumStep(me, 3);
-      step.classList.add('fc-pop');
-      meCard.replaceChildren(step);
-      window.Confetti?.burst({ count: 50, power: 13 });
-      break;
-    }
-
-    // ── La proclamazione ──
-    case 'winner': {
-      const step = buildPodiumStep(me, 1);
-      step.classList.add('fc-erupt');
-      meCard.replaceChildren(step);
-      addSparkles(step);
-      window.Confetti?.burst({ count: 120, power: 18 });
-      break;
-    }
-
-    // ── E solo ORA il secondo scopre di essere secondo ──
-    case 'uncover-2': {
-      const step = meCard.firstElementChild;
-      if (!step) break;
-      step.classList.remove('fc-covered', 'fc-waiting');
-      step.classList.add('fc-uncover');
-      window.Confetti?.burst({ count: 70, power: 15 });
-      break;
-    }
-
-    // ── Il fotogramma finale: adesso si può vedere tutta la classifica ──
-    case 'settle':
-      // La card grande sparisce: ha fatto il suo lavoro durante la cerimonia,
-      // ma accanto al podio mostrerebbe due volte la stessa persona.
-      meCard.replaceChildren();
-      renderFinalFrame(leaderboard);
-      break;
+  if (me && me.rank <= 3 && !reducedMotion) {
+    if (me.rank === 1) addSparkles(finalMeCard.firstElementChild);
+    window.Confetti?.burst(PODIUM_CONFETTI[me.rank]);
   }
 }
 
@@ -712,12 +627,17 @@ socket.on('game:results', (results) => {
 socket.on('game:final', ({ leaderboard }) => {
   if (!playerId) return;
   stopCountdown();
-  renderFinal(leaderboard);
+  showFinalPlaceholder(leaderboard);
+});
+
+socket.on('game:ceremony-done', () => {
+  if (!playerId || !finalLeaderboard) return;
+  renderFinalResult(finalLeaderboard);
 });
 
 socket.on('game:reset', ({ playerId: newId, token }) => {
   revealToken++; // ferma un eventuale trattieni in corso
-  stopCeremony();
+  clearFinal();
   const session = loadSession() ?? {};
   playerId = newId;
   saveSession({ ...session, playerId: newId, token });
@@ -726,7 +646,7 @@ socket.on('game:reset', ({ playerId: newId, token }) => {
 
 socket.on('game:ended', () => {
   revealToken++; // ferma un eventuale trattieni in corso
-  stopCeremony();
+  clearFinal();
   playerId = null;
   clearSession();
   stopCountdown();
@@ -754,9 +674,10 @@ function tryRejoin(session) {
     } else if (res.state === 'QUESTION' && res.question) {
       renderQuestion(res.question, res.question.alreadyAnswered);
     } else if (res.state === 'FINAL_LEADERBOARD') {
-      // Chi rientra a premiazione conclusa trova la classifica, non una
-      // proclamazione in ritardo di mezzo minuto.
-      renderFinal(res.leaderboard ?? [], { animate: false });
+      // Il server sa se la sala ha già finito: chi rientra a metà cerimonia
+      // torna al "Guarda lo schermo!", chi rientra dopo trova la posizione.
+      if (res.ceremonyDone) renderFinalResult(res.leaderboard ?? []);
+      else showFinalPlaceholder(res.leaderboard ?? []);
     } else {
       // RESULTS: nessun dettaglio sull'ultima risposta, mostra punteggio attuale.
       const leaderboard = res.leaderboard ?? [];
