@@ -155,6 +155,12 @@
        non si apre (lo riempie /shared/stage-intro.js). -->
   <div class="sala-intro-layer" id="sala-intro-layer" aria-hidden="true"></div>
 
+  <!-- ═══ PREMIAZIONE 3D ════════════════════════════════════════════════
+       A tutto schermo come il sipario: podio, pubblico e coppa coprono anche
+       la testata. Vuoto finché non arriva game:final (lo riempie
+       /shared/podium-ceremony.js); il podio 2D sotto resta come ripiego. -->
+  <div class="sala-podium-layer" id="sala-podium-layer" aria-hidden="true"></div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script src="vendor/qrcode.js"></script>
 
@@ -162,10 +168,15 @@
        controlla `window.Confetti` prima di chiamarlo. -->
   <script src="/shared/confetti.js"></script>
 
-  <!-- Calendario della premiazione: gli istanti di ogni atto della cerimonia.
-       Stesso file caricato dal client player — è ciò che tiene sincronizzate
-       sala e telefoni senza far dipendere nulla dall'orologio dei dispositivi. -->
+  <!-- Calendario della premiazione: durata e istanti del podio. Lo stesso file
+       lo legge il server per dire ai telefoni quando la cerimonia è finita —
+       è ciò che tiene sincronizzate sala e telefoni senza orologi. -->
   <script src="/shared/final-schedule.js"></script>
+
+  <!-- La premiazione 3D: il personaggio, poi la scena del podio. Solo in sala:
+       il telefono non scarica three.js. -->
+  <script src="/shared/mii-character.js"></script>
+  <script src="/shared/podium-ceremony.js"></script>
 
   <!-- Correzione dello scarto fra orologi: senza, in sala e sul telefono
        il tempo scade in momenti diversi. -->

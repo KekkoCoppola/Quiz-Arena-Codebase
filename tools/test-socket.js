@@ -29,6 +29,10 @@ process.env.QUIZZES_DIR = quizzesDir;
 
 const config = require('../server/config');
 const db     = require('../server/quiz-manager');
+// Le attese della premiazione si leggono dal calendario: con una durata scritta
+// a mano il test smetterebbe di provare qualcosa al primo ritocco della scena.
+const FinalSchedule = require('../client/shared/final-schedule');
+const CEREMONY_WAIT_MS = FinalSchedule.ceremonyDurationMs(1) + 1500;
 
 const PORT = 3123;
 const URL  = `http://localhost:${PORT}`;
@@ -287,7 +291,7 @@ async function run() {
 
     // Il riavvio è arrivato a cerimonia ancora in corso: il suo segnale di fine
     // appartiene alla partita chiusa e non deve raggiungere quella nuova.
-    const strayCeremonyDone = await onceOrNull(p1, 'game:ceremony-done', 6000);
+    const strayCeremonyDone = await onceOrNull(p1, 'game:ceremony-done', CEREMONY_WAIT_MS);
     assert(strayCeremonyDone === null,
       'host:restart-game annulla la fine cerimonia della partita chiusa');
 
@@ -425,7 +429,7 @@ async function run() {
     const midRejoin = await emitAck(p3r, 'player:rejoin', { token: joined3.token });
     assert(midRejoin.state === 'FINAL_LEADERBOARD' && midRejoin.ceremonyDone === false,
       'player:rejoin a cerimonia in corso: ceremonyDone false');
-    const ceremonyDone = await onceOrNull(p3r, 'game:ceremony-done', 5000);
+    const ceremonyDone = await onceOrNull(p3r, 'game:ceremony-done', CEREMONY_WAIT_MS);
     assert(ceremonyDone !== null, 'game:ceremony-done arriva alla fine della cerimonia');
     const lateRejoin = await emitAck(p3r, 'player:rejoin', { token: midRejoin.token ?? joined3.token });
     assert(lateRejoin.ceremonyDone === true, 'player:rejoin a cerimonia finita: ceremonyDone true');

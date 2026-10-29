@@ -1043,6 +1043,21 @@ body {
 .sala-intro-layer .mg-stage-intro-overlay { inset: 0; border-radius: 0; }
 .sala-intro-layer .mg-stage-intro-canvas  { border: 0; border-radius: 0; }
 
+/* ─── Premiazione 3D ────────────────────────────────────────────────────────
+   Sopra la testata e il palco, sotto il sipario (che a fine partita non c'è).
+   La scena riempie lo strato; lo sfondo lo porta podium-ceremony.js. */
+
+.sala-podium-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  pointer-events: none;
+}
+
+.sala-podium-layer:empty { display: none; }
+
+.sala-podium-stage { width: 100%; height: 100%; }
+
 /* ─── Lobby ─────────────────────────────────────────────────────────────── */
 
 #sala-lobby { justify-content: center; }
@@ -1563,38 +1578,6 @@ body {
   flex: 0 0 auto;
   min-height: 0;
   padding: 0;
-}
-
-/* Il podio occupa il suo posto fin dal primo istante — così il bronzo non salta
-   dal centro a destra quando arrivano gli altri due, e la coda ha un'altezza
-   stabile — ma si vede solo quando la coda gli lascia il palco. */
-.sala-podium.is-hidden { visibility: hidden; }
-
-/* ── La pedana vuota ────────────────────────────────────────────────────────
-   Deve stare DOPO le regole .rank-N: stessa specificità, vince l'ultima.
-   Il gradino esiste già a misura definitiva, così il bronzo non salta dal
-   centro a destra quando arrivano gli altri due. Quello che manca è chi ci
-   sale sopra. */
-.sala-podium-step.is-slot {
-  background: transparent;
-  border-style: dashed;
-  box-shadow: none;
-  transform: none;
-  opacity: 0.45;
-}
-
-.sala-podium-step.is-slot > * { visibility: hidden; }
-
-.sala-podium-step.is-slot::after {
-  content: '?';
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  font-size: 4rem;
-  font-weight: 900;
-  color: var(--ink);
-  opacity: 0.5;
 }
 
 /* ── Il fotogramma finale ───────────────────────────────────────────────────
