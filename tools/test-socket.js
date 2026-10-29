@@ -206,6 +206,7 @@ async function run() {
     assert(joined2.ok === true, 'Bob entra in lobby');
     const lobby = await lobbyPromise;
     assert(lobby.players.length === 2, 'lobby-update: 2 giocatori');
+    assert(lobby.state === 'LOBBY', 'lobby-update: porta lo stato della partita (LOBBY)');
 
     // 3. Domanda 1: chiusura anticipata (tutti rispondono)
     console.log('\n  ⏱️  Fase 3: Domanda 1 — chiusura anticipata');
@@ -294,6 +295,9 @@ async function run() {
     assert(lobbyAfterDrop.players.length === 2, 'drop in partita: giocatore NON rimosso');
     assert(lobbyAfterDrop.players.some((p) => p.connected === false),
       'drop in partita: marcato disconnesso');
+    // La sala lo usa per NON tornare alla lobby a metà round.
+    assert(lobbyAfterDrop.state === 'QUESTION',
+      'drop in partita: il lobby-update dice che la partita è in corso');
 
     // Alice risponde: il round si chiude subito perché è l'unica connessa.
     const r6Promise = once(host, 'game:results');

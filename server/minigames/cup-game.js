@@ -54,8 +54,10 @@ module.exports = {
 
   // L'indice è l'identità della posizione vista dal pubblico davanti al
   // proiettore (e replicata nello stesso ordine da sinistra a destra sui
-  // telefoni): 0 = Sinistra, 1 = Centro, 2 = Destra.
-  options: ['Sinistra', 'Centro', 'Destra'],
+  // telefoni): 0 = sinistra, 1 = centro, 2 = destra. Si sceglie per lettera:
+  // in sala, a bicchieri fermi, la lettera compare sopra ciascun bicchiere, e
+  // sul telefono una freccia sotto la lettera ricorda dove sta.
+  options: ['A', 'B', 'C'],
 
   // Qui non esiste un esito intermedio ("draw"): sotto un bicchiere o c'è la
   // pallina o il bicchiere è vuoto. Punti fissi per livello (scelta di

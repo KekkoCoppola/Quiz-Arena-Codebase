@@ -113,7 +113,12 @@ function ok(cb, data = {})  { ack(cb, { ok: true, ...data }); }
 function fail(cb, error)    { ack(cb, { ok: false, error }); }
 
 function broadcastLobby(io) {
-  io.emit('game:lobby-update', { players: currentSession.getPlayers() });
+  // Arriva anche a partita in corso (ogni disconnessione e rientro): `state`
+  // dice ai client se è davvero il momento di mostrare la lobby.
+  io.emit('game:lobby-update', {
+    players: currentSession.getPlayers(),
+    state: currentSession.state,
+  });
 }
 
 /**

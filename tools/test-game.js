@@ -333,8 +333,8 @@ function run() {
 
   console.log('\n  🥤  Fase 9c: Minigioco con anteprima (Tre Bicchieri)\n');
 
-  // Generatore che restituisce 0.99 alla prima estrazione (→ Destra) e 0 dopo:
-  // se la chiusura estraesse di nuovo, il risultato cambierebbe in Sinistra.
+  // Generatore che restituisce 0.99 alla prima estrazione (→ C, a destra) e 0
+  // dopo: se la chiusura estraesse di nuovo, il risultato cambierebbe in A.
   let estrazioni = 0;
   const g9c = new GameSession(QUIZ, { rnd: () => (estrazioni++ === 0 ? 0.99 : 0) });
   const fay = g9c.addPlayer('Fay');

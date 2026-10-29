@@ -7,9 +7,11 @@
  * Lo carica solo la vista sala: sul tablet dell'host il riquadro è troppo
  * piccolo per una scena così, e il modulo lì non parte nemmeno.
  *
- * L'overlay copre il pannello della domanda (che è `position: relative`):
- * sopra c'è il canvas WebGL, sotto la scena del minigioco già montata, che la
- * riapertura finale delle tende scopre.
+ * L'overlay copre il contenitore che gli si passa (posizionato): in sala è
+ * uno strato a tutto schermo (`.sala-intro-layer` in client/sala/style.css,
+ * che toglie anche cornice e angoli tondi qui sotto). Sopra c'è il canvas
+ * WebGL, sotto la scena del minigioco già montata, che la riapertura finale
+ * delle tende scopre.
  */
 
 .mg-stage-intro-overlay {

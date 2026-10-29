@@ -144,6 +144,36 @@
     return out;
   }
 
+  /**
+   * Chiave di catalogo di un effetto di minigioco. Lo spazio dei nomi è il
+   * tipo del minigioco: due giochi possono chiamare "swap" i propri effetti
+   * senza pestarsi i piedi, e nessuno dei due può coprire quelli della sala.
+   */
+  function minigameSfxKey(type, name) {
+    return `${type}/${name}`;
+  }
+
+  /**
+   * Porta l'audio dichiarato da un minigioco (`audio` nel suo contratto di
+   * presentazione) nella forma del manifest, dentro il suo spazio dei nomi:
+   * la colonna sonora diventa `music.<tipo>`, ogni effetto
+   * `sfx.<tipo>/<evento>`. Il risultato passa poi per `validateManifest` come
+   * qualunque altro manifest, quindi un modulo scritto male perde le voci
+   * rotte e basta.
+   *
+   * @param {string} type tipo del minigioco (es. 'cup_game')
+   * @param {{ music?: object, sfx?: object } | null} audio
+   * @returns {{ music: object, vo: object, sfx: object }}
+   */
+  function minigameManifest(type, audio) {
+    const out = { music: {}, vo: {}, sfx: {} };
+    if (typeof type !== 'string' || !type || !audio || typeof audio !== 'object') return out;
+    if (audio.music) out.music[type] = audio.music;
+    const sfx = audio.sfx && typeof audio.sfx === 'object' ? audio.sfx : {};
+    for (const name of Object.keys(sfx)) out.sfx[minigameSfxKey(type, name)] = sfx[name];
+    return out;
+  }
+
   return {
     CHANNEL_VOLUME,
     MUSIC_DUCK_FACTOR,
@@ -155,5 +185,7 @@
     tensionPlan,
     resolveGain,
     validateManifest,
+    minigameSfxKey,
+    minigameManifest,
   };
 });

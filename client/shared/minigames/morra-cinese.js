@@ -35,10 +35,40 @@
   /** Velocità del ciclo di suspense: abbastanza rapido da leggersi come "sta scegliendo". */
   const SUSPENSE_MS = 150;
 
+  /**
+   * Audio in sala (contratto `audio`, file in `resources/audio/morra-cinese/`,
+   * generati da `tools/make-minigame-audio.js` e sostituibili). Musica da
+   * duello western; la ruota scatta come un cricchetto e si ferma con un colpo.
+   */
+  const AUDIO = Object.freeze({
+    music: { file: 'morra-cinese/music.ogg', gain: 0.9 },
+    sfx: {
+      tick: [
+        { file: 'morra-cinese/tick-01.wav', gain: 0.55 },
+        { file: 'morra-cinese/tick-02.wav', gain: 0.55 },
+      ],
+      land: [{ file: 'morra-cinese/land-01.wav', gain: 0.9 }],
+    },
+  });
+
+  /**
+   * Intervallo minimo fra due scatti udibili della ruota. All'inizio la ruota
+   * cambia mossa più volte per fotogramma: un clic per ognuna sarebbe un
+   * ronzio, non un cricchetto.
+   */
+  const TICK_SFX_MIN_MS = 55;
+
+  /** Suona un effetto: `ctx.sfx` c'è solo in sala, telefono e host sono muti. */
+  function playSfx(ctx, name) {
+    try { ctx?.sfx?.(name); } catch { /* audio non disponibile */ }
+  }
+
   /** Handle dell'animazione di attesa. Vive qui perché è un dettaglio di questo minigioco. */
   let suspenseInterval = null;
   /** Handle del requestAnimationFrame della ruota di reveal (sala e player). */
   let revealRaf = null;
+  /** Timer che garantisce atterraggio e `ctx.done()` anche senza rAF. */
+  let revealTimer = null;
 
   const prefersReducedMotion =
     typeof window !== 'undefined' &&
@@ -107,10 +137,14 @@
     const totalTicks = CYCLES * ASSETS.length + machineChoice + 1;
 
     let landed = false;
+    let doneCalled = false;
+    let lastTick = -1;
+    let lastTickAt = 0;
     const land = () => {
       if (landed) return;
       landed = true;
       paint(machineChoice, 1);
+      playSfx(ctx, 'land');
       if (onLand) onLand();
     };
 
@@ -122,13 +156,27 @@
 
       if (landed) {
         // Pausa di lettura: la mossa resta ferma finché non scade revealAt.
-        if (now >= ctx.revealAt) { revealRaf = null; ctx.done(); return; }
+        if (now >= ctx.revealAt) {
+          revealRaf = null;
+          if (!doneCalled) {
+            doneCalled = true;
+            cancelReveal();
+            ctx.done();
+          }
+          return;
+        }
         revealRaf = requestAnimationFrame(frame);
         return;
       }
 
       const t = spinMs > 0 ? Math.min(1, (now - startAt) / spinMs) : 1;
-      paint(Math.floor(easeOutCubic(t) * totalTicks) % ASSETS.length, t);
+      const tick = Math.floor(easeOutCubic(t) * totalTicks);
+      paint(tick % ASSETS.length, t);
+      if (tick !== lastTick && now - lastTickAt >= TICK_SFX_MIN_MS) {
+        lastTick = tick;
+        lastTickAt = now;
+        playSfx(ctx, 'tick');
+      }
       revealRaf = requestAnimationFrame(frame);
     };
 
@@ -137,6 +185,23 @@
       // revealAt, così la sincronia con gli altri schermi resta intatta.
       land();
     }
+
+    // Atterraggio e `ctx.done()` garantiti anche a tempo d'orologio: col solo
+    // rAF, una pagina che il browser rallenta (in secondo piano, Pi sotto
+    // sforzo) non arrivava mai ai risultati. Il rAF resta per la fluidità;
+    // `landed` e `revealTimer` impediscono di fare le cose due volte.
+    revealTimer = setTimeout(() => {
+      revealTimer = null;
+      if (ctx.isStale()) { cancelReveal(); return; }
+      land();
+      revealTimer = setTimeout(() => {
+        revealTimer = null;
+        if (ctx.isStale() || doneCalled) return;
+        doneCalled = true;
+        cancelReveal();
+        ctx.done();
+      }, Math.max(0, ctx.revealAt - Date.now()));
+    }, Math.max(0, landAt - Date.now()));
     frame();
   }
 
@@ -144,6 +209,10 @@
     if (revealRaf) {
       cancelAnimationFrame(revealRaf);
       revealRaf = null;
+    }
+    if (revealTimer) {
+      clearTimeout(revealTimer);
+      revealTimer = null;
     }
   }
 
@@ -168,6 +237,7 @@
     playerBadge: '🎲 Morra Cinese!',
     playerLayoutClass: 'mg-morra-cinese-choices',
     wheelIcon: '/resources/img/morra-cinese/forbice.svg',
+    audio: AUDIO,
 
     optionIcon(i) {
       return moveImg(i, 'mg-morra-cinese-move');

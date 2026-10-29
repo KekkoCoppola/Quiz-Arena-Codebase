@@ -352,6 +352,7 @@ section('Registry di presentazione lato client, caricato senza DOM');
   assert(morra.label === 'Morra Cinese', 'get() restituisce la presentazione registrata');
   assert(typeof morra.sala.reveal === 'function', 'la presentazione host espone reveal()');
   assert(typeof morra.player.reveal === 'function', 'la presentazione player espone reveal()');
+  assert(morra.salaOptions === true, 'senza dichiararlo, un minigioco mostra in sala le carte delle scelte');
 
   const fallback = Minigames.get('tipo_mai_visto');
   assert(fallback !== null && fallback !== undefined, 'get() su un tipo sconosciuto non restituisce null');
@@ -365,6 +366,35 @@ section('Registry di presentazione lato client, caricato senza DOM');
     Error,
     'register() rifiuta una presentazione senza "type"'
   );
+}
+
+section('Audio dei minigiochi: ogni file dichiarato esiste');
+
+{
+  // Un file audio mancante non rompe nulla (il motore lo salta in silenzio),
+  // ed è proprio per questo che va controllato qui: in sala nessuno se ne
+  // accorgerebbe, il minigioco sarebbe solo muto.
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const Minigames = require('../client/shared/minigames');
+  for (const file of fs.readdirSync(path.join(__dirname, '../client/shared/minigames'))) {
+    if (file.endsWith('.js') && file !== 'index.js' && !file.startsWith('_')) {
+      require(`../client/shared/minigames/${file}`);
+    }
+  }
+  for (const type of Minigames.types()) {
+    const audio = Minigames.get(type).audio;
+    if (!audio) continue;
+    const entries = [
+      ...(audio.music ? [audio.music] : []),
+      ...Object.values(audio.sfx ?? {}).flatMap((e) => (Array.isArray(e) ? e : [e])),
+    ];
+    const missing = entries
+      .map((e) => e.file)
+      .filter((f) => !fs.existsSync(path.join(__dirname, '../resources/audio', f)));
+    assert(entries.length > 0 && missing.length === 0,
+      `${type}: ${entries.length} file audio dichiarati, tutti presenti${missing.length ? ` (mancano: ${missing.join(', ')})` : ''}`);
+  }
 }
 
 // ─── Riepilogo ───────────────────────────────────────────────────────────────────

@@ -36,10 +36,25 @@
   const LOGO_SVG_ASSET = '/resources/img/Logo.svg';
 
   /**
-   * Etichette allineate all'ordine del server (0 = Sinistra, 1 = Centro, 2 = Destra)
-   * come le vede il pubblico davanti al proiettore.
+   * Etichette allineate all'ordine del server (0 = sinistra, 1 = centro,
+   * 2 = destra) come le vede il pubblico davanti al proiettore. Ripiego se il
+   * round non porta le sue `options`.
    */
-  const LABELS = ['Sinistra', 'Centro', 'Destra'];
+  const LABELS = ['A', 'B', 'C'];
+
+  /** La stessa posizione a parole, per chi legge con uno screen reader. */
+  const POSITIONS = ['a sinistra', 'al centro', 'a destra'];
+
+  /**
+   * Frecce che dicono dove sta il bicchiere di ogni lettera: ← A, — B, → C.
+   * Tracciati di un SVG 48x24 disegnati a tratto (`currentColor`), così
+   * prendono il colore del testo che accompagnano.
+   */
+  const ARROW_PATHS = [
+    'M38 12H10M18 4l-8 8 8 8',
+    'M12 12h24',
+    'M10 12h28M30 4l8 8-8 8',
+  ];
 
   /**
    * Durata della pausa finale di lettura a fine reveal prima di invocare `ctx.done()`.
@@ -101,6 +116,35 @@
   const SETTLE_MS = 500;
 
   /**
+   * Audio in sala (contratto `audio`, file in `resources/audio/cup-game/`,
+   * generati da `tools/make-minigame-audio.js` e sostituibili). Musica da
+   * imbonitore di strada; ogni effetto segue un gesto del banco: il bicchiere
+   * che si posa, gli scambi, le lettere, l'alzata, la pallina scoperta.
+   */
+  const AUDIO = Object.freeze({
+    music: { file: 'cup-game/music.ogg', gain: 0.9 },
+    sfx: {
+      call:    [{ file: 'cup-game/call-01.wav', gain: 0.7 }],
+      cover:   [{ file: 'cup-game/cover-01.wav', gain: 0.9 }],
+      swap:    [
+        { file: 'cup-game/swap-01.wav', gain: 0.6 },
+        { file: 'cup-game/swap-02.wav', gain: 0.6 },
+        { file: 'cup-game/swap-03.wav', gain: 0.6 },
+      ],
+      letters: [{ file: 'cup-game/letters-01.wav', gain: 0.7 }],
+      lift:    [{ file: 'cup-game/lift-01.wav', gain: 0.7 }],
+      ball:    [{ file: 'cup-game/ball-01.wav', gain: 0.9 }],
+    },
+  });
+
+  /**
+   * Un effetto che arriva in ritardo di più di così si salta: dopo uno stallo
+   * del browser, cinque scambi suonati tutti insieme sarebbero peggio del
+   * silenzio.
+   */
+  const CUE_LATE_MS = 250;
+
+  /**
    * Soglia minima del contenitore (in px) sotto cui si attiva automaticamente
    * il fallback 2D (es. la miniatura di conduzione sul tablet dell'host).
    */
@@ -114,7 +158,10 @@
   const FRAME_TIME_BUDGET_MS = 33;
   const LOW_RES_SCALE = 0.75;
 
-  /** Coordinate X delle 3 posizioni (Sinistra, Centro, Destra) nello spazio 3D. */
+  /** Altezza della testa di un bicchiere posato (bordo inchiostro compreso). */
+  const CUP_TOP_Y = 1.72;
+
+  /** Coordinate X delle 3 posizioni (sinistra, centro, destra) nello spazio 3D. */
   const SLOT_X_3D = [-2.25, 0, 2.25];
 
   /** Tutte le coppie canoniche di posizioni scambiabili sul tavolo. */
@@ -190,6 +237,30 @@
     const c3 = c1 + 1;
     const u = Math.max(0, Math.min(1, t)) - 1;
     return 1 + c3 * u * u * u + c1 * u * u;
+  }
+
+  /**
+   * Suona un effetto del minigioco. `ctx.sfx` esiste solo in sala: il
+   * riquadro dell'host è muto. L'audio non può rompere la scena.
+   */
+  function playSfx(ctx, name) {
+    try { ctx?.sfx?.(name); } catch { /* audio non disponibile */ }
+  }
+
+  /**
+   * Effetti agganciati a una timeline: ognuno suona quando l'avanzamento `u`
+   * (0 → 1 su `spanMs`) supera la sua soglia, nel fotogramma che lo disegna.
+   * @param {Array<{ u: number, name: string }>} cues in ordine di `u`
+   * @returns {(u: number) => void}
+   */
+  function createCuePlayer(cues, spanMs, ctx) {
+    let next = 0;
+    return (u) => {
+      while (next < cues.length && u >= cues[next].u) {
+        if ((u - cues[next].u) * spanMs <= CUE_LATE_MS) playSfx(ctx, cues[next].name);
+        next++;
+      }
+    };
   }
 
   function clamp01(v) {
@@ -468,6 +539,61 @@
     img.alt = LABELS[i] ? `Bicchiere ${LABELS[i]}` : 'Bicchiere';
     img.className = cls;
     return img;
+  }
+
+  /** Freccia vettoriale della posizione `i` (vedi `ARROW_PATHS`). */
+  function createArrowIcon(i, cls) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 48 24');
+    svg.setAttribute('class', `mg-cup-game-arrow ${cls}`);
+    svg.setAttribute('aria-hidden', 'true');
+    const path = document.createElementNS(NS, 'path');
+    path.setAttribute('d', ARROW_PATHS[i] ?? ARROW_PATHS[1]);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', 'currentColor');
+    path.setAttribute('stroke-width', '5');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(path);
+    return svg;
+  }
+
+  /**
+   * Lettere sopra i bicchieri: una per posizione, sovrapposte alla scena (non
+   * dentro il riquadro, che il passaggio fra 2D e 3D svuota). Restano nascoste
+   * finché il palco non è in scelta (`.is-choosing`).
+   */
+  function buildLetterBadges(stage, labels) {
+    const layer = document.createElement('div');
+    layer.className = 'mg-cup-game-letters';
+    layer.setAttribute('aria-hidden', 'true');
+    const badges = [0, 1, 2].map((i) => {
+      const badge = document.createElement('span');
+      badge.className = 'mg-cup-game-letter';
+      badge.textContent = labels[i] ?? LABELS[i];
+      layer.appendChild(badge);
+      return badge;
+    });
+    stage.appendChild(layer);
+    return badges;
+  }
+
+  /**
+   * Mette ogni lettera sopra la testa del proprio bicchiere. Le coordinate le
+   * dà la scena che le ha disegnate (proiezione 3D o riquadri 2D), riportate
+   * sul palco: così seguono qualunque misura e qualunque inquadratura.
+   */
+  function placeLetterBadges(badges, stage, adapter) {
+    const anchors = adapter.slotAnchors();
+    if (!anchors) return;
+    const sr = stage.getBoundingClientRect();
+    if (sr.width === 0 || sr.height === 0) return;
+    anchors.forEach((a, i) => {
+      if (!badges[i]) return;
+      badges[i].style.left = `${(a.x - sr.left).toFixed(1)}px`;
+      badges[i].style.top = `${(a.y - sr.top).toFixed(1)}px`;
+    });
   }
 
   function isReducedMotionActive() {
@@ -1042,30 +1168,36 @@
 
   function applyKinematicsTo2D(dom2d, state) {
     const { cupEls, shadowEls, ballWrap } = dom2d;
-    const spreadPct = 128;
+    // Lo spostamento orizzontale si misura sulla larghezza del BICCHIERE, in
+    // px, per tutti e tre i pezzi. In percentuale ognuno si spostava di una
+    // frazione della propria larghezza: pallina e ombre, più strette dei
+    // bicchieri, restavano indietro, e nel finale la pallina compariva fra due
+    // bicchieri invece che sotto quello alzato. Letta prima di scrivere gli
+    // stili, la misura costa al più un ricalcolo per fotogramma.
+    const spreadPx = cupEls[0].offsetWidth * 1.28;
 
     for (let i = 0; i < 3; i++) {
       const c = state.cups[i];
-      const txPct = c.x * spreadPct;
+      const txPx = c.x * spreadPx;
       const tyPct = -c.y * 36 - c.z * 8;
       const deg = (c.rotZ * 180) / Math.PI - (c.rotX * 35);
       const scale = 1 + c.z * 0.08;
 
       cupEls[i].style.transform =
-        `translate3d(${txPct.toFixed(1)}%, ${tyPct.toFixed(1)}%, 0) rotate(${deg.toFixed(1)}deg) scale(${scale.toFixed(3)})`;
+        `translate3d(${txPx.toFixed(1)}px, ${tyPct.toFixed(1)}%, 0) rotate(${deg.toFixed(1)}deg) scale(${scale.toFixed(3)})`;
       cupEls[i].style.zIndex = c.z > 0.05 ? '4' : c.z < -0.05 ? '2' : '3';
 
       const sScale = Math.max(0.45, 1 - c.y * 0.25);
       shadowEls[i].style.transform =
-        `translate3d(${txPct.toFixed(1)}%, 0, 0) scale(${sScale.toFixed(2)})`;
+        `translate3d(${txPx.toFixed(1)}px, 0, 0) scale(${sScale.toFixed(2)})`;
       shadowEls[i].style.opacity = String(Math.max(0.18, 0.42 - c.y * 0.14));
     }
 
     if (state.ballVisible) {
-      const bxPct = state.ballX * spreadPct;
+      const bxPx = state.ballX * spreadPx;
       const byPct = -state.ballY * 42;
       ballWrap.style.opacity = '1';
-      ballWrap.style.transform = `translate3d(${bxPct.toFixed(1)}%, ${byPct.toFixed(1)}%, 0)`;
+      ballWrap.style.transform = `translate3d(${bxPx.toFixed(1)}px, ${byPct.toFixed(1)}%, 0)`;
     } else {
       ballWrap.style.opacity = '0';
     }
@@ -1080,6 +1212,7 @@
       timer: null,
       introTimer: null,
       ro: null,
+      lettersRo: null,
       uses3DCanvas: false,
     };
     if (hostEl) {
@@ -1107,6 +1240,10 @@
     if (session.ro) {
       session.ro.disconnect();
       session.ro = null;
+    }
+    if (session.lettersRo) {
+      session.lettersRo.disconnect();
+      session.lettersRo = null;
     }
     if (session.uses3DCanvas && sharedCanvas && sharedCanvas.parentNode) {
       sharedCanvas.parentNode.removeChild(sharedCanvas);
@@ -1223,6 +1360,35 @@
     }
 
     return {
+      /**
+       * Dove sta, sullo schermo, la testa del bicchiere di ogni posizione
+       * (sinistra, centro, destra), in px della finestra. Vale per i bicchieri
+       * fermi in fila, cioè per la fase di scelta.
+       * @returns {Array<{ x: number, y: number }> | null}
+       */
+      slotAnchors() {
+        if (using3D && graph3d && sharedCanvas && sharedCanvas.isConnected) {
+          const rect = sharedCanvas.getBoundingClientRect();
+          const camera = graph3d.camera;
+          camera.updateMatrixWorld();
+          const p = new THREE.Vector3();
+          return SLOT_X_3D.map((x) => {
+            p.set(x, CUP_TOP_Y, 0).project(camera);
+            return {
+              x: rect.left + ((p.x + 1) / 2) * rect.width,
+              y: rect.top + ((1 - p.y) / 2) * rect.height,
+            };
+          });
+        }
+        if (dom2d && dom2d.root2d.isConnected) {
+          return dom2d.cupEls
+            .map((el) => el.getBoundingClientRect())
+            .sort((a, b) => (a.left + a.right) - (b.left + b.right))
+            .map((r) => ({ x: r.left + r.width / 2, y: r.top }));
+        }
+        return null;
+      },
+
       paintPose(kinematics, dtMs = 16.6) {
         if (using3D && (!session.uses3DCanvas || contextLostInRound || shouldUse2DFallback(viewportEl))) {
           using3D = false;
@@ -1258,15 +1424,21 @@
     // Nessun nastro col nome sulla scheda in sala: la scena dei bicchieri si
     // presenta da sola, e il nome scritto sopra la distraeva.
     salaKicker: null,
+    // Tutto palco: le lettere stanno già sopra i bicchieri, e l'esito di ogni
+    // livello lo dice il verdetto sulla scena. Le tre carte sotto non
+    // servivano a nessuno, e la parata finale arrivava solo all'ultimo livello.
+    salaOptions: false,
     wheelIcon: CUP_ASSET,
+    audio: AUDIO,
 
     /**
-     * Restituisce un `<img>` nuovo di `cup.svg` a ogni chiamata (§6.2).
+     * La freccia della posizione, nuova a ogni chiamata: accanto alla lettera
+     * dice dove sta quel bicchiere (← A, — B, → C).
      * @param {number} i indice dell'opzione (0, 1, 2)
-     * @returns {HTMLImageElement}
+     * @returns {SVGSVGElement}
      */
     optionIcon(i) {
-      return createCupImg(i, 'mg-cup-game-icon');
+      return createArrowIcon(i, 'mg-cup-game-icon');
     },
 
     /**
@@ -1366,6 +1538,7 @@
 
         stage.append(viewport, intro);
         els.questionText.appendChild(stage);
+        const letters = buildLetterBadges(stage, Array.isArray(round?.options) ? round.options : LABELS);
 
         // Senza esito noto (o con l'anteprima già passata, es. una sala che si
         // ricollega a metà scelta) non c'è nulla da seguire: bicchieri coperti.
@@ -1376,6 +1549,7 @@
 
         if (hasShow) {
           stage.classList.add('is-intro');
+          playSfx(ctx, 'call');
           session.introTimer = setTimeout(() => {
             session.introTimer = null;
             stage.classList.remove('is-intro');
@@ -1383,11 +1557,35 @@
         }
         let currentPose = hasShow ? computeSuspenseKinematics(0) : coveredPose;
 
+        // A bicchieri fermi si sceglie: compaiono le lettere sopra ciascuno.
+        // Si riposizionano a ogni ridisegno della scena ferma (cambio di misura,
+        // passaggio da 2D a 3D quando three.js finisce di caricarsi).
+        let choosing = false;
         const adapter = mountStageAdapter(viewport, session, () => {
           adapter.paintPose(currentPose, 16.6);
+          if (choosing) placeLetterBadges(letters, stage, adapter);
         });
+        const startChoosing = () => {
+          choosing = true;
+          placeLetterBadges(letters, stage, adapter);
+          stage.classList.add('is-choosing');
+          playSfx(ctx, 'letters');
+        };
+        // Il palco può nascere in un pannello ancora nascosto (misura 0): le
+        // lettere si rimettono a posto appena prende la sua misura vera, e a
+        // ogni cambio successivo. Senza, nella scena 2D restavano ammucchiate
+        // nell'angolo, perché lì nessun ridisegno tardivo le riposizionava.
+        if (typeof ResizeObserver !== 'undefined') {
+          session.lettersRo = new ResizeObserver(() => {
+            if (choosing) placeLetterBadges(letters, stage, adapter);
+          });
+          session.lettersRo.observe(stage);
+        }
         adapter.paintPose(currentPose, 16.6);
-        if (!hasShow) return;
+        if (!hasShow) {
+          startChoosing();
+          return;
+        }
 
         let settled = false;
         const settle = () => {
@@ -1399,7 +1597,7 @@
           session.raf = null;
           currentPose = coveredPose;
           adapter.paintPose(currentPose, 16.6);
-          stage.classList.add('is-choosing');
+          startChoosing();
         };
 
         // L'arresto dei bicchieri non può dipendere dal solo rAF: quando il
@@ -1424,6 +1622,11 @@
         const swaps = generateSwapSequence(1, machineChoice, swapCount);
         const shuffleMs = shuffleEnd - shuffleStart;
         let lastFrameAt = startAt;
+        // Il bicchiere che si posa sulla pallina, poi un fruscio per scambio.
+        const cue = createCuePlayer([
+          { u: PREVIEW_PHASES.coverEnd, name: 'cover' },
+          ...swaps.map((sw) => ({ u: sw.startU, name: 'swap' })),
+        ], shuffleMs, ctx);
 
         const tick = () => {
           if (settled || !activeSessions.has(els.questionText) || isStale()) return;
@@ -1438,6 +1641,7 @@
             return;
           }
 
+          if (now >= shuffleStart) cue((now - shuffleStart) / shuffleMs);
           currentPose = now < shuffleStart
             ? computeSuspenseKinematics(now - startAt)
             : computeRevealKinematics((now - shuffleStart) / shuffleMs, swaps, machineChoice, PREVIEW_PHASES);
@@ -1497,6 +1701,7 @@
         let landed = false;
         let doneCalled = false;
         let currentPose = computeRevealKinematics(0, swaps, machineChoice, LIFT_PHASES);
+        const cue = createCuePlayer([{ u: LIFT_PHASES.pauseEnd, name: 'lift' }], activeMs, ctx);
 
         const adapter = mountStageAdapter(viewport, session, () => {
           adapter.paintPose(currentPose, 16.6);
@@ -1505,6 +1710,7 @@
         const triggerLand = () => {
           if (landed) return;
           landed = true;
+          playSfx(ctx, 'ball');
           currentPose = computeStaticFinalKinematics(machineChoice);
           adapter.paintPose(currentPose, 16.6);
 
@@ -1512,7 +1718,7 @@
           verdict.innerHTML = '';
           const kicker = document.createElement('span');
           kicker.className = 'mg-cup-game-verdict-kicker';
-          kicker.textContent = 'La pallina è a';
+          kicker.textContent = 'La pallina è sotto';
           const strong = document.createElement('strong');
           strong.textContent = (labels[machineChoice] ?? LABELS[machineChoice] ?? '—').toUpperCase();
           verdict.append(kicker, strong);
@@ -1564,10 +1770,26 @@
           }
 
           const u = clamp01((now - startAt) / activeMs);
+          cue(u);
           currentPose = computeRevealKinematics(u, swaps, machineChoice, LIFT_PHASES);
           adapter.paintPose(currentPose, dt);
           session.raf = requestAnimationFrame(frame);
         };
+
+        // Atterraggio e passaggio di mano anche a tempo d'orologio, come
+        // l'arresto dei bicchieri in `startSuspense`: con il solo rAF, una
+        // pagina che il browser rallenta (in secondo piano, Pi sotto sforzo)
+        // non atterrava mai e non chiamava `ctx.done()` — dopo l'ultimo
+        // livello la sala restava ferma senza parata né classifica.
+        session.timer = setTimeout(() => {
+          session.timer = null;
+          if (ctx.isStale()) return;
+          triggerLand();
+          session.timer = setTimeout(() => {
+            session.timer = null;
+            finishReveal();
+          }, Math.max(0, ctx.revealAt - Date.now()));
+        }, Math.max(0, landAt - Date.now()));
 
         frame();
       },
@@ -1607,9 +1829,8 @@
         if (els.correctAnswer) {
           els.correctAnswer.innerHTML = '';
           els.correctAnswer.append(
-            document.createTextNode('La pallina era sotto: '),
-            createCupImg(machineChoice, 'mg-cup-game-icon mg-cup-game-icon-inline'),
-            document.createTextNode(` ${chosenLabel}`)
+            document.createTextNode(`La pallina era sotto: ${chosenLabel} `),
+            createArrowIcon(machineChoice, 'mg-cup-game-arrow-inline')
           );
         }
       },
@@ -1622,15 +1843,16 @@
       renderChoice(btn, i, option) {
         const labelText = option || LABELS[i] || String(i + 1);
         btn.className = 'answer-btn mg-cup-game-choice';
-        btn.setAttribute('aria-label', labelText);
+        btn.setAttribute('aria-label', `${labelText}, il bicchiere ${POSITIONS[i] ?? ''}`.trim());
         btn.innerHTML = '';
 
-        const img = createCupImg(i, 'mg-cup-game-icon mg-cup-game-icon-choice');
+        // La lettera è la scelta (la stessa che in sala sta sopra il
+        // bicchiere); la freccia sotto ricorda dove sta.
         const span = document.createElement('span');
         span.className = 'mg-cup-game-choice-label';
         span.textContent = labelText;
 
-        btn.append(img, span);
+        btn.append(span, createArrowIcon(i, 'mg-cup-game-arrow-choice'));
       },
 
       /**
@@ -1651,8 +1873,8 @@
         if (mine && Number.isInteger(mine.optionIndex)) {
           const pickedLabel = LABELS[mine.optionIndex] ?? '—';
           wrap.append(
-            createCupImg(mine.optionIndex, 'mg-cup-game-icon mg-cup-game-icon-await'),
-            document.createTextNode(` Hai scelto: ${pickedLabel}`)
+            document.createTextNode(`Hai scelto: ${pickedLabel}`),
+            createArrowIcon(mine.optionIndex, 'mg-cup-game-arrow-await')
           );
         } else {
           wrap.textContent = 'Non hai risposto in tempo — guarda lo schermo!';
@@ -1680,7 +1902,7 @@
         if (!mine) {
           els.sticker.classList.add('is-neutral');
           els.text.textContent = 'Tempo scaduto!';
-          els.points.textContent = `La pallina era a ${machineLabel} · +0 punti`;
+          els.points.textContent = `La pallina era sotto ${machineLabel} · +0 punti`;
           return;
         }
 
@@ -1690,13 +1912,13 @@
           if (typeof window !== 'undefined' && window.Confetti) {
             window.Confetti.burst({ count: 70, power: 14 });
           }
-          els.points.textContent = `+${mine.pointsAwarded ?? 600} punti`;
+          els.points.textContent = `+${mine.pointsAwarded ?? 0} punti`;
           return;
         }
 
         els.sticker.classList.add('is-wrong');
         els.text.textContent = 'HAI PERSO';
-        els.points.textContent = `La pallina era a ${machineLabel} · +${mine.pointsAwarded ?? 0} punti`;
+        els.points.textContent = `La pallina era sotto ${machineLabel} · +${mine.pointsAwarded ?? 0} punti`;
       },
     },
   };
