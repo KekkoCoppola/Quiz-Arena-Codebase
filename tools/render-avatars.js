@@ -31,13 +31,29 @@ const OUT_DIR = path.join(ROOT, 'resources', 'img', 'avatars');
 const PORT = 3999;
 
 /**
- * sm: liste, pedine, classifiche (mostrato a ~30-60 px).
- * lg: la scelta sul telefono e il podio (fino a ~180 px a densità 2-3).
+ * face: solo la testa, inquadrata da vicino — i mini avatar (pedine sulle
+ *       risposte, lobby, classifiche, badge), mostrati a ~20-70 px. A quella
+ *       misura il corpo intero era un francobollo; la testa porta già tutto
+ *       quello che distingue un giocatore: il colore e l'espressione.
+ * lg:   il personaggio intero, per la scelta sul telefono (fino a ~180 px a
+ *       densità 2-3).
  */
-const SIZES = Object.freeze([
-  Object.freeze({ name: 'sm', w: 128, h: 160 }),
-  Object.freeze({ name: 'lg', w: 432, h: 540 }),
+const ALL_SIZES = Object.freeze([
+  // Orizzontale come la testa del modello (più larga che alta): in un quadrato
+  // occupava solo la fascia di mezzo e restava piccola accanto al nome.
+  Object.freeze({ name: 'face', w: 176, h: 128, head: true }),
+  Object.freeze({ name: 'lg', w: 432, h: 540, head: false }),
 ]);
+
+/** `node tools/render-avatars.js face` rigenera solo quella misura. */
+const requested = process.argv.slice(2);
+const SIZES = requested.length
+  ? ALL_SIZES.filter((s) => requested.includes(s.name))
+  : ALL_SIZES;
+if (SIZES.length === 0) {
+  console.error(`  Misura sconosciuta: ${requested.join(', ')}. Disponibili: ${ALL_SIZES.map((s) => s.name).join(', ')}`);
+  process.exit(1);
+}
 
 /** Il personaggio degli id sconosciuti: lo stesso grigio di avatar-sprite.js. */
 const NEUTRAL = Object.freeze({ name: 'neutral', hex: '#d4d2ea', face: 'happy' });
@@ -72,9 +88,32 @@ key.position.set(2.5, 4, 5);
 scene.add(key);
 
 // Di tre quarti appena accennati: si vede che è un solido, e la faccia resta leggibile.
-const camera = new THREE.PerspectiveCamera(28, 4 / 5, 0.1, 50);
-camera.position.set(0, 1.05, 4.5);
-camera.lookAt(0, 0.8, 0);
+const bodyCamera = new THREE.PerspectiveCamera(28, 4 / 5, 0.1, 50);
+bodyCamera.position.set(0, 1.05, 4.5);
+bodyCamera.lookAt(0, 0.8, 0);
+
+// La testa da vicino, appena dall'alto: il blocco del modello va da ~0.77 a
+// ~1.59 m, e girato di poco resta largo circa 1,35 m. Campo verticale scelto
+// perché in 11:8 la larghezza entri con un filo di margine.
+const headCamera = new THREE.PerspectiveCamera(15, 176 / 128, 0.1, 50);
+headCamera.position.set(0, 1.42, 4.1);
+headCamera.lookAt(0, 1.19, 0);
+
+/** Sotto questa quota sta il corpo: nel ritratto della testa non si disegna. */
+const HEAD_MIN_Y = 0.95;
+
+/** Nasconde tutto ciò che non è la testa (corpo, braccia, ombra a terra). */
+function showHeadOnly(group, headOnly) {
+  group.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  const center = new THREE.Vector3();
+  group.traverse((o) => {
+    if (!o.isMesh) return;
+    if (!headOnly) { o.visible = true; return; }
+    box.setFromObject(o).getCenter(center);
+    o.visible = center.y >= HEAD_MIN_Y;
+  });
+}
 
 const jobs = [];
 for (const c of AvatarCatalog.COLORS) {
@@ -85,11 +124,13 @@ jobs.push(NEUTRAL);
 let done = 0;
 for (const job of jobs) {
   const mii = MiiCharacter3D.createMii(THREE, { skinColor: job.hex, expression: job.face });
-  mii.group.rotation.y = -0.32;
   scene.add(mii.group);
   for (const s of SIZES) {
+    // La testa da sola gira meno: la faccia deve leggersi anche a 20 px.
+    mii.group.rotation.y = s.head ? -0.22 : -0.32;
+    showHeadOnly(mii.group, s.head);
     renderer.setSize(s.w, s.h, false);
-    renderer.render(scene, camera);
+    renderer.render(scene, s.head ? headCamera : bodyCamera);
     const blob = await new Promise((r) => renderer.domElement.toBlob(r, 'image/png'));
     const res = await fetch('/save?size=' + s.name + '&name=' + job.name, { method: 'POST', body: blob });
     if (!res.ok) throw new Error('salvataggio rifiutato: ' + job.name);

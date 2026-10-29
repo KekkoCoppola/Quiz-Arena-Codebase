@@ -49,8 +49,10 @@ classifica e bot non cambiano forma: `"<colore>:<faccia>"`, es. `"sunny_yellow:h
   2D su canvas): il telefono non deve scaricare nulla oltre alla pagina e alle sue
   immagini, quindi niente three.js sui client. `tools/render-avatars.js` apre una pagina
   locale che disegna con three.js ogni combinazione (96 + il neutro) e salva i PNG in
-  `resources/img/avatars/{sm,lg}/<colore>-<faccia>.png`: `sm` 128×160 (~13 KB, liste e
-  pedine), `lg` 432×540 (~60 KB, la scelta e il podio). Si rilancia quando cambia il
+  `resources/img/avatars/{face,lg}/<colore>-<faccia>.png`: `face` 176×128, **solo la
+  testa** (decisione dell'utente: nei mini avatar — pedine sulle risposte, liste,
+  badge — il corpo intero era troppo piccolo per leggersi), `lg` 432×540 (~60 KB, il
+  personaggio intero per la scelta sul telefono). Si rilancia quando cambia il
   catalogo o il modello.
 - `client/shared/avatar-sprite.js` — sceglie il file: `AvatarSprite.fill(el, id)` mette un
   `<img>` alto ~1,25em nell'elemento, quindi ogni punto che aveva

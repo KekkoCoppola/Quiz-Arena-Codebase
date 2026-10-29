@@ -15,8 +15,8 @@
  * Richiede, caricato prima: avatar-catalog.js.
  *
  * API:
- *   AvatarSprite.url(avatarId, size)   percorso del PNG ('sm' | 'lg', default 'sm')
- *   AvatarSprite.fill(el, avatarId)    mette il ritratto dentro `el`, alto 1,25em:
+ *   AvatarSprite.url(avatarId, size)   percorso del PNG ('face' | 'lg', default 'face')
+ *   AvatarSprite.fill(el, avatarId)    mette la TESTA (11:8) dentro `el`, alta 1,25em:
  *                                      la misura la dà il font-size che
  *                                      l'elemento aveva per l'emoji
  *   AvatarSprite.preload(avatarId, size)  scarica in anticipo (frecce della scelta)
@@ -28,7 +28,8 @@
   if (root) root.AvatarSprite = api;
 })(typeof self !== 'undefined' ? self : this, function (root) {
   const BASE = '/resources/img/avatars';
-  const SIZES = Object.freeze(['sm', 'lg']);
+  // face: solo la testa, per i mini avatar; lg: il personaggio intero, per la scelta.
+  const SIZES = Object.freeze(['face', 'lg']);
 
   /** Id sconosciuto o rotto: il personaggio neutro, mai un'immagine rotta in sala. */
   const NEUTRAL = 'neutral';
@@ -42,8 +43,8 @@
     return parsed ? `${parsed.color.id}-${parsed.face.id}` : NEUTRAL;
   }
 
-  function url(avatarId, size = 'sm') {
-    const s = SIZES.includes(size) ? size : 'sm';
+  function url(avatarId, size = 'face') {
+    const s = SIZES.includes(size) ? size : 'face';
     return `${BASE}/${s}/${fileName(avatarId)}.png`;
   }
 
@@ -51,13 +52,17 @@
     if (!el) return;
     const img = document.createElement('img');
     img.className = 'avatar-sprite';
-    img.src = url(avatarId, 'sm');
+    img.src = url(avatarId, 'face');
     img.alt = '';
     img.draggable = false;
     img.decoding = 'async';
     img.style.height = '1.25em';
     img.style.width = 'auto';
-    img.style.aspectRatio = '4 / 5';
+    img.style.aspectRatio = '11 / 8';
+    // In un contenitore stretto (le pedine tonde) la testa si restringe invece
+    // di sbordare: resta intera, solo più piccola.
+    img.style.maxWidth = '100%';
+    img.style.objectFit = 'contain';
     img.style.verticalAlign = 'middle';
     el.replaceChildren(img);
   }

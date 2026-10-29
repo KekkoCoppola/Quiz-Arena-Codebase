@@ -60,8 +60,8 @@ for (const size of Sprite.SIZES) {
   assert(missing.length === 0, `${size}: ${names.length} ritratti presenti` + (missing.length ? ` — mancano: ${missing.join(', ')}` : ''));
 }
 assert(Sprite.url('sunny_yellow:happy', 'lg') === '/resources/img/avatars/lg/sunny_yellow-happy.png', 'url: percorso del ritratto');
-assert(Sprite.url('volpe') === '/resources/img/avatars/sm/neutral.png', 'url: id sconosciuto → personaggio neutro');
-assert(Sprite.url('sunny_yellow:happy', 'xl').includes('/sm/'), 'url: misura sconosciuta → sm');
+assert(Sprite.url('volpe') === '/resources/img/avatars/face/neutral.png', 'url: id sconosciuto → personaggio neutro');
+assert(Sprite.url('sunny_yellow:happy', 'xl').includes('/face/'), 'url: misura sconosciuta → la testa');
 
 console.log('\n  Bot');
 const botAvatars = Array.from({ length: 19 }, (_, i) => TestBots.identity(i).avatar);
