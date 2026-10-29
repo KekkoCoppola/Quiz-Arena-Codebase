@@ -5,10 +5,11 @@
  *
  * Cosa rende valido un avatar. Decisioni pure — nessun DOM, nessun disegno.
  *
- * L'avatar è il personaggio di mii-character.js: una divisa uguale per tutti,
- * un COLORE della pelle e un'ESPRESSIONE sulla faccia. Viaggia come una stringa
- * opaca `"<colore>:<faccia>"` (es. `"sunny_yellow:happy"`), così protocollo,
- * rientro, classifica e bot non cambiano forma: solo chi lo disegna la apre.
+ * L'avatar è il personaggio di mii-character.js: un COLORE della pelle,
+ * un'ESPRESSIONE sulla faccia e un OUTFIT (la stessa divisa, in altri colori).
+ * Viaggia come una stringa opaca `"<colore>:<faccia>:<outfit>"` (es.
+ * `"sunny_yellow:happy:sport"`), così protocollo, rientro, classifica e bot non
+ * cambiano forma: solo chi lo disegna la apre.
  *
  * Caricato come <script> dalle tre SPA (espone window.AvatarCatalog) e come
  * modulo CommonJS da server/game.js, che è l'unico a decidere se un avatar
@@ -53,26 +54,43 @@
     Object.freeze({ id: 'nervous',   label: 'Nervoso' }),
   ]);
 
+  /**
+   * Gli outfit, nell'ordine delle frecce sul corpo. Il primo è la divisa del
+   * modello originale. I colori di ognuno stanno in OUTFIT_PRESETS di
+   * mii-character.js, con lo stesso id.
+   */
+  const OUTFITS = Object.freeze([
+    Object.freeze({ id: 'classic',  label: 'Classico' }),
+    Object.freeze({ id: 'sport',    label: 'Sportivo' }),
+    Object.freeze({ id: 'denim',    label: 'Jeans' }),
+    Object.freeze({ id: 'explorer', label: 'Esploratore' }),
+    Object.freeze({ id: 'elegant',  label: 'Elegante' }),
+  ]);
+
   const SEPARATOR = ':';
 
   const colorById = new Map(COLORS.map((c) => [c.id, c]));
   const faceById = new Map(FACES.map((f) => [f.id, f]));
+  const outfitById = new Map(OUTFITS.map((o) => [o.id, o]));
 
-  function encode(colorId, faceId) {
-    return `${colorId}${SEPARATOR}${faceId}`;
+  function encode(colorId, faceId, outfitId = OUTFITS[0].id) {
+    return [colorId, faceId, outfitId].join(SEPARATOR);
   }
 
   /**
-   * @returns {{ color: object, face: object } | null} null se la stringa non
-   *   è un avatar del catalogo — mai un'eccezione: chi disegna degrada.
+   * @returns {{ color: object, face: object, outfit: object } | null} null se
+   *   la stringa non è un avatar del catalogo — mai un'eccezione: chi disegna
+   *   degrada. `"<colore>:<faccia>"` senza outfit è ancora valido, con la divisa
+   *   classica: è la scelta che i telefoni hanno salvato prima degli outfit.
    */
   function parse(avatarId) {
     if (typeof avatarId !== 'string') return null;
     const parts = avatarId.split(SEPARATOR);
-    if (parts.length !== 2) return null;
+    if (parts.length !== 2 && parts.length !== 3) return null;
     const color = colorById.get(parts[0]);
     const face = faceById.get(parts[1]);
-    return color && face ? { color, face } : null;
+    const outfit = parts.length === 2 ? OUTFITS[0] : outfitById.get(parts[2]);
+    return color && face && outfit ? { color, face, outfit } : null;
   }
 
   function isValid(avatarId) {
@@ -83,8 +101,9 @@
   function random(rnd = Math.random) {
     const color = COLORS[Math.floor(rnd() * COLORS.length)];
     const face = FACES[Math.floor(rnd() * FACES.length)];
-    return encode(color.id, face.id);
+    const outfit = OUTFITS[Math.floor(rnd() * OUTFITS.length)];
+    return encode(color.id, face.id, outfit.id);
   }
 
-  return Object.freeze({ COLORS, FACES, encode, parse, isValid, random });
+  return Object.freeze({ COLORS, FACES, OUTFITS, encode, parse, isValid, random });
 });
