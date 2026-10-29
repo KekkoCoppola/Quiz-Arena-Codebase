@@ -16,7 +16,7 @@
  * (`/shared/minigames/`) e delega.
  */
 
-/* global io, qrcode, Minigames, AudioLogic, SalaAudio, FinalSchedule, ServerClock */
+/* global io, qrcode, Minigames, AudioLogic, SalaAudio, FinalSchedule, ServerClock, AvatarSprite */
 
 // ─── Elementi ────────────────────────────────────────────────────────────────
 
@@ -76,13 +76,8 @@ const minigameEls = () => ({
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
-// Mappa avatar: id stabile → emoji TEMPORANEA (identica alle altre due SPA).
-const AVATARS = {
-  volpe: '🦊', panda: '🐼', rana: '🐸', polpo: '🐙',
-  leone: '🦁', pinguino: '🐧', koala: '🐨', tigre: '🐯',
-  unicorno: '🦄', gufo: '🦉', granchio: '🦀', balena: '🐳',
-};
-const avatarOf = (id) => AVATARS[id] ?? '❓';
+// L'avatar è il personaggio (colore + espressione): lo disegna AvatarSprite.fill,
+// in ogni punto in cui prima c'era un'emoji.
 
 let currentOptions  = [];
 let currentMinigame = null;
@@ -451,7 +446,7 @@ function renderLobby(players) {
       + (isNew ? ' is-new' : '');
     const av = document.createElement('span');
     av.className = 'avatar';
-    av.textContent = avatarOf(p.avatar);
+    AvatarSprite.fill(av, p.avatar);
     const name = document.createElement('span');
     name.textContent = p.nickname;
     li.append(av, name);
@@ -793,7 +788,7 @@ function flyAvatarToOption(answer, avatarId) {
     // strada.
     seat = document.createElement('span');
     seat.className = 'sala-option-seat is-incoming';
-    seat.textContent = avatarOf(avatarId);
+    AvatarSprite.fill(seat, avatarId);
     seat.title = answer.nickname ?? '';
     tray.appendChild(seat);
   }
@@ -804,7 +799,7 @@ function flyAvatarToOption(answer, avatarId) {
 
   const flyer = document.createElement('span');
   flyer.className = 'sala-flying-avatar';
-  flyer.textContent = avatarOf(avatarId);
+  AvatarSprite.fill(flyer, avatarId);
   flyer.style.left = `${from.left}px`;
   flyer.style.top = `${from.top}px`;
   flyer.style.width = `${from.width}px`;
@@ -862,7 +857,7 @@ function runParade(results, token, onDone) {
     const avatarId = answerAvatar(answer, results);
     sceneWait(() => {
       if (AudioLogic.isStale(token, phaseToken)) return;
-      els.paradeAvatar.textContent = avatarOf(avatarId);
+      AvatarSprite.fill(els.paradeAvatar, avatarId);
       els.paradeName.textContent = answer.nickname ?? '';
       // Riavvia le due animazioni (entrata della card, dissolvenza del nome).
       els.paradeCard.classList.remove('is-running');
@@ -1020,7 +1015,7 @@ function buildStandingsRow(row) {
 
   const avatar = document.createElement('span');
   avatar.className = 'sala-rank-avatar';
-  avatar.textContent = avatarOf(row.avatar);
+  AvatarSprite.fill(avatar, row.avatar);
 
   const name = document.createElement('span');
   name.className = 'sala-rank-name';
@@ -1297,7 +1292,7 @@ function buildPodiumStep(p, rank) {
 
   const av = document.createElement('span');
   av.className = 'avatar fc-avatar';
-  av.textContent = avatarOf(p.avatar);
+  AvatarSprite.fill(av, p.avatar);
 
   const name = document.createElement('span');
   name.className = 'name fc-name';
@@ -1351,7 +1346,9 @@ function fitPodiumNames(container) {
 function buildTailRow(p) {
   const li = document.createElement('li');
   li.className = 'fc-enter';
-  li.textContent = `${p.rank}. ${avatarOf(p.avatar)} ${p.nickname} — ${p.score} punti`;
+  const av = document.createElement('span');
+  AvatarSprite.fill(av, p.avatar);
+  li.append(`${p.rank}. `, av, ` ${p.nickname} — ${p.score} punti`);
   return li;
 }
 

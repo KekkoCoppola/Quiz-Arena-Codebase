@@ -25,11 +25,11 @@ const {
   InvalidNicknameError,
   EmptyQuizError,
   NotEnoughPlayersError,
-  AVATAR_IDS,
   InvalidAvatarError,
   InvalidMinigameTypeError,
   AnswersNotOpenError,
 } = require('../server/game');
+const AvatarCatalog = require('../client/shared/avatar-catalog');
 
 // ─── Setup ───────────────────────────────────────────────────────────────────────
 
@@ -173,18 +173,20 @@ function run() {
   // 8. Avatar e connessione (Fase 7)
   console.log('\n  🦊  Fase 8: Avatar e connessione');
   const g8 = new GameSession(QUIZ);
-  assert(Array.isArray(AVATAR_IDS) && AVATAR_IDS.length === 12, 'AVATAR_IDS: 12 avatar precaricati');
-  assert(Object.isFrozen(AVATAR_IDS), 'AVATAR_IDS: lista immutabile');
 
-  const pA = g8.addPlayer('Alice', 'volpe');
-  assert(pA.avatar === 'volpe', 'addPlayer: avatar scelto registrato');
+  const pA = g8.addPlayer('Alice', 'sunny_yellow:happy');
+  assert(pA.avatar === 'sunny_yellow:happy', 'addPlayer: avatar scelto registrato');
   assert(pA.connected === true, 'addPlayer: player nasce connesso');
 
   const pB = g8.addPlayer('Bob');
-  assert(AVATAR_IDS.includes(pB.avatar), 'addPlayer senza avatar: assegnato un avatar valido');
+  assert(AvatarCatalog.isValid(pB.avatar), 'addPlayer senza avatar: estratto un avatar valido');
 
   assertThrows(() => g8.addPlayer('Carl', 'dinosauro'), InvalidAvatarError,
     'addPlayer: avatar sconosciuto lancia InvalidAvatarError');
+  assertThrows(() => g8.addPlayer('Carl', 'volpe'), InvalidAvatarError,
+    'addPlayer: i vecchi id emoji non sono più avatar');
+  assertThrows(() => g8.addPlayer('Carl', 'sunny_yellow:dinosauro'), InvalidAvatarError,
+    'addPlayer: colore valido ma faccia sconosciuta lancia InvalidAvatarError');
 
   g8.setPlayerConnected(pA.id, false);
   assert(g8.players.get(pA.id).connected === false, 'setPlayerConnected(false) applicato');
@@ -451,7 +453,7 @@ function run() {
   };
 
   const sessioneImg = new GameSession(quizConImmagine);
-  sessioneImg.addPlayer('Tester', 'volpe');
+  sessioneImg.addPlayer('Tester', 'coral_red:cool');
   sessioneImg.startGame();
 
   const round0 = sessioneImg.getCurrentRound();

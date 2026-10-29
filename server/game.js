@@ -47,13 +47,12 @@ const POINTS_MIN = 100;
 const MAX_NICKNAME_LENGTH = 20;
 
 /**
- * Avatar precaricati (Fase 7). Il server conosce solo gli id stabili;
- * la resa visiva (oggi emoji, domani SVG) è responsabilità dei client.
+ * L'avatar è il personaggio (colore + espressione) come stringa opaca
+ * `"<colore>:<faccia>"`. Il server la valida soltanto: il disegno è dei client.
+ * Il catalogo è condiviso con loro, così il telefono non può proporre una
+ * combinazione che qui verrebbe rifiutata.
  */
-const AVATAR_IDS = Object.freeze([
-  'volpe', 'panda', 'rana', 'polpo', 'leone', 'pinguino',
-  'koala', 'tigre', 'unicorno', 'gufo', 'granchio', 'balena',
-]);
+const AvatarCatalog = require('../client/shared/avatar-catalog');
 
 // ─── Stati ────────────────────────────────────────────────────────────────────────
 
@@ -329,7 +328,7 @@ class GameSession {
   /**
    * Aggiunge un giocatore alla lobby. Consentito solo in stato LOBBY.
    * @param {string} nickname
-   * @param {string | null} [avatarId] id da AVATAR_IDS; se assente ne viene assegnato uno casuale
+   * @param {string | null} [avatarId] avatar del catalogo (`"<colore>:<faccia>"`); se assente ne viene estratto uno a caso
    * @returns {{ id: string, nickname: string, avatar: string, score: number, connected: boolean }}
    */
   addPlayer(nickname, avatarId = null) {
@@ -352,8 +351,10 @@ class GameSession {
 
     let avatar = avatarId;
     if (avatar === null || avatar === undefined) {
-      avatar = AVATAR_IDS[Math.floor(Math.random() * AVATAR_IDS.length)];
-    } else if (!AVATAR_IDS.includes(avatar)) {
+      // Math.random e non this._rnd: il generatore iniettato è delle decisioni
+      // di gioco, e un giocatore in più non deve spostarne la sequenza nei test.
+      avatar = AvatarCatalog.random();
+    } else if (!AvatarCatalog.isValid(avatar)) {
       throw new InvalidAvatarError();
     }
 
@@ -697,7 +698,6 @@ module.exports = {
   POINTS_MAX,
   POINTS_MIN,
   MAX_NICKNAME_LENGTH,
-  AVATAR_IDS,
   // Riesportati dal registry (`server/minigames/`) per comodità dei consumer
   // storici — routes/host.js e i test importavano già questi nomi da qui.
   MINIGAME_TYPES,

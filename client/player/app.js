@@ -8,15 +8,10 @@
  * feedback con posizione, podio finale, riavvio, riconnessione con token.
  */
 
-/* global io, Minigames, ServerClock */
+/* global io, Minigames, ServerClock, AvatarCatalog, AvatarSprite */
 
-// Mappa avatar: id stabile → emoji TEMPORANEA (futuri SVG: cambiare solo qui).
-const AVATARS = {
-  volpe: '🦊', panda: '🐼', rana: '🐸', polpo: '🐙',
-  leone: '🦁', pinguino: '🐧', koala: '🐨', tigre: '🐯',
-  unicorno: '🦄', gufo: '🦉', granchio: '🦀', balena: '🐳',
-};
-const avatarOf = (id) => AVATARS[id] ?? '❓';
+// L'avatar è il personaggio (colore + espressione, client/shared/avatar-catalog.js):
+// lo disegna AvatarSprite.fill, ovunque prima c'era un'emoji.
 
 const SESSION_KEY = 'quizzata-player';
 
@@ -51,7 +46,10 @@ const screens = {
 };
 
 const nicknameInput     = document.getElementById('nickname-input');
-const avatarGrid        = document.getElementById('avatar-grid');
+const avatarPortrait    = document.getElementById('avatar-portrait');
+const avatarPrev        = document.getElementById('avatar-prev');
+const avatarNext        = document.getElementById('avatar-next');
+const avatarColors      = document.getElementById('avatar-colors');
 const joinBtn           = document.getElementById('join-btn');
 const joinError         = document.getElementById('join-error');
 const lobbyPlayers      = document.getElementById('lobby-players');
@@ -135,7 +133,7 @@ function renderMeBadge(nickname, avatar) {
   lobbyMe.innerHTML = '';
   const av = document.createElement('span');
   av.className = 'avatar';
-  av.textContent = avatarOf(avatar);
+  AvatarSprite.fill(av, avatar);
   const name = document.createElement('span');
   name.textContent = nickname;
   lobbyMe.append(av, name);
@@ -144,39 +142,76 @@ function renderMeBadge(nickname, avatar) {
 function renderPlayerBadge(p) {
   const li = document.createElement('li');
   const av = document.createElement('span');
-  av.textContent = avatarOf(p.avatar);
+  AvatarSprite.fill(av, p.avatar);
   const name = document.createElement('span');
   name.textContent = p.nickname;
   li.append(av, name);
   return li;
 }
 
-// ─── Avatar picker ───────────────────────────────────────────────────────────
+// ─── Scelta del personaggio ──────────────────────────────────────────────────
+// Le frecce ai lati della faccia scorrono le espressioni (in cerchio), i
+// pallini sotto scelgono il colore. Si parte dall'ultima scelta fatta su
+// questo telefono, o da una combinazione a caso: chi va di fretta tocca
+// "Entra" e basta.
 
-function buildAvatarGrid() {
-  const ids = Object.keys(AVATARS);
-  const preselected = ids[Math.floor(Math.random() * ids.length)];
-  for (const id of ids) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'avatar-option';
-    btn.dataset.avatarId = id;
-    btn.setAttribute('role', 'radio');
-    btn.setAttribute('aria-label', id);
-    btn.textContent = avatarOf(id);
-    btn.addEventListener('click', () => selectAvatar(id));
-    avatarGrid.appendChild(btn);
-  }
-  selectAvatar(preselected);
+const AVATAR_KEY = 'quizzata-avatar';
+
+const avatarPick = { color: 0, face: 0 };
+
+function loadAvatarChoice() {
+  try { return AvatarCatalog.parse(localStorage.getItem(AVATAR_KEY)); }
+  catch { return null; }
+}
+function saveAvatarChoice(id) {
+  try { localStorage.setItem(AVATAR_KEY, id); }
+  catch { /* senza memoria la prossima volta si riparte a caso: va bene */ }
 }
 
-function selectAvatar(id) {
-  selectedAvatar = id;
-  for (const el of avatarGrid.children) {
-    const selected = el.dataset.avatarId === id;
+function buildAvatarPicker() {
+  const { COLORS, FACES } = AvatarCatalog;
+  const start = loadAvatarChoice() ?? AvatarCatalog.parse(AvatarCatalog.random());
+  avatarPick.color = COLORS.indexOf(start.color);
+  avatarPick.face = FACES.indexOf(start.face);
+
+  COLORS.forEach((c, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'avatar-swatch';
+    btn.setAttribute('role', 'radio');
+    btn.setAttribute('aria-label', c.label);
+    btn.style.setProperty('--swatch', c.hex);
+    btn.addEventListener('click', () => { avatarPick.color = i; renderAvatarPick(); });
+    avatarColors.appendChild(btn);
+  });
+
+  const step = (delta) => {
+    avatarPick.face = (avatarPick.face + delta + FACES.length) % FACES.length;
+    renderAvatarPick();
+  };
+  avatarPrev.addEventListener('click', () => step(-1));
+  avatarNext.addEventListener('click', () => step(1));
+
+  renderAvatarPick();
+}
+
+function renderAvatarPick() {
+  const color = AvatarCatalog.COLORS[avatarPick.color];
+  const face = AvatarCatalog.FACES[avatarPick.face];
+  selectedAvatar = AvatarCatalog.encode(color.id, face.id);
+  avatarPortrait.src = AvatarSprite.url(selectedAvatar, 'lg');
+  avatarPortrait.alt = `Il tuo personaggio: ${face.label}, ${color.label}`;
+  // Le facce accanto si scaricano adesso: al tocco della freccia sono già qui.
+  const { FACES } = AvatarCatalog;
+  for (const d of [-1, 1]) {
+    const near = FACES[(avatarPick.face + d + FACES.length) % FACES.length];
+    AvatarSprite.preload(AvatarCatalog.encode(color.id, near.id), 'lg');
+  }
+  [...avatarColors.children].forEach((el, i) => {
+    const selected = i === avatarPick.color;
     el.classList.toggle('selected', selected);
     el.setAttribute('aria-checked', String(selected));
-  }
+  });
 }
 
 // ─── Join ────────────────────────────────────────────────────────────────────
@@ -194,6 +229,7 @@ joinBtn.addEventListener('click', () => {
     }
     playerId = res.playerId;
     saveSession({ token: res.token, playerId, nickname, avatar: res.avatar });
+    saveAvatarChoice(res.avatar);
     joinError.hidden = true;
     renderMeBadge(nickname, res.avatar);
     show('lobby');
@@ -481,7 +517,7 @@ function buildMyResultCard(me, total) {
   who.className = 'final-me-who';
   const av = document.createElement('span');
   av.className = 'avatar';
-  av.textContent = avatarOf(me.avatar);
+  AvatarSprite.fill(av, me.avatar);
   const text = document.createElement('div');
   const name = document.createElement('div');
   name.className = 'name';
@@ -532,7 +568,7 @@ function renderFinalResult(entries) {
     pos.className = 'pos';
     pos.textContent = String(p.rank);
     const av = document.createElement('span');
-    av.textContent = avatarOf(p.avatar);
+    AvatarSprite.fill(av, p.avatar);
     const name = document.createElement('span');
     name.className = 'name';
     name.textContent = p.nickname;
@@ -717,4 +753,4 @@ socket.on('disconnect', () => {
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 
-buildAvatarGrid();
+buildAvatarPicker();

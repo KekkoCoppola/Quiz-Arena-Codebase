@@ -195,9 +195,9 @@ async function run() {
     // Ricrea la partita (il tentativo fallito non deve aver lasciato stato sporco)
     await emitAck(host, 'host:create-game', { quizId, quizType: 'preloaded' });
 
-    const joined1 = await emitAck(p1, 'player:join', { nickname: 'Alice', avatarId: 'volpe' });
+    const joined1 = await emitAck(p1, 'player:join', { nickname: 'Alice', avatarId: 'coral_red:cool' });
     assert(joined1.ok === true && typeof joined1.playerId === 'string'
-      && typeof joined1.token === 'string' && joined1.avatar === 'volpe',
+      && typeof joined1.token === 'string' && joined1.avatar === 'coral_red:cool',
       'Alice entra in lobby (con token e avatar)');
 
     const dup = await emitAck(p2, 'player:join', { nickname: 'alice' });
@@ -447,7 +447,7 @@ async function run() {
     await emitAck(host, 'host:create-game', { quizId, quizType: 'preloaded' });
     const p9 = ioc(URL); sockets.push(p9);
     await once(p9, 'connect');
-    await emitAck(p9, 'player:join', { nickname: 'Umano', avatarId: 'gufo' });
+    await emitAck(p9, 'player:join', { nickname: 'Umano', avatarId: 'lime_green:wink' });
 
     const botsAck = await emitAck(host, 'host:spawn-bots', { count: 5 });
     assert(botsAck.ok === true && botsAck.added === 5, 'host:spawn-bots: 5 giocatori aggiunti');

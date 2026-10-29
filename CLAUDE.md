@@ -25,9 +25,11 @@ node tools/test-db.js        # smoke test del layer dati SQLite (server/quiz-man
 node tools/test-audio.js     # smoke test delle decisioni pure del comparto audio (vista sala)
 npm run test:final           # calendario della premiazione finale (puro) + invarianti anti-spoiler
 npm run test:clock           # correzione dello scarto fra orologi server/client (puro)
+npm run test:avatar          # catalogo dell'avatar (colori, facce, validazione) e avatar dei bot (puro)
 node tools/create-host.js    # crea un account host offline (username/password) — unico modo per provisionare un host
 node tools/check-quizzes.js  # valida i quiz di sistema in content/quizzes/ e stampa un referto
 node tools/make-minigame-audio.js  # rigenera colonne sonore ed effetti dei minigiochi (serve ffmpeg, solo per la musica OGG)
+node tools/render-avatars.js # rigenera i PNG dell'avatar dal modello 3D (poi aprire http://localhost:3999 in un browser con WebGL)
 npm run test:quizzes         # schema del quiz + lettura dei file (puro, nessun DB)
 ```
 
@@ -68,6 +70,15 @@ Dieci clic ravvicinati sul logo in cima alla **schermata di partita** del pannel
 - **Non hanno socket.** Esistono solo dentro la `GameSession`, quindi `countConnected()` li conta (`p.connected`, non i socket) e il round aspetta anche loro — per questo il ritardo di risposta è limitato al 60% del tempo, altrimenti terrebbero in ostaggio chi gioca davvero. Sopravvivono a `host:restart-game` (rimessi in campo con nuovi id) perché il loro scopo è provare la partita più volte di fila.
 
 Il gesto è nascosto e non un bottone perché non è una funzione del prodotto ma un attrezzo. Il conteggio si azzera dopo 1,5 s di pausa: dieci clic devono essere una raffica sola, così non scatta per sbaglio davanti a una sala. A partita già avviata il gesto non fallisce in silenzio: il rifiuto del server arriva come toast e dice che si entra solo dalla lobby.
+
+### L'avatar: il personaggio, non un'emoji
+
+L'avatar è il personaggio di `client/shared/mii-character.js`: divisa uguale per tutti, **colore** della pelle ed **espressione** sulla faccia. Viaggia come stringa opaca `"<colore>:<faccia>"` (es. `"sunny_yellow:happy"`), quindi protocollo, rientro, classifica e bot non hanno cambiato forma. Design in [docs/superpowers/specs/2026-10-29-avatar-personaggio-design.md](docs/superpowers/specs/2026-10-29-avatar-personaggio-design.md).
+
+- **`client/shared/avatar-catalog.js`** è l'unica definizione di avatar valido (8 colori, 12 facce), modulo puro caricato anche da `server/game.js`, che rifiuta tutto il resto con `InvalidAvatarError`. Per aggiungere un colore o una faccia si tocca il catalogo; una faccia nuova va disegnata anche in `draw2DFacialExpression` di `mii-character.js`.
+- **Il ritratto è una foto PNG del modello 3D**, non il 3D vivo: il telefono non deve scaricare nulla oltre alla pagina e alle sue immagini (three.js da solo pesa 676 KB, e venti telefoni entrano insieme sul Wi-Fi del Raspberry). Le foto le genera `node tools/render-avatars.js` (apre una pagina locale che disegna con three.js ogni combinazione e salva i PNG): `resources/img/avatars/{sm,lg}/<colore>-<faccia>.png`, più `neutral.png`. Va rilanciato quando cambia il catalogo o il modello; `npm run test:avatar` segnala i file mancanti, perché un PNG mancante in sala non dà errori, solo un'immagine rotta.
+- **`client/shared/avatar-sprite.js`** sceglie il file giusto: `AvatarSprite.fill(el, id)` è l'unico modo in cui le tre SPA mostrano un avatar, alto 1,25em, quindi la misura la decide il `font-size` del contenitore; la scelta sul telefono usa la misura `lg`. Un id sconosciuto dà il personaggio neutro, mai un errore.
+- `mii-character.js` non lo carica nessuna SPA: serve allo strumento di rendering e servirà alla scena 3D della premiazione. Resta caricabile senza three, che si passa come argomento solo a `createMii`.
 
 ### Autenticazione: due canali paralleli, un solo segreto
 

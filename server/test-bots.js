@@ -31,11 +31,17 @@ const NOMI = [
   'Tommaso', 'Beatrice', 'Filippo', 'Martina', 'Riccardo', 'Anna', 'Davide',
 ];
 
-/** Stessi id avatar delle tre SPA. */
-const AVATARS = [
-  'volpe', 'panda', 'rana', 'polpo', 'leone', 'pinguino',
-  'koala', 'tigre', 'unicorno', 'gufo', 'granchio', 'balena',
-];
+/** Lo stesso catalogo che valida l'avatar di un umano. */
+const AvatarCatalog = require('../client/shared/avatar-catalog');
+
+/**
+ * Avatar dell'i-esimo bot: colore e faccia avanzano a passi diversi (7 è primo
+ * con 12), così una sala piena di bot non è un muro di personaggi uguali.
+ */
+function botAvatar(i) {
+  const { COLORS, FACES } = AvatarCatalog;
+  return AvatarCatalog.encode(COLORS[i % COLORS.length].id, FACES[(i * 7) % FACES.length].id);
+}
 
 /**
  * Quanti bot creare davvero, qualunque cosa arrivi nel payload.
@@ -56,7 +62,7 @@ function identity(i) {
   const giro = Math.floor(i / NOMI.length);
   return {
     nickname: NOMI[i % NOMI.length] + (giro > 0 ? ` ${giro + 1}` : ''),
-    avatar: AVATARS[i % AVATARS.length],
+    avatar: botAvatar(i),
   };
 }
 
@@ -95,7 +101,6 @@ module.exports = {
   DEFAULT_COUNT,
   MAX_COUNT,
   NOMI,
-  AVATARS,
   normalizeCount,
   identity,
   pickOption,

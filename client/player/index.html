@@ -34,8 +34,18 @@
     <label class="field-label" for="nickname-input">Il tuo nickname</label>
     <input id="nickname-input" class="field-input" maxlength="20"
            placeholder="Es. CapitanQuiz" autocomplete="off" enterkeyhint="go">
-    <p class="field-label" id="avatar-label">Scegli il tuo avatar</p>
-    <div id="avatar-grid" class="avatar-grid" role="radiogroup" aria-labelledby="avatar-label"></div>
+    <!-- Il personaggio: frecce ai lati della faccia per l'espressione, pallini
+         sotto per il colore. Niente riquadri: sta sullo sfondo. -->
+    <div class="avatar-picker">
+      <button id="avatar-prev" class="avatar-arrow avatar-arrow--prev" type="button" aria-label="Espressione precedente">
+        <svg viewBox="0 0 26 44" aria-hidden="true"><path d="M20 5 L6 22 L20 39"/></svg>
+      </button>
+      <img id="avatar-portrait" class="avatar-portrait" src="/resources/img/avatars/lg/neutral.png" alt="" draggable="false">
+      <button id="avatar-next" class="avatar-arrow avatar-arrow--next" type="button" aria-label="Espressione successiva">
+        <svg viewBox="0 0 26 44" aria-hidden="true"><path d="M6 5 L20 22 L6 39"/></svg>
+      </button>
+    </div>
+    <div id="avatar-colors" class="avatar-colors" role="radiogroup" aria-label="Colore del personaggio"></div>
     <button id="join-btn" class="btn btn-primary btn-block">Entra</button>
     <p id="join-error" class="form-error" role="alert" hidden></p>
   </section>
@@ -121,6 +131,10 @@
   <!-- Correzione dello scarto fra orologi: senza, in sala e sul telefono
        il tempo scade in momenti diversi. -->
   <script src="/shared/server-clock.js"></script>
+
+  <!-- Il personaggio: cosa è valido, poi il ritratto (foto PNG del modello 3D). -->
+  <script src="/shared/avatar-catalog.js"></script>
+  <script src="/shared/avatar-sprite.js"></script>
 
   <!-- Minigiochi: il registry, poi un modulo per gioco (si autoregistrano).
        Aggiungere un minigioco = aggiungere una riga qui e in client/host/index.html.

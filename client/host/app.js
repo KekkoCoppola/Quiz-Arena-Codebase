@@ -1293,13 +1293,9 @@ function stopMinigameSuspense() {
   currentMinigame?.sala.stopSuspense();
 }
 
-// Mappa avatar: id stabile → emoji TEMPORANEA (identica al client player).
-const GAME_AVATARS = {
-  volpe: '🦊', panda: '🐼', rana: '🐸', polpo: '🐙',
-  leone: '🦁', pinguino: '🐧', koala: '🐨', tigre: '🐯',
-  unicorno: '🦄', gufo: '🦉', granchio: '🦀', balena: '🐳',
-};
-const gameAvatarOf = (id) => GAME_AVATARS[id] ?? '❓';
+// L'avatar è il personaggio (colore + espressione): lo disegna AvatarSprite.fill
+// (client/shared/avatar-sprite.js), come in sala e sul telefono.
+/* global AvatarSprite */
 
 /* global qrcode */
 
@@ -1585,7 +1581,7 @@ function connectGameSocket(quiz, type) {
       medal.textContent = String(i + 1);
       const av = document.createElement('span');
       av.className = 'avatar';
-      av.textContent = gameAvatarOf(p.avatar);
+      AvatarSprite.fill(av, p.avatar);
       const name = document.createElement('span');
       name.className = 'name';
       name.textContent = p.nickname;
@@ -1674,14 +1670,15 @@ function buildLeaderboardRow(p, rank) {
   li.className = 'lb-row';
   const cells = [
     ['lb-rank',   `${rank}.`],
-    ['lb-avatar', gameAvatarOf(p.avatar)],
+    ['lb-avatar', null],
     ['lb-name',   p.nickname],
     ['lb-score',  `${p.score}`],
   ];
   for (const [cls, text] of cells) {
     const span = document.createElement('span');
     span.className = cls;
-    span.textContent = text;
+    if (text === null) AvatarSprite.fill(span, p.avatar);
+    else span.textContent = text;
     li.appendChild(span);
   }
   return li;
@@ -1694,7 +1691,7 @@ function renderGameLobby(players) {
     const li = document.createElement('li');
     li.className = 'game-player-badge' + (p.connected === false ? ' is-disconnected' : '');
     const av = document.createElement('span');
-    av.textContent = gameAvatarOf(p.avatar);
+    AvatarSprite.fill(av, p.avatar);
     const name = document.createElement('span');
     name.textContent = p.nickname;
     li.append(av, name);

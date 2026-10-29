@@ -178,25 +178,61 @@ body {
   75% { transform: translateX(6px); }
 }
 
-/* ─── Avatar picker ────────────────────────────────────────────────────── */
+/* ─── Scelta del personaggio ───────────────────────────────────────────────
+   Niente riquadri, per scelta dell'utente: il personaggio sta sullo sfondo,
+   le frecce sono nude ai lati della faccia, i colori sono pallini sotto.
+   --avatar-w comanda tutto: le altezze piccole la riducono più sotto. */
 
-.avatar-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.avatar-picker {
+  --avatar-w: 180px;
+  position: relative;
+  width: var(--avatar-w);
+  margin: 4px auto 0;
+}
+.avatar-portrait { display: block; width: var(--avatar-w); height: calc(var(--avatar-w) * 1.25); user-select: none; -webkit-user-drag: none; }
 
-.avatar-option {
-  font-size: 28px; line-height: 1;
+/* Nel ritratto la faccia sta intorno a un terzo dell'altezza: la freccia
+   ci si centra sopra, qualunque sia la misura. */
+.avatar-arrow {
+  position: absolute;
+  top: calc(var(--avatar-w) * 0.41 - 24px);
+  width: 44px; height: 48px;
   display: grid; place-items: center;
-  aspect-ratio: 1; min-height: 48px;
-  background: var(--paper-white);
-  border: 3px solid var(--ink); border-radius: var(--radius);
+  padding: 0; border: 0; background: none;
+  color: var(--ink);
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.avatar-arrow--prev { left: -48px; }
+.avatar-arrow--next { right: -48px; }
+.avatar-arrow svg {
+  width: 22px; height: 38px;
+  fill: none; stroke: currentColor; stroke-width: 6;
+  stroke-linecap: round; stroke-linejoin: round;
+  transition: transform 120ms;
+}
+.avatar-arrow:active svg { transform: scale(0.85); }
+.avatar-arrow:focus-visible { outline: 3px solid var(--ink); outline-offset: -2px; border-radius: 12px; }
+
+/* Il pallino è il ::before: il bottone intorno resta grande abbastanza per il dito. */
+.avatar-colors { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; }
+.avatar-swatch {
+  width: 38px; height: 40px;
+  display: grid; place-items: center;
+  padding: 0; border: 0; background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.avatar-swatch::before {
+  content: '';
+  width: 26px; height: 26px;
+  border-radius: 9999px;
+  border: 3px solid var(--ink);
+  background: var(--swatch);
   transition: transform 150ms, box-shadow 150ms;
 }
-.avatar-option.selected {
-  background: var(--insert-coin-yellow);
-  transform: translate(-2px, -2px);
-  box-shadow: var(--stamp-sm);
-}
-.avatar-option:focus-visible { outline: 3px solid var(--arcade-teal-deep); outline-offset: 2px; }
+.avatar-swatch.selected::before { transform: scale(1.25); box-shadow: var(--stamp-sm); }
+.avatar-swatch:focus-visible { outline: 3px solid var(--ink); outline-offset: -2px; border-radius: 12px; }
 
 /* ─── Bottoni ──────────────────────────────────────────────────────────── */
 
@@ -477,6 +513,7 @@ body { padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
   .answer-btn    { font-size: 16px; padding: 10px 14px; min-height: 48px; }
   .me-badge      { font-size: 20px; padding: 6px 16px; }
   .me-badge .avatar { font-size: 26px; }
+  .avatar-picker { --avatar-w: 150px; }
 }
 
 @media (max-height: 640px) {
@@ -484,7 +521,7 @@ body { padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
   .screen        { gap: 10px; }
   .question-text { font-size: 18px; line-height: 24px; }
   .answer-btn    { font-size: 15px; min-height: 44px; padding: 8px 12px; }
-  .avatar-option { min-height: 44px; }
+  .avatar-picker { --avatar-w: 120px; }
 }
 
 /* Telefono ruotato: lo spazio verticale non basta per una colonna di quattro
@@ -497,5 +534,5 @@ body { padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
   .screen        { max-width: 720px; gap: 8px; }
   .answer-stack  { display: grid; grid-template-columns: 1fr 1fr; }
   .question-text { font-size: 17px; line-height: 22px; text-align: center; }
-  .avatar-grid   { grid-template-columns: repeat(8, 1fr); }
+  .avatar-picker { --avatar-w: 110px; }
 }
