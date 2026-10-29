@@ -18,8 +18,9 @@ const {
   GAP_SLOW,
   TAIL_BUDGET_MS,
   UNCOVER_DELAY_MS,
+  PLAYER_LAG_MS,
   buildFinalSchedule,
-  stepsForRank,
+  ceremonyDurationMs,
   revealAtForRank,
 } = require('../client/shared/final-schedule');
 
@@ -177,42 +178,9 @@ for (const n of [2, 3, 4, 10, 25]) {
 {
   const s = buildFinalSchedule({ playerCount: 10 });
 
-  // Il telefono del secondo riceve atti PRIMA di scoprirsi (il gradino coperto,
-  // la sospensione): è voluto, deve stare in tensione quanto la sala. Ciò che
-  // non deve accadere è che uno di quegli atti lo riveli.
-  const mine2 = stepsForRank(s, 2);
-  const revealing2 = mine2.filter((x) => x.kind === 'uncover-2');
-  assert(revealing2.length === 1, 'il 2° ha un solo atto che lo rivela');
-  // Gli atti che mettono un nome su uno schermo. Tutto il resto è scenografia.
-  const REVEALING = ['tail', 'podium-3', 'winner', 'uncover-2'];
-  const beforeUncover = mine2.filter((x) => x.at < revealing2[0].at);
-  assert(
-    beforeUncover.every((x) => !REVEALING.includes(x.kind)),
-    'prima della scopertura al 2° arrivano solo atti che NON lo rivelano',
-  );
-  assert(
-    mine2.some((x) => x.kind === 'podium-2-covered') && mine2.some((x) => x.kind === 'suspense'),
-    'il 2° resta in sospeso quanto la sala, col gradino coperto',
-  );
-
-  // Il vincitore non deve avere nulla addosso prima della proclamazione: se il
-  // suo telefono si accendesse durante la sospensione, la sala lo leggerebbe
-  // sulla sua faccia.
-  const mine1 = stepsForRank(s, 1);
-  const firstOwn = mine1.find((x) => x.kind !== 'tail-exit');
-  assert(firstOwn.kind === 'winner', 'al vincitore non arriva nulla prima della proclamazione');
-
-  // Un giocatore in coda vede la propria riga e non quelle degli altri.
-  const mine7 = stepsForRank(s, 7);
-  const tails7 = mine7.filter((x) => x.kind === 'tail');
-  assert(tails7.length === 1 && tails7[0].rank === 7, 'chi è 7° vede solo la propria riga');
   assert(
     revealAtForRank(s, 7) < revealAtForRank(s, 4),
     'in coda ci si scopre dall\'ultimo in su',
-  );
-  assert(
-    mine7.some((x) => x.kind === 'settle'),
-    'a tutti arriva il fotogramma finale, qualunque sia la posizione',
   );
 }
 
@@ -227,6 +195,20 @@ for (const n of [2, 3, 4, 10, 25]) {
     revealAtForRank(s, 4) < revealAtForRank(s, 3),
     'e comunque dopo l\'ultima riga della coda',
   );
+}
+
+// ─── Durata che il server aspetta prima di liberare i telefoni ──────────────────
+
+{
+  assert(
+    ceremonyDurationMs(2) === buildFinalSchedule({ playerCount: 2 }).totalMs + PLAYER_LAG_MS,
+    'durata cerimonia = calendario + ritardo del telefono',
+  );
+  assert(
+    ceremonyDurationMs(1) === buildFinalSchedule({ playerCount: 1 }).totalMs + PLAYER_LAG_MS,
+    'durata cerimonia con un solo giocatore',
+  );
+  assert(ceremonyDurationMs(0) === 0, '0 giocatori → nessuna attesa');
 }
 
 // ─── Esito ───────────────────────────────────────────────────────────────────────

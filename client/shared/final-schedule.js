@@ -8,14 +8,16 @@
  * Ricalca la separazione già usata dal progetto fra server/game.js (puro) e
  * server/game-socket.js (I/O), e fra audio-logic.js e audio.js.
  *
- * Caricato come <script> da vista sala e client player (espone
- * window.FinalSchedule) e come modulo CommonJS da tools/test-final.js.
+ * Caricato come <script> dalla vista sala (espone window.FinalSchedule) e come
+ * modulo CommonJS da server/game-socket.js e da tools/test-final.js.
  *
  * ═══ Perché il calendario è CONDIVISO e non duplicato ═══════════════════════
  *
- * Sala e telefoni devono proclamare lo stesso vincitore nello stesso istante.
- * Due copie della stessa sequenza divergerebbero al primo ritocco, e la
- * divergenza si vedrebbe solo davanti a una sala piena. Qui c'è una fonte sola.
+ * La sala recita la cerimonia; il server ne legge la durata per dire ai
+ * telefoni quando passare dal "Guarda lo schermo!" alla propria posizione
+ * (`game:ceremony-done`). Due copie dei tempi divergerebbero al primo ritocco,
+ * e un telefono svelerebbe la classifica prima del proiettore. Qui c'è una
+ * fonte sola.
  *
  * ═══ Come si tiene la sincronia (e perché NON con `revealAt`) ═══════════════
  *
@@ -25,13 +27,13 @@
  * avanti di tre secondi proclamerebbe il vincitore tre secondi PRIMA del
  * proiettore, e la sala sentirebbe l'urlo prima di vedere il nome.
  *
- * Quindi niente orologio: `game:final` è un unico io.emit, e ogni client fa
- * partire la cerimonia dal momento in cui LO RICEVE. Lo scarto fra orologi
- * esce del tutto dal problema. Il telefono aggiunge poi PLAYER_LAG_MS a ogni
- * atto: per arrivare in anticipo dovrebbe ricevere la trasmissione 300 ms prima
- * della sala, che sul Raspberry (dove la sala è praticamente in loopback e i
- * telefoni sono un salto Wi-Fi più in là) non accade. Lo sbilanciamento è dalla
- * parte sicura per costruzione, non per fortuna.
+ * Quindi niente orologio: `game:final` è un unico io.emit, e la sala fa
+ * partire la cerimonia dal momento in cui LO RICEVE. Il segnale di fine per i
+ * telefoni parte dal server allo stesso istante, dopo la durata del calendario
+ * più PLAYER_LAG_MS: per arrivare in anticipo un telefono dovrebbe ricevere il
+ * segnale 300 ms prima che la sala chiuda l'ultimo atto, che sul Raspberry
+ * (sala praticamente in loopback, telefoni un salto Wi-Fi più in là) non
+ * accade. Lo sbilanciamento è dalla parte sicura per costruzione.
  */
 
 (function (root, factory) {
@@ -93,25 +95,10 @@
   const SETTLE_DELAY_MS = 650;
 
   /**
-   * Ritardo di cortesia applicato dal telefono a OGNI atto. È il margine che
-   * rende strutturalmente impossibile un anticipo sul proiettore.
+   * Margine aggiunto alla fine della cerimonia prima di liberare i telefoni.
+   * È ciò che rende strutturalmente impossibile un anticipo sul proiettore.
    */
   const PLAYER_LAG_MS = 300;
-
-  /** Atti che riguardano tutti, qualunque sia la posizione. */
-  const SHARED_KINDS = ['tail-exit', 'settle'];
-
-  /**
-   * Quali atti riguardano una data posizione. Vive qui e non nei client perché
-   * è la regola anti-spoiler, non una scelta di presentazione: il telefono del
-   * SECONDO non deve sapere di essere secondo finché non lo sa la sala,
-   * altrimenti la faccia di quel giocatore rovina il finale a tutta la stanza.
-   */
-  const KINDS_BY_RANK = {
-    1: ['winner'],
-    2: ['podium-2-covered', 'suspense', 'uncover-2'],
-    3: ['podium-3'],
-  };
 
   /** Numero di giocatori utilizzabile, qualunque cosa arrivi. */
   function normalizeCount(playerCount) {
@@ -210,26 +197,23 @@
   }
 
   /**
-   * Gli atti che il telefono di un dato giocatore deve interpretare. Gli altri
-   * li ignora: sul telefono si vede solo la propria posizione.
+   * Quanto il server aspetta, da `game:final`, prima di annunciare ai telefoni
+   * che la cerimonia è finita (`game:ceremony-done`). È la durata del calendario
+   * più il ritardo di cortesia del telefono: il segnale non può arrivare prima
+   * che la sala abbia chiuso l'ultimo atto.
    *
-   * @param {{steps: Array}} schedule calendario da buildFinalSchedule
-   * @param {number} rank posizione del proprietario del telefono
+   * @param {number} playerCount giocatori in classifica
+   * @returns {number} millisecondi; 0 se non c'è nessuno da premiare
    */
-  function stepsForRank(schedule, rank) {
-    const own = KINDS_BY_RANK[rank] ?? (rank >= 4 ? ['tail'] : []);
-    return (schedule?.steps ?? []).filter((s) => {
-      if (SHARED_KINDS.includes(s.kind)) return true;
-      if (!own.includes(s.kind)) return false;
-      // Le righe della coda sono tante: solo la propria.
-      return s.kind !== 'tail' || s.rank === rank;
-    });
+  function ceremonyDurationMs(playerCount) {
+    const { totalMs } = buildFinalSchedule({ playerCount });
+    return normalizeCount(playerCount) === 0 ? 0 : totalMs + PLAYER_LAG_MS;
   }
 
   /**
-   * L'istante in cui il telefono di un giocatore scopre la propria posizione,
-   * o null se quel giocatore non viene mai rivelato (classifica vuota).
-   * Usata dal test per dimostrare che nessuno si scopre in anticipo.
+   * L'istante in cui la sala rivela una data posizione, o null se quel
+   * giocatore non viene mai rivelato (classifica vuota). Usata dal test per
+   * dimostrare l'ordine anti-spoiler della cerimonia in sala.
    */
   function revealAtForRank(schedule, rank) {
     const revealing = { 1: 'winner', 2: 'uncover-2', 3: 'podium-3' };
@@ -254,7 +238,7 @@
     SETTLE_DELAY_MS,
     PLAYER_LAG_MS,
     buildFinalSchedule,
-    stepsForRank,
+    ceremonyDurationMs,
     revealAtForRank,
   };
 });

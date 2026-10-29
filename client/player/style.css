@@ -180,6 +180,35 @@ body {
 
 .question-text { font-size: 24px; font-weight: 900; line-height: 32px; }
 
+/* Domanda lunga: tre righe coi puntini; aperta, scorre DENTRO lo stesso
+   spazio delle tre righe, così i bottoni di risposta restano dove sono. */
+.question-text.is-clamped {
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* L'altezza la fissa app.js (quella delle tre righe chiuse): bordo e sfondo
+   passano da outline e background, che non cambiano la disposizione. */
+.question-text.is-open {
+  overflow-y: auto;
+  background: var(--paper-white);
+  outline: 3px solid var(--ink); outline-offset: 4px; border-radius: 4px;
+}
+.question-more {
+  align-self: flex-start;
+  font: inherit; font-size: 14px; font-weight: 900; color: var(--ink);
+  padding: 4px 14px; background: var(--paper-white);
+  border: 3px solid var(--ink); border-radius: 9999px;
+  box-shadow: var(--stamp-sm); cursor: pointer;
+}
+.question-more:active { transform: translate(2px, 2px); box-shadow: none; }
+.question-image-hint {
+  align-self: flex-start;
+  padding: 6px 12px; font-size: 15px; font-weight: 900;
+  background: var(--arcade-teal); color: var(--arcade-teal-deep);
+  border: 3px solid var(--ink); border-radius: 12px;
+  box-shadow: var(--stamp-sm); transform: rotate(-1.5deg);
+}
+
 /* Round minigioco: stessa struttura della domanda, accento Ochre invece del
    giallo standard, per segnalare a colpo d'occhio che è un round diverso. */
 #screen-question.is-minigame .question-text { color: var(--ticket-ochre); }
@@ -241,77 +270,48 @@ body {
 .score-line strong { font-size: 32px; font-weight: 900; }
 .rank-line { color: var(--ink-muted); }
 
-/* ─── Podio finale ─────────────────────────────────────────────────────── */
-
-.podium { display: flex; align-items: flex-end; justify-content: center; gap: 8px; }
-.podium-step {
-  flex: 1; max-width: 130px;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  border: 4px solid var(--ink); border-radius: var(--radius) var(--radius) 0 0;
-  padding: 12px 8px; text-align: center;
-}
-.podium-step .avatar   { font-size: 36px; }
-.podium-step .name     { font-weight: 900; overflow-wrap: anywhere; }
-.podium-step .points   { font-size: 14px; color: var(--ink-muted); }
-.podium-step .medal    { font-size: 20px; font-weight: 900; }
-.podium-step.rank-1 { background: var(--insert-coin-yellow); min-height: 150px; order: 2; }
-.podium-step.rank-2 { background: var(--arcade-teal);        min-height: 120px; order: 1; }
-.podium-step.rank-3 { background: var(--ticket-ochre);       min-height: 100px; order: 3; }
-
-.me-rank {
-  align-self: center; padding: 8px 20px;
-  background: var(--paper-white); border: 3px solid var(--ink);
-  border-radius: 9999px; font-weight: 900;
-}
-
-/* ─── Premiazione: la propria posizione ─────────────────────────────────────
-   Durante la cerimonia questa card è l'unica cosa a schermo, e si scopre
-   nell'istante in cui la sala proclama. Il movimento sta in
-   /shared/final-ceremony.css, identico a quello del proiettore: qui c'è solo
-   come si veste su un telefono.
+/* ─── Premiazione ───────────────────────────────────────────────────────────
+   Durante la cerimonia il telefono mostra solo l'invito a guardare il
+   proiettore; a cerimonia finita la propria posizione in grande e, sotto, la
+   classifica intera. La barra in fondo resta ferma mentre la lista scorre.
    ------------------------------------------------------------------------ */
 
-.me-card {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-/* Altezza riservata mentre la card esiste: quella che compare non deve far
-   saltare la pagina sotto le dita di chi sta guardando. A cerimonia conclusa
-   la card sparisce (il vincitore è già sul podio) e lo spazio si richiude. */
-.me-card:not(:empty) { min-height: 220px; }
-
-/* Le stelline del vincitore escono dalla card. */
-.me-card > * { position: relative; }
-
-/* Un gradino solo, non un podio a tre: si prende tutta la larghezza. */
-.me-card .podium-step {
-  flex: none;
-  max-width: none;
-  width: min(100%, 320px);
-  min-height: 200px;
-  justify-content: center;
-  gap: 8px;
-  border-radius: var(--radius);
-  box-shadow: var(--stamp);
-}
-
-.me-card .podium-step .medal  { font-size: 34px; }
-.me-card .podium-step .avatar { font-size: 64px; }
-.me-card .podium-step .name   { font-size: 24px; }
-
-/* Fuori dal podio: una fascia larga, leggibile con un'occhiata sola. */
-.me-card-row {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  width: min(100%, 320px); padding: 20px 16px; text-align: center;
+.final-placeholder,
+.final-me-card {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  text-align: center;
   background: var(--paper-white); border: 4px solid var(--ink);
   border-radius: var(--radius); box-shadow: var(--stamp);
 }
-.me-card-row .pos    { font-size: 44px; font-weight: 900; line-height: 1; }
-.me-card-row .avatar { font-size: 48px; }
-.me-card-row .name   { font-size: 20px; font-weight: 900; overflow-wrap: anywhere; }
-.me-card-row .points { font-size: 15px; color: var(--ink-muted); }
+.final-placeholder { margin-top: 24px; padding: 32px 20px 24px; }
+
+/* L'adesivo nell'angolo: lo .sticker standard è fatto per stare in colonna. */
+.final-corner {
+  position: absolute; top: -16px; right: -10px;
+  padding: 4px 12px; font-size: 14px;
+  transform: rotate(6deg);
+}
+
+.final-placeholder-icon {
+  font-size: 64px; line-height: 1;
+  animation: final-bob 1.4s ease-in-out infinite;
+}
+@keyframes final-bob { 50% { transform: translateY(-8px) rotate(-4deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .final-placeholder-icon { animation: none; }
+}
+
+.final-me-card { padding: 24px 16px 20px; gap: 6px; }
+.final-me-card.rank-1 { background: var(--insert-coin-yellow); color: var(--primary-ink); }
+.final-me-card.rank-2 { background: var(--arcade-teal);        color: var(--arcade-teal-deep); }
+.final-me-card.rank-3 { background: var(--ticket-ochre); }
+.final-me-label { font-size: 15px; }
+.final-me-rank  { font-size: 80px; font-weight: 900; line-height: 0.9; letter-spacing: -0.04em; }
+.final-me-who   { display: flex; align-items: center; gap: 12px; text-align: left; }
+.final-me-who .avatar { font-size: 40px; }
+.final-me-who .name   { font-size: 20px; font-weight: 900; overflow-wrap: anywhere; }
+.final-me-who .points { font-size: 15px; }
 
 .final-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
 .final-list li {
@@ -319,8 +319,21 @@ body {
   background: var(--paper-white); border: 3px solid var(--ink);
   border-radius: var(--radius); padding: 8px 14px;
 }
-.final-list .pos { font-weight: 900; min-width: 2.2ch; }
-.final-list .pts { margin-left: auto; font-weight: 900; }
+.final-list li.is-me { background: var(--arcade-teal); color: var(--arcade-teal-deep); box-shadow: var(--stamp-sm); }
+.final-list .pos  { font-weight: 900; min-width: 2.2ch; }
+.final-list .name { overflow-wrap: anywhere; }
+.final-list .pts  { margin-left: auto; font-weight: 900; }
+
+/* Ferma in fondo come una barra di navigazione: non segue lo scorrimento. */
+.final-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+  padding: 16px 20px calc(16px + env(safe-area-inset-bottom));
+  background: var(--insert-coin-yellow); color: var(--primary-ink);
+  border-top: 4px solid var(--ink);
+  text-align: center; font-size: 18px; font-weight: 900;
+}
+/* Spazio per la barra: l'ultima riga della classifica non deve finirci sotto. */
+#screen-final.has-bar { padding-bottom: 72px; }
 
 /* ─── Overlay riconnessione ────────────────────────────────────────────── */
 
