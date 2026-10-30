@@ -248,10 +248,7 @@ function scheduleBotAnswers(io, round) {
         // Round già chiuso o bot non più in partita: non c'è nulla da fare.
         return;
       }
-      io.to(ROOM_HOST).emit('game:answer-count', {
-        answered: currentSession.currentAnswers.size,
-        total: countConnected(),
-      });
+      emitAnswerCount(io);
       maybeCloseEarly(io);
     }, delay));
   }
@@ -287,6 +284,19 @@ function closeQuestion(io) {
 }
 
 /** Conta i giocatori attualmente connessi. */
+/**
+ * Quanti hanno risposto, e chi. Va all'host (il contatore) e alla sala (la
+ * colonna dei minigiochi con `salaPlayers`), ma NON ai telefoni: a loro non
+ * serve. Porta solo gli id, mai una mossa: chi ha scelto, non cosa.
+ */
+function emitAnswerCount(io) {
+  io.except(ROOM_PLAYERS).emit('game:answer-count', {
+    answered: currentSession.currentAnswers.size,
+    total: countConnected(),
+    playerIds: [...currentSession.currentAnswers.keys()],
+  });
+}
+
 function countConnected() {
   let n = 0;
   for (const p of currentSession.players.values()) {
@@ -448,10 +458,7 @@ function attachGameHandlers(io) {
           playerId, payload?.optionIndex, undefined, payload?.roundIndex
         );
         ok(cb, result);
-        io.to(ROOM_HOST).emit('game:answer-count', {
-          answered: currentSession.currentAnswers.size,
-          total: countConnected(),
-        });
+        emitAnswerCount(io);
         maybeCloseEarly(io);
       } catch (err) {
         fail(cb, err.message);

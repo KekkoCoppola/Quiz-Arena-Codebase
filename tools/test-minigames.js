@@ -352,9 +352,12 @@ section('Registry di presentazione lato client, caricato senza DOM');
   assert(morra.label === 'Morra Cinese', 'get() restituisce la presentazione registrata');
   assert(typeof morra.sala.reveal === 'function', 'la presentazione host espone reveal()');
   assert(typeof morra.player.reveal === 'function', 'la presentazione player espone reveal()');
-  assert(morra.salaOptions === true, 'senza dichiararlo, un minigioco mostra in sala le carte delle scelte');
+  assert(morra.salaPlayers === true && morra.salaOptions === false,
+    'la Morra mostra in sala chi ha scelto, non le carte');
 
   const fallback = Minigames.get('tipo_mai_visto');
+  assert(fallback.salaOptions === true, 'senza dichiararlo, un minigioco mostra in sala le carte delle scelte');
+  assert(fallback.salaPlayers === false, 'senza dichiararlo, un minigioco non mostra la colonna dei giocatori');
   assert(fallback !== null && fallback !== undefined, 'get() su un tipo sconosciuto non restituisce null');
   assert(
     typeof fallback.sala.reveal === 'function' && typeof fallback.player.reveal === 'function',

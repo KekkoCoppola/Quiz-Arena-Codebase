@@ -84,6 +84,15 @@
     salaOptions: true,
 
     /**
+     * `true` per avere in sala, accanto alla scena, la colonna dei giocatori:
+     * chi ha già scelto (senza dire cosa) durante il round, e dopo il reveal
+     * gli stessi divisi per esito, prima della classifica. La disegna la sala:
+     * il modulo non deve fare altro. Di solito insieme a `salaOptions: false`
+     * (es. la Morra Cinese). Default `false`.
+     */
+    salaPlayers: false,
+
+    /**
      * Audio del tuo minigioco in sala, file in `resources/audio/<nome-gioco>/`
      * (percorsi relativi a `/resources/audio/`). La colonna sonora prende il
      * posto della musica della partita dalla riapertura delle tende alla
