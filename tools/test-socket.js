@@ -353,6 +353,14 @@ async function run() {
       'host:resync in RESULTS: gli ultimi risultati, per ridisegnare il pannello');
     assert(Array.isArray(resyncResults.players) && resyncResults.players.length === 2,
       'host:resync: i giocatori della partita');
+    // Un pannello ricaricato non ha più il quiz in memoria: per rientrare
+    // nella partita e intitolarla gli serve sapere quale quiz si sta giocando.
+    assert(typeof resyncResults.quiz?.title === 'string' && resyncResults.quiz.title.length > 0,
+      'host:resync: il titolo del quiz in corso');
+    assert(resyncResults.quiz?.id === quizId, 'host:resync: l\'id del quiz, per ricrearla se il server riparte');
+    assert(resyncResults.quiz?.type === 'preloaded' && Number.isInteger(resyncResults.quiz?.questionCount)
+      && resyncResults.quiz.questionCount > 0,
+      'host:resync: tipo del quiz e numero di domande');
 
     const q7Promise = once(p1, 'game:question');
     await emitAck(hostBis, 'host:next-question', null);
