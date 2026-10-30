@@ -60,6 +60,13 @@ const config = {
     ? Math.max(0, parseInt(process.env.MINIGAME_INTRO_MS, 10))
     : 12000,
 
+  /**
+   * Pagina di debug dei minigiochi (`/debug`, vedi server/debug-tools.js):
+   * accesa solo con `DEBUG_TOOLS=1`. Spenta, la pagina non è servita e i suoi
+   * eventi non esistono. Mai durante un evento: crea una partita nuova.
+   */
+  debugTools: process.env.DEBUG_TOOLS === '1',
+
   /** true se l'app gira in modalità sviluppo. */
   isDev: process.env.NODE_ENV !== 'production',
 };

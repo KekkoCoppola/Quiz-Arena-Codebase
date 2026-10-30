@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quiz-Zata! — Debug minigiochi</title>
+  <link rel="icon" type="image/svg+xml" href="/resources/img/Logo.svg">
+  <link rel="stylesheet" href="debug.css">
+</head>
+<body>
+  <!--
+    Pagina di debug dei minigiochi: un clic su un minigioco crea una partita di
+    prova con i bot, fa entrare il telefono finto e parte. Attrezzo di sviluppo,
+    servita solo con DEBUG_TOOLS=1. Per toglierla: server/debug-tools.js.
+  -->
+  <header class="dbg-bar">
+    <img class="dbg-logo" src="/resources/img/LogoNoBG.png" alt="Quiz-Zata!">
+    <h1 class="dbg-title">Debug minigiochi</h1>
+
+    <label class="dbg-bots">
+      <span>Bot</span>
+      <input id="dbg-bots" type="number" min="1" max="30" value="8" inputmode="numeric">
+    </label>
+
+    <div id="dbg-minigames" class="dbg-minigames" aria-label="Minigiochi da provare"></div>
+
+    <div class="dbg-controls">
+      <button id="dbg-skip" class="dbg-btn" type="button">Salta round</button>
+      <button id="dbg-next" class="dbg-btn" type="button">Avanti</button>
+    </div>
+  </header>
+
+  <p id="dbg-status" class="dbg-status" role="status">Connessione al server…</p>
+
+  <p id="dbg-login" class="dbg-login" hidden>
+    Serve l'accesso del pannello admin: apri il pannello in questo browser, accedi,
+    poi ricarica questa pagina.
+  </p>
+
+  <main class="dbg-stage">
+    <section class="dbg-frame dbg-frame-sala">
+      <h2 class="dbg-frame-label">Sala</h2>
+      <div class="dbg-viewport" id="dbg-sala-box">
+        <!-- ?muto: la sala non suona (chi prova è spesso in remote control). -->
+        <iframe id="dbg-sala" src="/sala?muto" title="Vista sala" width="1920" height="1080"></iframe>
+      </div>
+    </section>
+
+    <section class="dbg-frame dbg-frame-phone">
+      <h2 class="dbg-frame-label">Telefono</h2>
+      <div class="dbg-viewport" id="dbg-phone-box">
+        <iframe id="dbg-phone" src="about:blank" title="Telefono finto" width="390" height="844"></iframe>
+      </div>
+    </section>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="debug.js"></script>
+</body>
+</html>

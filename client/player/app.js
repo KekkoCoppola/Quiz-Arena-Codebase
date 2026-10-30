@@ -25,6 +25,8 @@ let previewTimer = null;
 // Round corrente, per il reveal del feedback (il payload game:results non
 // ripete le opzioni): tipo di round + opzioni mostrate.
 let currentRoundKind = 'question';
+/** Indice del round mostrato: accompagna ogni risposta (vedi submitAnswer). */
+let currentRoundIndex = null;
 let currentRoundOptions = [];
 // Presentazione del minigioco in corso, dal registry condiviso
 // (/shared/minigames/). Null durante una domanda normale. Questo file non sa
@@ -271,6 +273,7 @@ const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 function renderQuestion(q, alreadyAnswered = false) {
   const isMinigame = q.kind === 'minigame';
   currentRoundKind = q.kind;
+  currentRoundIndex = q.index;
   currentRoundOptions = q.options;
 
   // La classe di layout del minigioco precedente va rimossa prima di applicare
@@ -366,7 +369,13 @@ questionMore.addEventListener('click', () => {
 });
 
 function submitAnswer(optionIndex, btn) {
-  socket.emit('player:answer', { optionIndex }, (res) => {
+  // La risposta porta il round a cui appartiene: se l'host salta il round
+  // mentre il tocco è in viaggio, il server la scarta invece di contarla sul
+  // round dopo. Per lo stesso motivo una conferma che arriva quando il round
+  // è già cambiato non deve bloccare i bottoni di quello nuovo.
+  const roundIndex = currentRoundIndex;
+  socket.emit('player:answer', { optionIndex, roundIndex }, (res) => {
+    if (roundIndex !== currentRoundIndex) return;
     answerButtons.classList.add('answer-locked');
     if (res.ok) {
       btn.classList.add('answer-chosen');
@@ -420,7 +429,13 @@ function renderFeedback({
 }) {
   feedbackSticker.classList.remove('is-correct', 'is-wrong', 'is-neutral');
 
-  if (kind === 'minigame') {
+  if (results?.skipped) {
+    // L'host ha saltato il round: non c'è un esito da raccontare, nemmeno a
+    // chi aveva già scelto. Lo si dice e basta.
+    feedbackSticker.classList.add('is-neutral');
+    feedbackText.textContent = 'Round saltato';
+    feedbackPoints.textContent = '+0 punti';
+  } else if (kind === 'minigame') {
     // Il minigioco disegna il proprio esito: sa lui cosa significa "vinto" e
     // come mostrarlo. Qui si passano solo gli elementi su cui può scrivere.
     // Se il round è arrivato senza che sia passato da renderQuestion (es. un

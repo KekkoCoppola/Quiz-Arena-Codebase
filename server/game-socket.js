@@ -18,8 +18,9 @@
 const { randomUUID } = require('node:crypto');
 const jwt    = require('jsonwebtoken');
 const config = require('./config');
+const { attachDebugHandlers } = require('./debug-tools');
 const db     = require('./quiz-manager');
-const { GameSession, STATES } = require('./game');
+const { GameSession, STATES, InvalidStateError } = require('./game');
 const testBots = require('./test-bots');
 // Il calendario della premiazione è un modulo UMD puro condiviso coi client:
 // il server ne legge la durata, così il segnale di fine non diverge dalla sala.
@@ -67,6 +68,12 @@ let currentQuestionEndsAt = null;
 /** Istante assoluto da cui la domanda corrente accetta risposte, per il rejoin. */
 let currentAnswersOpenAt = null;
 /**
+ * Ultimo `game:results` trasmesso, per il pannello host che si riconnette in
+ * `RESULTS` (vedi `host:resync`): la classifica e la distribuzione del round
+ * appena chiuso non si possono ricalcolare dalla sessione.
+ */
+let lastResults = null;
+/**
  * Giocatori finti della sessione corrente (vedi server/test-bots.js). Non hanno
  * socket: esistono solo dentro la GameSession, e rispondono da qui.
  * @type {Set<string>} playerId
@@ -100,6 +107,16 @@ function clearQuestionTimer() {
   botTimers = [];
 }
 
+/**
+ * Trasmette la classifica finale e avvia il conto alla rovescia della
+ * cerimonia. Unica strada verso la premiazione, che ci si arrivi con
+ * "Prossima" o saltando un minigioco all'ultimo round.
+ */
+function emitFinal(io, leaderboard) {
+  io.emit('game:final', { leaderboard });
+  startCeremonyTimer(io, leaderboard.length);
+}
+
 /** Avvia il conto alla rovescia della premiazione appena trasmessa con `game:final`. */
 function startCeremonyTimer(io, playerCount) {
   ceremonyDone = false;
@@ -119,6 +136,7 @@ function destroySession() {
   botPlayers.clear();
   currentQuestionEndsAt = null;
   currentAnswersOpenAt = null;
+  lastResults = null;
 }
 
 /** Notifica e disconnette i giocatori della sessione corrente, poi la distrugge. */
@@ -252,6 +270,7 @@ function closeQuestion(io) {
     results.revealAt = results.serverNow + results.revealMs;
   }
   io.emit('game:results', results);
+  lastResults = results;
 
   // Minigioco a più round: fra un livello e l'altro non decide l'host, la
   // filata va avanti da sola appena il reveal è atterrato. Solo l'ultimo
@@ -334,6 +353,24 @@ function attachGameHandlers(io) {
       return true;
     }
 
+    // Pagina di debug dei minigiochi: esiste solo con DEBUG_TOOLS=1. Il modulo
+    // riceve le operazioni che gli servono, non lo stato di questo file.
+    if (config.debugTools) {
+      attachDebugHandlers(socket, {
+        ok, fail, requireHost,
+        getSession: () => currentSession,
+        newSession(quiz) {
+          endCurrentGame(io);
+          currentQuiz = quiz;
+          currentSession = new GameSession(quiz, SESSION_OPTIONS);
+          return currentSession;
+        },
+        spawnBots,
+        broadcastLobby: () => broadcastLobby(io),
+        emitQuestion: () => emitQuestion(io),
+      });
+    }
+
     // ═══ Eventi Player ═══════════════════════════════════════════════════════
 
     socket.on('player:join', (payload, cb) => {
@@ -405,7 +442,11 @@ function attachGameHandlers(io) {
       const playerId = socketPlayers.get(socket.id);
       if (!playerId) return fail(cb, 'Non sei registrato in questa partita.');
       try {
-        const result = currentSession.submitAnswer(playerId, payload?.optionIndex);
+        // `roundIndex` dice a che round rispondeva il telefono: una risposta
+        // partita prima di un salto dell'host non deve valere per il round dopo.
+        const result = currentSession.submitAnswer(
+          playerId, payload?.optionIndex, undefined, payload?.roundIndex
+        );
         ok(cb, result);
         io.to(ROOM_HOST).emit('game:answer-count', {
           answered: currentSession.currentAnswers.size,
@@ -465,13 +506,72 @@ function attachGameHandlers(io) {
         const result = currentSession.nextQuestion();
         ok(cb);
         if (result.finished) {
-          io.emit('game:final', { leaderboard: result.leaderboard });
-          startCeremonyTimer(io, result.leaderboard.length);
+          emitFinal(io, result.leaderboard);
         } else {
           emitQuestion(io);
         }
       } catch (err) {
         fail(cb, err.message);
+      }
+    });
+
+    // Il pannello host si è riconnesso (Wi-Fi del tablet, scheda in secondo
+    // piano): chiede lo stato per ridisegnarsi, SENZA toccare la partita.
+    // Ricrearla con host:create-game, come faceva prima, buttava fuori i
+    // telefoni e rimandava la sala in lobby. Senza partita (server riavviato)
+    // risponde `state: null` e il pannello ne crea una nuova.
+    socket.on('host:resync', (_payload, cb) => {
+      if (!requireHost(cb)) return;
+      if (!currentSession) return ok(cb, { state: null });
+      const { state } = currentSession;
+      const data = { state, players: currentSession.getPlayers() };
+      if (state === STATES.QUESTION) {
+        const preview = currentSession.getRoundPreview();
+        data.question = {
+          ...currentSession.getCurrentRound(),
+          introEndsAt: currentSession.introEndsAt,
+          answersOpenAt: currentAnswersOpenAt,
+          endsAt: currentQuestionEndsAt,
+          serverNow: Date.now(),
+          ...(preview ? { preview } : {}),
+        };
+        data.answered = currentSession.currentAnswers.size;
+        data.total = countConnected();
+      } else if (state === STATES.RESULTS) {
+        data.results = lastResults;
+      } else if (state === STATES.FINAL_LEADERBOARD) {
+        data.leaderboard = currentSession.getLeaderboard();
+        data.ceremonyDone = ceremonyDone;
+      }
+      ok(cb, data);
+    });
+
+    // L'host chiude il round minigioco in corso: 0 punti a tutti, e si passa
+    // al livello successivo, alla classifica o alla domanda dopo (decide
+    // `skipRound`). I timer del round si annullano solo DOPO un salto riuscito:
+    // un salto rifiutato su una domanda normale non deve lasciarla senza
+    // chiusura. `skipRound` è sincrono, quindi nessun bot fa in tempo a
+    // rispondere sul round nuovo.
+    socket.on('host:skip-round', (_payload, cb) => {
+      if (!requireHost(cb)) return;
+      if (!currentSession) return fail(cb, 'Nessuna partita attiva.');
+      try {
+        const result = currentSession.skipRound();
+        clearQuestionTimer();
+        ok(cb);
+        if (result.next === 'round') {
+          emitQuestion(io);
+        } else if (result.next === 'results') {
+          lastResults = { ...result.results, serverNow: Date.now() };
+          io.emit('game:results', lastResults);
+        } else {
+          emitFinal(io, result.leaderboard);
+        }
+      } catch (err) {
+        // Il caso tipico: il round si è chiuso da solo (tempo scaduto, tutti
+        // hanno risposto) un attimo prima del clic. L'host legge una frase,
+        // non lo stato interno della macchina.
+        fail(cb, err instanceof InvalidStateError ? 'Il round si è già chiuso.' : err.message);
       }
     });
 

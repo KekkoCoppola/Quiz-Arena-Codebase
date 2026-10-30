@@ -401,6 +401,8 @@
     register: (type, audio) => whenReady(() => registerNow(type, audio)),
     stop,
     info,
+    /** Azzera il volume di musica ed effetti (`/sala?muto`). */
+    setMuted: (value) => { state.muted = Boolean(value); },
   };
 
 })(typeof self !== 'undefined' ? self : this);

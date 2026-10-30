@@ -1,0 +1,187 @@
+/**
+ * client/debug/debug.css
+ *
+ * Pagina di debug dei minigiochi. Stessa forma e stessi colori del pannello
+ * admin (DESIGN.md §7): carta fredda del logo, inchiostro, giallo per l'azione,
+ * indaco per l'accento. È un attrezzo, quindi niente animazioni.
+ */
+
+@font-face {
+  font-family: 'Quicksand';
+  font-weight: 500;
+  font-display: swap;
+  src: url('/resources/fonts/quicksand-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Quicksand';
+  font-weight: 700;
+  font-display: swap;
+  src: url('/resources/fonts/quicksand-700.woff2') format('woff2');
+}
+
+:root {
+  --ink:         #1c1c26;
+  --ink-2:       #4a4960;
+  --yellow:      #ffe500;
+  --indigo:      #443be0;
+  --indigo-soft: #e4e2fc;
+  --paper:       #f4f3fb;
+  --paper-dot:   #d9d6f2;
+  --surface:     #ffffff;
+  --red-ink:     #a3191b;
+  --line:        3px solid var(--ink);
+  --radius:      14px;
+  --radius-full: 9999px;
+  --stamp:       5px 5px 0 0 var(--ink);
+  --stamp-sm:    3px 3px 0 0 var(--ink);
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: 'Quicksand', system-ui, sans-serif;
+  font-weight: 500;
+  color: var(--ink);
+  background-color: var(--paper);
+  background-image: radial-gradient(var(--paper-dot) 1.2px, transparent 1.3px);
+  background-size: 18px 18px;
+}
+
+/* ── Barra comandi ───────────────────────────────────────────────────────── */
+
+.dbg-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--stamp);
+}
+
+.dbg-logo { height: 44px; width: auto; }
+
+.dbg-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.dbg-bots {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.dbg-bots input {
+  width: 4.5rem;
+  min-height: 44px;
+  padding: 6px 10px;
+  font: inherit;
+  border: var(--line);
+  border-radius: 10px;
+}
+
+.dbg-minigames,
+.dbg-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.dbg-controls { margin-left: auto; }
+
+.dbg-btn {
+  min-height: 44px;
+  padding: 8px 16px;
+  font: inherit;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--surface);
+  border: var(--line);
+  border-radius: var(--radius-full);
+  box-shadow: var(--stamp-sm);
+  cursor: pointer;
+}
+
+.dbg-btn:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 0 var(--ink); }
+.dbg-btn:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
+.dbg-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.dbg-btn:focus-visible { outline: 3px solid var(--indigo); outline-offset: 2px; }
+
+/* Il minigioco da provare è l'azione principale: giallo, come "Avvia". */
+.dbg-btn.is-minigame { background: var(--yellow); }
+.dbg-btn.is-random   { background: var(--indigo-soft); }
+
+.dbg-status {
+  margin: 0;
+  padding: 8px 14px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.dbg-status.is-error { color: var(--red-ink); }
+
+.dbg-login {
+  margin: 0;
+  padding: 16px;
+  font-weight: 700;
+  background: var(--surface);
+  border: var(--line);
+  border-radius: var(--radius);
+}
+
+/* ── Sala e telefono affiancati ──────────────────────────────────────────── */
+
+.dbg-stage {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+}
+
+.dbg-frame { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+
+.dbg-frame-label {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+/* Il riquadro ha la forma dello schermo vero; l'iframe dentro è alla sua
+   misura reale (1920×1080, 390×844) e debug.js lo riduce con una scala,
+   così la sala si dispone come sul proiettore invece che in una finestrella. */
+.dbg-viewport {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface);
+  border: var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--stamp);
+}
+
+.dbg-frame-sala .dbg-viewport { width: 100%; aspect-ratio: 16 / 9; }
+.dbg-frame-phone .dbg-viewport { width: var(--phone-w, 300px); aspect-ratio: 390 / 844; }
+
+.dbg-viewport iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border: 0;
+  transform-origin: 0 0;
+}
+
+@media (max-width: 900px) {
+  .dbg-stage { grid-template-columns: 1fr; }
+  .dbg-controls { margin-left: 0; }
+}
