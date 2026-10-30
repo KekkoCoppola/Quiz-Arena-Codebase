@@ -37,6 +37,8 @@ const ROOM_HOST    = 'host';
 let currentSession = null;
 /** Quiz caricato per la sessione corrente (serve per il riavvio). */
 let currentQuiz = null;
+/** 'personal' | 'preloaded': da dove viene `currentQuiz`, per il pannello che rientra. */
+let currentQuizType = null;
 /** Handle del setTimeout della domanda corrente. */
 let questionTimer = null;
 /** Avanzamento automatico al livello successivo di un minigioco a più round. */
@@ -131,6 +133,7 @@ function destroySession() {
   clearQuestionTimer();
   currentSession = null;
   currentQuiz = null;
+  currentQuizType = null;
   socketPlayers.clear();
   playerTokens.clear();
   botPlayers.clear();
@@ -480,6 +483,7 @@ function attachGameHandlers(io) {
       // ancora connessi vanno notificati e disconnessi, non solo scartati.
       endCurrentGame(io);
       currentQuiz = quiz;
+      currentQuizType = quizType === 'preloaded' ? 'preloaded' : 'personal';
       currentSession = new GameSession(quiz, SESSION_OPTIONS);
       ok(cb);
       broadcastLobby(io);
@@ -524,7 +528,19 @@ function attachGameHandlers(io) {
       if (!requireHost(cb)) return;
       if (!currentSession) return ok(cb, { state: null });
       const { state } = currentSession;
-      const data = { state, players: currentSession.getPlayers() };
+      const data = {
+        state,
+        players: currentSession.getPlayers(),
+        // Un pannello appena ricaricato non sa più quale quiz si gioca: senza,
+        // non saprebbe intitolare la partita in cui rientra.
+        quiz: {
+          id: currentQuiz?.id ?? null,
+          title: currentQuiz?.title ?? '',
+          category: currentQuiz?.category ?? null,
+          type: currentQuizType,
+          questionCount: Array.isArray(currentQuiz?.questions) ? currentQuiz.questions.length : 0,
+        },
+      };
       if (state === STATES.QUESTION) {
         const preview = currentSession.getRoundPreview();
         data.question = {
