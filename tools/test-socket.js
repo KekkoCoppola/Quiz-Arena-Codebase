@@ -136,6 +136,8 @@ function startServer() {
       env: {
         ...process.env, PORT: String(PORT), DB_PATH: dbPath, QUIZZES_DIR: quizzesDir,
         MINIGAME_INTRO_MS: '0',
+        // La pagina di debug è spenta di default; qui si provano i suoi eventi.
+        DEBUG_TOOLS: '1',
       },
       stdio: 'ignore',
     }
@@ -333,6 +335,36 @@ async function run() {
     const badRejoin = await emitAck(p2bis, 'player:rejoin', { token: 'token-farlocco' });
     assert(badRejoin.ok === false, 'player:rejoin: token invalido rifiutato');
 
+    // 6b. Il pannello host perde la connessione e torna con un socket nuovo:
+    // chiede lo stato con host:resync invece di ricreare la partita, che
+    // butterebbe fuori i telefoni e rimanderebbe la sala in lobby.
+    console.log('\n  🔁  Fase 6b: Riconnessione del pannello host');
+    const hostBis = ioc(URL, { auth: { token: hostToken } });
+    sockets.push(hostBis);
+    await once(hostBis, 'connect');
+
+    const deniedResync = await emitAck(impostor, 'host:resync', null);
+    assert(deniedResync.ok === false, 'host:resync senza token rifiutato');
+
+    const resyncResults = await emitAck(hostBis, 'host:resync', null);
+    assert(resyncResults.ok === true && resyncResults.state === 'RESULTS',
+      'host:resync in RESULTS: stato della partita restituito');
+    assert(resyncResults.results?.correctIndex === 0,
+      'host:resync in RESULTS: gli ultimi risultati, per ridisegnare il pannello');
+    assert(Array.isArray(resyncResults.players) && resyncResults.players.length === 2,
+      'host:resync: i giocatori della partita');
+
+    const q7Promise = once(p1, 'game:question');
+    await emitAck(hostBis, 'host:next-question', null);
+    const q7 = await q7Promise;
+    const resyncQuestion = await emitAck(hostBis, 'host:resync', null);
+    assert(resyncQuestion.state === 'QUESTION' && resyncQuestion.question?.index === q7.index,
+      'host:resync in QUESTION: il round in corso');
+    assert(Number.isFinite(resyncQuestion.question?.endsAt)
+      && Number.isFinite(resyncQuestion.question?.serverNow),
+      'host:resync in QUESTION: scadenze col serverNow, come game:question');
+    assert(resyncQuestion.answered === 0, 'host:resync in QUESTION: quante risposte sono arrivate');
+
     // 7. Fine partita
     console.log('\n  🛑  Fase 7: Fine partita');
 
@@ -481,6 +513,117 @@ async function run() {
     // Fuori dalla lobby non si entra più, bot inclusi.
     const tardi = await emitAck(host, 'host:spawn-bots', { count: 2 });
     assert(tardi.ok === false, 'a partita iniziata: host:spawn-bots rifiutato');
+
+    await emitAck(host, 'host:end-game', null);
+
+    // 10. Salta round nei minigiochi
+    console.log(`
+  ⏭️   Fase 10: Salta round`);
+
+    await emitAck(host, 'host:create-game', { quizId, quizType: 'preloaded' });
+    const p10 = ioc(URL); sockets.push(p10);
+    await once(p10, 'connect');
+    await emitAck(p10, 'player:join', { nickname: 'Saltatore' });
+    const q10Promise = once(p10, 'game:question');
+    await emitAck(host, 'host:start-game', null);
+    const q10 = await q10Promise;
+
+    const skipQuestion = await emitAck(host, 'host:skip-round', null);
+    assert(skipQuestion.ok === false, 'host:skip-round su una domanda del quiz: rifiutato');
+    const r10Promise = once(host, 'game:results');
+    await emitAck(p10, 'player:answer', { optionIndex: 0, roundIndex: q10.index });
+    await r10Promise;
+    assert(true, 'la domanda col salto rifiutato si chiude ancora normalmente');
+
+    // Il round si è chiuso da solo un attimo prima del clic: l'host deve
+    // leggere una frase, non lo stato interno della macchina.
+    const skipLate = await emitAck(host, 'host:skip-round', null);
+    assert(skipLate.ok === false && skipLate.error === 'Il round si è già chiuso.',
+      'host:skip-round a round già chiuso: messaggio leggibile per l\'host');
+
+    let nextQ = once(host, 'game:question');
+    await emitAck(host, 'host:insert-minigame', { type: 'cup_game' });
+    await nextQ;
+    nextQ = once(host, 'game:question');
+    const skipLevel = await emitAck(host, 'host:skip-round', null);
+    const level2 = await nextQ;
+    assert(skipLevel.ok === true && level2.stage?.index === 1,
+      'host:skip-round su un livello dei bicchieri: parte il successivo');
+    for (let i = 0; i < 3; i++) {
+      nextQ = once(host, 'game:question');
+      await emitAck(host, 'host:skip-round', null);
+      await nextQ;
+    }
+    const skippedResultsPromise = once(p10, 'game:results');
+    await emitAck(host, 'host:skip-round', null);
+    const skippedResults = await skippedResultsPromise;
+    assert(skippedResults.skipped === true && skippedResults.answers.length === 0
+      && Number.isFinite(skippedResults.serverNow) && !('revealAt' in skippedResults),
+      'host:skip-round sull\'ultimo livello: risultati vuoti marcati skipped');
+
+    nextQ = once(p10, 'game:question');
+    await emitAck(host, 'host:insert-minigame', { type: 'morra_cinese' });
+    const morra = await nextQ;
+    nextQ = once(p10, 'game:question');
+    await emitAck(host, 'host:skip-round', null);
+    const afterMorra = await nextQ;
+    assert(afterMorra.kind === 'question',
+      'host:skip-round sulla Morra: dritti alla domanda dopo, senza classifica');
+    const stale = await emitAck(p10, 'player:answer', { optionIndex: 0, roundIndex: morra.index });
+    assert(stale.ok === false, 'una risposta partita prima del salto non vale per la domanda dopo');
+    const fresh = await emitAck(p10, 'player:answer', { optionIndex: 1, roundIndex: afterMorra.index });
+    assert(fresh.ok === true, 'la risposta col round giusto passa');
+
+    await emitAck(host, 'host:end-game', null);
+
+    // 11. Pagina di debug dei minigiochi (DEBUG_TOOLS=1)
+    console.log(`
+  🧰  Fase 11: Pagina di debug`);
+
+    const impostor3 = ioc(URL); sockets.push(impostor3);
+    await once(impostor3, 'connect');
+    const debugDenied = await emitAck(impostor3, 'debug:prepare', { bots: 3 });
+    assert(debugDenied.ok === false, 'debug:prepare senza token: rifiutato');
+
+    const mgList = await emitAck(host, 'debug:minigames', null);
+    const mgTypes = (mgList.list ?? []).map((m) => m.type);
+    assert(mgList.ok === true && mgTypes.includes('cup_game') && mgTypes.includes('morra_cinese'),
+      'debug:minigames: i minigiochi del registry');
+
+    const prep1 = await emitAck(host, 'debug:prepare', { bots: 3 });
+    assert(prep1.ok === true && prep1.players.length === 3, 'debug:prepare: partita nuova con 3 bot');
+    const prep2 = await emitAck(host, 'debug:prepare', { bots: 2 });
+    assert(prep2.ok === true && prep2.players.length === 2,
+      'debug:prepare ripetuto: la partita nuova sostituisce la vecchia, niente bot doppi');
+
+    const badType = await emitAck(host, 'debug:play', { type: 'inesistente' });
+    assert(badType.ok === false, 'debug:play con un minigioco sconosciuto: rifiutato');
+
+    const p11 = ioc(URL); sockets.push(p11);
+    await once(p11, 'connect');
+    await emitAck(p11, 'player:join', { nickname: 'Tu' });
+    const cupQPromise = once(p11, 'game:question');
+    const play = await emitAck(host, 'debug:play', { type: 'cup_game' });
+    const cupQ = await cupQPromise;
+    assert(play.ok === true && cupQ.kind === 'minigame' && cupQ.minigameType === 'cup_game'
+      && cupQ.stage?.index === 0,
+      'debug:play: parte subito il minigioco, dal primo livello');
+    const playAgain = await emitAck(host, 'debug:play', { type: 'morra_cinese' });
+    assert(playAgain.ok === false, 'debug:play a partita già partita: rifiutato');
+
+    for (let i = 0; i < 4; i++) {
+      const qPromise = once(p11, 'game:question');
+      await emitAck(host, 'host:skip-round', null);
+      await qPromise;
+    }
+    const lastResultsPromise = once(p11, 'game:results');
+    await emitAck(host, 'host:skip-round', null);
+    await lastResultsPromise;
+    const final11Promise = once(p11, 'game:final');
+    await emitAck(host, 'host:next-question', null);
+    const final11 = await final11Promise;
+    assert(Array.isArray(final11.leaderboard) && final11.leaderboard.length === 3,
+      'dopo il minigioco "Avanti" porta alla premiazione: il minigioco era l\'ultimo round');
 
     await emitAck(host, 'host:end-game', null);
 

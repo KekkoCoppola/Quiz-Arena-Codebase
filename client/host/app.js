@@ -1251,6 +1251,7 @@ const gameFinalPodium        = document.getElementById('game-final-podium');
 const gameStartBtn    = document.getElementById('game-start-btn');
 const gameNextBtn     = document.getElementById('game-next-btn');
 const gameMinigameBtn = document.getElementById('game-minigame-btn');
+const gameSkipBtn     = document.getElementById('game-skip-btn');
 const gameRestartBtn  = document.getElementById('game-restart-btn');
 
 const viewGame        = document.getElementById('view-game');
@@ -1283,6 +1284,24 @@ const minigameEls = () => ({
 
 /** Attesa della fine del sipario in sala, prima di far partire il minigioco qui. */
 let hostIntroTimer = null;
+
+/**
+ * Dopo un salto il round nuovo arriva in pochi millisecondi: se il bottone si
+ * riaccendesse subito, il secondo colpo di un doppio clic salterebbe anche
+ * quello. Resta spento per questo tempo, che è sotto ogni pressione voluta.
+ */
+const SKIP_COOLDOWN_MS = 800;
+let skipCooldownTimer = null;
+
+/** Mostra (attivo dopo la pausa) o nasconde il bottone "Salta round". */
+function setSkipAvailable(available) {
+  clearTimeout(skipCooldownTimer);
+  gameSkipBtn.hidden = !available;
+  gameSkipBtn.disabled = true;
+  if (available) {
+    skipCooldownTimer = setTimeout(() => { gameSkipBtn.disabled = false; }, SKIP_COOLDOWN_MS);
+  }
+}
 
 /** Ferma un'eventuale animazione di attesa. Idempotente, sicura da chiamare sempre. */
 function stopMinigameSuspense() {
@@ -1401,17 +1420,66 @@ function connectGameSocket(quiz, type) {
 
   gameSocket = io('/', { auth: { token: state.token } });
 
-  gameSocket.on('connect', () => {
+  // La partita si crea UNA volta, alla prima connessione. Socket.io rilancia
+  // `connect` a ogni riconnessione (il Wi-Fi del tablet che cade un attimo, la
+  // scheda in secondo piano che il browser rallenta): ricreare la partita lì
+  // buttava fuori i telefoni e rimandava la sala in lobby. Da riconnessi si
+  // chiede lo stato al server e si ridisegna il pannello.
+  let gameCreated = false;
+  const createGame = () => {
     gameSocket.emit('host:create-game', { quizId: quiz.id, quizType: type }, (res) => {
       if (!res.ok) {
         showToast(res.error, 'error');
         gameStatusText.textContent = `Errore: ${res.error}`;
         return;
       }
+      gameCreated = true;
       gameStatusText.textContent = 'Lobby aperta: i giocatori possono entrare dal telefono.';
       renderGameLobby([]);
     });
+  };
+
+  gameSocket.on('connect', () => {
+    if (!gameCreated) {
+      createGame();
+      return;
+    }
+    gameSocket.emit('host:resync', null, (res) => {
+      if (!res.ok) {
+        showToast(res.error, 'error');
+        return;
+      }
+      // Nessuna partita sul server (riavviato nel frattempo): non c'è niente
+      // da perdere, se ne crea una nuova come alla prima connessione.
+      if (res.state === null) {
+        createGame();
+        return;
+      }
+      resyncGamePanel(res);
+    });
   });
+
+  /**
+   * Ridisegna il pannello dallo stato di `host:resync` passando dagli stessi
+   * gestori degli eventi di partita: un'unica strada per disegnare un round,
+   * dei risultati o la premiazione, che arrivino in diretta o dopo un rientro.
+   */
+  function resyncGamePanel(res) {
+    const replay = (event, payload) => {
+      for (const handler of gameSocket.listeners(event)) handler(payload);
+    };
+    renderGameLobby(res.players);
+    if (res.state === 'LOBBY') {
+      gameStatusText.textContent = 'Lobby aperta: i giocatori possono entrare dal telefono.';
+    } else if (res.state === 'QUESTION') {
+      replay('game:question', res.question);
+      replay('game:answer-count', { answered: res.answered, total: res.total });
+    } else if (res.state === 'RESULTS' && res.results) {
+      replay('game:results', res.results);
+    } else if (res.state === 'FINAL_LEADERBOARD') {
+      replay('game:final', { leaderboard: res.leaderboard });
+    }
+  }
 
   gameSocket.on('game:lobby-update', ({ players }) => renderGameLobby(players));
 
@@ -1488,6 +1556,9 @@ function connectGameSocket(quiz, type) {
     gameNextBtn.disabled = true;
     gameMinigameBtn.disabled = true;
     gameRestartBtn.disabled = true;
+    // Si saltano solo i round dei minigiochi; il bottone si riaccende a ogni
+    // round nuovo, così un doppio clic non salta due livelli di fila.
+    setSkipAvailable(q.kind === 'minigame');
   });
 
   gameSocket.on('game:answer-count', ({ answered, total }) => {
@@ -1498,9 +1569,37 @@ function connectGameSocket(quiz, type) {
   gameSocket.on('game:results', (results) => {
     stopGameCountdown();
     stopMinigameSuspense();
+    setSkipAvailable(false);
     const isMinigame = results.kind === 'minigame';
-    gameStatusText.textContent = 'Round chiuso: risultati sul tabellone.';
+    gameStatusText.textContent = results.skipped
+      ? 'Round saltato: nessun punto assegnato.'
+      : 'Round chiuso: risultati sul tabellone.';
 
+    // Round saltato dall'host: niente esito da rivelare né risposte da
+    // contare. Resta la classifica, ferma ai punti di prima.
+    if (results.skipped) {
+      gameCorrectAnswer.textContent = '';
+      gameDistribution.innerHTML = '';
+    } else {
+      renderRoundOutcome(results, isMinigame);
+    }
+
+    gamePartialLeaderboard.innerHTML = '';
+    results.leaderboard.slice(0, 5).forEach((p, i) => {
+      gamePartialLeaderboard.appendChild(buildLeaderboardRow(p, p.rank ?? i + 1));
+    });
+
+    // All'ultimo round "avanti" non porta a una domanda ma alla premiazione:
+    // il bottone lo dice, così l'host sa cosa sta per comparire in sala.
+    gameNextLabel.textContent = results.isLastRound ? 'Classifica finale' : 'Prossima domanda';
+
+    showGameBox(gameResultsBox);
+    gameNextBtn.disabled = false;
+    gameMinigameBtn.disabled = false;
+  });
+
+  /** Reveal e distribuzione delle risposte di un round chiuso normalmente. */
+  function renderRoundOutcome(results, isMinigame) {
     // Reveal: la domanda mostra la risposta corretta; il minigioco disegna il
     // proprio (ferma l'attesa e rivela lo stato della macchina). La riga da
     // evidenziare nella distribuzione la decide il minigioco stesso, perché non
@@ -1552,24 +1651,12 @@ function connectGameSocket(quiz, type) {
       li.append(label, track, count);
       gameDistribution.appendChild(li);
     });
-
-    gamePartialLeaderboard.innerHTML = '';
-    results.leaderboard.slice(0, 5).forEach((p, i) => {
-      gamePartialLeaderboard.appendChild(buildLeaderboardRow(p, p.rank ?? i + 1));
-    });
-
-    // All'ultimo round "avanti" non porta a una domanda ma alla premiazione:
-    // il bottone lo dice, così l'host sa cosa sta per comparire in sala.
-    gameNextLabel.textContent = results.isLastRound ? 'Classifica finale' : 'Prossima domanda';
-
-    showGameBox(gameResultsBox);
-    gameNextBtn.disabled = false;
-    gameMinigameBtn.disabled = false;
-  });
+  }
 
   gameSocket.on('game:final', ({ leaderboard }) => {
     stopGameCountdown();
     stopMinigameSuspense();
+    setSkipAvailable(false);
     gameStatusText.textContent = 'Partita conclusa!';
     setGameProgress(1, 1);
     gameFinalPodium.innerHTML = '';
@@ -1725,6 +1812,19 @@ gameStartBtn.addEventListener('click', () => {
 gameNextBtn.addEventListener('click', () => {
   gameSocket?.emit('host:next-question', null, (res) => {
     if (!res.ok) showToast(res.error, 'error');
+  });
+});
+
+// Salta il round minigioco in corso (0 punti a tutti). Si spegne al clic e si
+// riaccende solo col round nuovo, dopo SKIP_COOLDOWN_MS: un doppio clic
+// salterebbe due livelli.
+gameSkipBtn.addEventListener('click', () => {
+  gameSkipBtn.disabled = true;
+  gameSocket?.emit('host:skip-round', null, (res) => {
+    if (!res.ok) {
+      showToast(res.error, 'error');
+      gameSkipBtn.disabled = false;
+    }
   });
 });
 

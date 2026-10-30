@@ -28,6 +28,8 @@ const {
   InvalidAvatarError,
   InvalidMinigameTypeError,
   AnswersNotOpenError,
+  NotAMinigameError,
+  StaleRoundError,
 } = require('../server/game');
 const AvatarCatalog = require('../client/shared/avatar-catalog');
 
@@ -424,6 +426,78 @@ function run() {
   assert(g9d.getCurrentRound().stage.index === 1 && g9d.getCurrentRound().introMs === 0,
     'sipario: dal secondo livello niente tende, la scena continua');
   assert(g9d.answersOpenAt === 65000 + 9000, 'sipario: al secondo livello resta solo l\'anteprima');
+
+  // ─── Salta round nei minigiochi ──────────────────────────────────────────────
+  // L'host può chiudere un round minigioco in corso: niente esito, 0 punti a
+  // tutti. Livello intermedio → il successivo; ultimo livello → classifica;
+  // minigioco a un round → avanti senza classifica. Le domande non si saltano.
+
+  console.log('\n  ⏭️   Fase 9e: Salta round nei minigiochi\n');
+
+  const g9e = new GameSession(QUIZ, { rnd: () => 0 });
+  const hal = g9e.addPlayer('Hal');
+  const halScore = () => g9e.players.get(hal.id).score;
+  g9e.startGame(0);
+  assertThrows(() => g9e.skipRound(100), NotAMinigameError,
+    'skipRound: rifiutato su una domanda del quiz');
+  g9e.submitAnswer(hal.id, 0, 500);
+  g9e.endQuestion(1000);
+  assertThrows(() => g9e.skipRound(1500), InvalidStateError,
+    'skipRound: rifiutato a round già chiuso');
+
+  const scoreBeforeCups = halScore();
+  g9e.insertMinigame('cup_game', 2000);
+  g9e.submitAnswer(hal.id, 0, g9e.answersOpenAt + 100);
+  const skip1 = g9e.skipRound(g9e.answersOpenAt + 200);
+  assert(skip1.next === 'round' && g9e.state === STATES.QUESTION
+    && g9e.getCurrentRound().stage.index === 1,
+    'skipRound: un livello intermedio passa al successivo');
+  assert(halScore() === scoreBeforeCups, 'skipRound: 0 punti anche a chi aveva già risposto');
+  assert(g9e.currentAnswers.size === 0, 'skipRound: il livello nuovo parte senza risposte');
+
+  for (let i = 0; i < 3; i++) g9e.skipRound(g9e.answersOpenAt);
+  assert(g9e.getCurrentRound().stage.index === 4, 'skipRound: quattro salti portano al quinto livello');
+  g9e.submitAnswer(hal.id, 0, g9e.answersOpenAt + 100);
+  const skip5 = g9e.skipRound(g9e.answersOpenAt + 200);
+  assert(skip5.next === 'results' && g9e.state === STATES.RESULTS,
+    'skipRound: l\'ultimo livello porta alla classifica');
+  assert(skip5.results.skipped === true && skip5.results.answers.length === 0
+    && skip5.results.machineChoice === null && skip5.results.revealMs === 0,
+    'skipRound: i risultati dell\'ultimo livello sono vuoti e marcati skipped');
+  assert(skip5.results.distribution.every((n) => n === 0)
+    && skip5.results.stage?.index === 4,
+    'skipRound: distribuzione a zero, il livello resta indicato');
+  assert(halScore() === scoreBeforeCups, 'skipRound: nessun punto per tutta la filata saltata');
+
+  g9e.insertMinigame('morra_cinese', 200000);
+  const skipMorra = g9e.skipRound(g9e.answersOpenAt);
+  assert(skipMorra.next === 'round' && g9e.state === STATES.QUESTION
+    && g9e.getCurrentRound().kind === 'question' && g9e.getCurrentRound().text === 'Domanda 2',
+    'skipRound: un minigioco a un round passa dritto alla domanda successiva');
+
+  g9e.endQuestion(300000);
+  g9e.insertMinigame('morra_cinese', 310000);
+  const skipLast = g9e.skipRound(g9e.answersOpenAt);
+  assert(skipLast.next === 'final' && g9e.state === STATES.FINAL_LEADERBOARD
+    && Array.isArray(skipLast.leaderboard) && skipLast.leaderboard[0].id === hal.id,
+    'skipRound: saltare l\'ultimo round della partita porta alla premiazione');
+
+  // Risposta "in volo" del round saltato: la Morra salta dritta su una domanda
+  // che accetta risposte subito, quindi un tocco partito prima del salto
+  // arriverebbe sulla domanda. Porta l'indice del suo round e viene scartato.
+  const g9f = new GameSession(QUIZ, { rnd: () => 0 });
+  const ivy = g9f.addPlayer('Ivy');
+  g9f.startGame(0);
+  g9f.submitAnswer(ivy.id, 0, 500);
+  g9f.endQuestion(1000);
+  g9f.insertMinigame('morra_cinese', 2000);
+  const morraIndex = g9f.currentRoundIndex;
+  g9f.skipRound(g9f.answersOpenAt);
+  assertThrows(() => g9f.submitAnswer(ivy.id, 0, g9f.answersOpenAt + 80, morraIndex), StaleRoundError,
+    'submitAnswer: una risposta del round saltato non finisce sulla domanda dopo');
+  assert(g9f.currentAnswers.size === 0, 'submitAnswer: la risposta scartata non resta registrata');
+  const ivyQ2 = g9f.submitAnswer(ivy.id, 1, g9f.answersOpenAt + 100, g9f.currentRoundIndex);
+  assert(ivyQ2.correct === true, 'submitAnswer: con l\'indice del round giusto la risposta passa');
 
 
   // ─── Immagine nel round ──────────────────────────────────────────────────────

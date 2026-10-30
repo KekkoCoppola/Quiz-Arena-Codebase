@@ -82,6 +82,13 @@ app.use(
   express.static(path.join(__dirname, '../client/sala'))
 );
 
+// Pagina di debug dei minigiochi: servita solo con DEBUG_TOOLS=1. Spenta, /debug
+// cade nel router del giocatore come qualunque percorso sconosciuto. Per
+// toglierla del tutto vedi server/debug-tools.js.
+if (config.debugTools) {
+  app.use('/debug', express.static(path.join(__dirname, '../client/debug')));
+}
+
 // ─── API Host ─────────────────────────────────────────────────────────────────
 app.use('/api/host', hostRouter);
 

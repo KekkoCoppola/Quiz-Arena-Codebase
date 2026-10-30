@@ -1232,7 +1232,9 @@ function renderResults(results, token) {
   const isMinigame = results.kind === 'minigame';
   // Sopra la classifica di un minigioco tutto palco non si ripete l'esito:
   // la scena l'ha già mostrato, livello per livello.
-  const stageOnly = isMinigame && currentMinigame?.salaOptions === false;
+  // Un round saltato non ha esito: nessuna riga di reveal, qualunque minigioco sia.
+  const stageOnly = isMinigame
+    && (currentMinigame?.salaOptions === false || Boolean(results.skipped));
   els.reveal.hidden = stageOnly;
   // La classifica è della partita: se suonava la colonna sonora di un
   // minigioco, qui finisce.
@@ -1384,6 +1386,11 @@ function podiumPlayer(p) {
 function renderFinal(entries, { animate = true } = {}) {
   const token = newPhase();
   stopCountdown();
+  // Di solito ci si arriva dalla classifica, che ha già rimesso la musica
+  // della partita. Ma un minigioco saltato dall'host come ultimo round porta
+  // qui direttamente: senza questa riga la sua colonna sonora (o il silenzio
+  // del sipario) resterebbe sotto la premiazione. Se suona già, non cambia nulla.
+  SalaAudio.music('bed');
 
   const leaderboard = entries
     .slice()
@@ -1533,6 +1540,14 @@ socket.on('game:question', renderQuestion);
 socket.on('game:results', (results) => {
   const token = newPhase();
   stopCountdown();
+
+  // Round saltato dall'host: niente da rivelare né da festeggiare, e nessun
+  // rullo di tamburi che prometta un esito. Dritti alla classifica.
+  if (results.skipped) {
+    renderResults(results, token);
+    return;
+  }
+
   SalaAudio.sfx('suspense');
 
   const startScene = () => {
@@ -1583,6 +1598,16 @@ socket.on('game:ended', () => {
 // Chromium va lanciato con --autoplay-policy=no-user-gesture-required; sul
 // desktop di sviluppo, dove il flag non c'è, il contesto nasce sospeso e il
 // primo click qualunque lo sblocca (vedi SalaAudio.arm).
-SalaAudio.arm();
+// Con `/sala?muto` l'audio non si arma affatto: serve a provare la sala in
+// silenzio (la pagina di debug, chi lavora in remote control col PC che suona).
+// Non basta non armare: la musica passa da <audio>, e sipario e premiazione
+// hanno un sintetizzatore loro. Per questo si azzera anche ognuno di quelli.
+if (new URLSearchParams(location.search).has('muto')) {
+  SalaAudio.setMuted(true);
+  MinigameStageIntro.setMuted(true);
+  if (typeof PodiumCeremony !== 'undefined') PodiumCeremony.setMuted(true);
+} else {
+  SalaAudio.arm();
+}
 loadJoinInfo();
 showPanel('idle');

@@ -135,6 +135,20 @@ class InvalidMinigameTypeError extends Error {
   }
 }
 
+class StaleRoundError extends Error {
+  constructor(message = 'Il round è già cambiato: la risposta non vale più.') {
+    super(message);
+    this.name = 'StaleRoundError';
+  }
+}
+
+class NotAMinigameError extends Error {
+  constructor(message = 'Si possono saltare solo i round dei minigiochi.') {
+    super(message);
+    this.name = 'NotAMinigameError';
+  }
+}
+
 class AnswersNotOpenError extends Error {
   constructor(message = 'Le risposte non sono ancora aperte: guarda lo schermo!') {
     super(message);
@@ -490,11 +504,19 @@ class GameSession {
    * @param {string} playerId
    * @param {number} optionIndex
    * @param {number} [now]
+   * @param {number} [roundIndex] il round a cui il telefono stava rispondendo.
+   *   Se c'è e non è il round corrente, la risposta è "in volo" da un round
+   *   chiuso nel frattempo (es. saltato dall'host verso una domanda che accetta
+   *   risposte subito) e viene scartata invece di valere per il round nuovo.
    * @returns {{ correct: boolean, pointsAwarded: number } | { recorded: true }}
    */
-  submitAnswer(playerId, optionIndex, now = Date.now()) {
+  submitAnswer(playerId, optionIndex, now = Date.now(), roundIndex) {
     this._assertState(STATES.QUESTION, 'submitAnswer');
     this._getPlayerOrThrow(playerId);
+
+    if (roundIndex !== undefined && roundIndex !== this.currentRoundIndex) {
+      throw new StaleRoundError();
+    }
 
     if (this.currentAnswers.has(playerId)) {
       throw new AlreadyAnsweredError();
@@ -597,6 +619,17 @@ class GameSession {
 
     this.state = STATES.RESULTS;
 
+    return this._resultsSummary(round, { machineChoice, revealMs, distribution });
+  }
+
+  /**
+   * Riepilogo di un round chiuso, come lo ricevono i client in `game:results`.
+   * Un'unica forma per il round chiuso normalmente e per quello saltato
+   * dall'host: un campo aggiunto qui arriva a entrambi.
+   * @param {object} round il round appena chiuso
+   * @param {{ machineChoice: number|null, revealMs: number, distribution: number[] }} esito
+   */
+  _resultsSummary(round, { machineChoice, revealMs, distribution }) {
     return {
       questionIndex: this.currentRoundIndex,
       kind: round.kind,
@@ -631,7 +664,16 @@ class GameSession {
    */
   nextQuestion(now = Date.now()) {
     this._assertState(STATES.RESULTS, 'nextQuestion');
+    return this._advance(now);
+  }
 
+  /**
+   * Il passo avanti comune a `nextQuestion` e `skipRound`: il round successivo,
+   * oppure la premiazione se quello appena lasciato era l'ultimo.
+   * @param {number} now
+   * @returns {{ finished: true, leaderboard: Array } | { finished: false }}
+   */
+  _advance(now) {
     if (this.isLastRound) {
       this.state = STATES.FINAL_LEADERBOARD;
       this.roundStartedAt = null;
@@ -641,6 +683,53 @@ class GameSession {
     this.currentRoundIndex++;
     this._enterRound(now);
     return { finished: false };
+  }
+
+  /**
+   * L'host chiude il round minigioco in corso: niente esito e 0 punti a tutti,
+   * anche a chi aveva già scelto. Serve ad accorciare un minigioco durante la
+   * serata, non a correggerlo: un round saltato non si recupera.
+   *
+   * Dove si va dopo dipende dal minigioco:
+   *  - livello intermedio di uno a più livelli → il livello successivo;
+   *  - ultimo livello → la classifica (`RESULTS`), ferma ai punti dei livelli
+   *    giocati, con un riepilogo marcato `skipped` e senza risposte;
+   *  - minigioco a un round → avanti come `nextQuestion`, senza classifica:
+   *    i punti non sono cambiati, mostrarla non direbbe niente.
+   * Le domande del quiz non si saltano.
+   * @param {number} [now]
+   * @returns {{ next: 'round' } | { next: 'results', results: object } | { next: 'final', leaderboard: Array }}
+   */
+  skipRound(now = Date.now()) {
+    this._assertState(STATES.QUESTION, 'skipRound');
+    const round = this.currentRound;
+    if (round.kind !== 'minigame') {
+      throw new NotAMinigameError();
+    }
+
+    this.currentAnswers = new Map();
+    this._openResolution = null;
+
+    // Ultimo livello di un minigioco a più livelli: si chiude sulla classifica,
+    // che porta i punti dei livelli giocati. Le risposte sono già state
+    // scartate, quindi il riepilogo esce vuoto.
+    const { stage } = round;
+    if (stage && stage.index === stage.count - 1) {
+      this.state = STATES.RESULTS;
+      const results = this._resultsSummary(round, {
+        machineChoice: null,
+        revealMs: 0,
+        distribution: new Array(round.options.length).fill(0),
+      });
+      return { next: 'results', results: { ...results, skipped: true } };
+    }
+
+    // Livello intermedio (mai l'ultimo round della partita: dopo c'è il
+    // livello successivo) o minigioco a un round: si va avanti come "Prossima".
+    const next = this._advance(now);
+    return next.finished
+      ? { next: 'final', leaderboard: next.leaderboard }
+      : { next: 'round' };
   }
 
   /**
@@ -709,6 +798,8 @@ module.exports = {
   AlreadyAnsweredError,
   InvalidAnswerIndexError,
   AnswersNotOpenError,
+  NotAMinigameError,
+  StaleRoundError,
   InvalidNicknameError,
   InvalidAvatarError,
   EmptyQuizError,

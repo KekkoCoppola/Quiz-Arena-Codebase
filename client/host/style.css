@@ -1245,6 +1245,8 @@ button { cursor: pointer; background: none; border: 0; }
 .view-game[data-phase="results"] #game-next-btn,
 .view-game[data-phase="results"] #game-minigame-btn,
 .view-game[data-phase="final"]   #game-restart-btn { display: flex; }
+/* Durante un round, solo se è un minigioco: `app.js` lo toglie dal `hidden`. */
+.view-game[data-phase="question"] #game-skip-btn:not([hidden]) { display: flex; }
 
 /* Il bottone principale scende in fondo, sotto il pollice. */
 #game-minigame-btn { order: -1; }
