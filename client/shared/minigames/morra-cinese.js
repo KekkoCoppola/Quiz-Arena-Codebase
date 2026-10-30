@@ -238,6 +238,12 @@
     playerLayoutClass: 'mg-morra-cinese-choices',
     wheelIcon: '/resources/img/morra-cinese/forbice.svg',
     audio: AUDIO,
+    // In sala niente carte Sasso/Carta/Forbice (ripetevano i bottoni del
+    // telefono): accanto alla scena c'è chi ha già scelto, e dopo la ruota chi
+    // ha battuto il computer. La riga "Il computer ha scelto" sopra la
+    // classifica sparisce con le carte: la ruota l'ha appena detto.
+    salaOptions: false,
+    salaPlayers: true,
 
     optionIcon(i) {
       return moveImg(i, 'mg-morra-cinese-move');

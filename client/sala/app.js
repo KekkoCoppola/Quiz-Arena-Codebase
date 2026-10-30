@@ -54,6 +54,10 @@ const els = {
   paradeName:   document.getElementById('sala-parade-name'),
   noAnswer:     document.getElementById('sala-no-answer'),
 
+  roster:       document.getElementById('sala-roster'),
+  rosterCount:  document.getElementById('sala-roster-count'),
+  rosterSeats:  document.getElementById('sala-roster-seats'),
+
   reveal:       document.getElementById('sala-reveal'),
   standings:    document.getElementById('sala-standings'),
   standingsBox: document.getElementById('sala-standings-box'),
@@ -84,6 +88,14 @@ let currentOptions  = [];
 let currentMinigame = null;
 let countdownTimer  = null;
 let lastPlayerCount = 0;
+// I giocatori della partita come li manda il server (lobby e snapshot): la
+// colonna dei minigiochi con `salaPlayers` ne fa i posti.
+let currentPlayers  = [];
+// Chi ha già scelto nel round della colonna (id, da `game:answer-count`), e se
+// quel round è ancora aperto: chiuso, la colonna passa alla scena degli esiti.
+let rosterAnswered  = [];
+let rosterLive      = false;
+let lastRosterSfxAt = 0;
 let suspenseTimer   = null;
 // Attesa della fine dell'anteprima di un minigioco: il cronometro della
 // risposta parte solo quando si può rispondere davvero.
@@ -540,10 +552,20 @@ function renderQuestion(q) {
   currentMinigame  = isMinigame ? Minigames.get(q.minigameType) : null;
 
   els.panels.question.classList.toggle('is-minigame', isMinigame);
-  // Minigioco tutto palco (`salaOptions: false`): le carte delle scelte non
-  // compaiono e la scena si prende anche il loro spazio.
+  // Colonna dei giocatori al posto delle carte (`salaPlayers`): chi ha scelto,
+  // e a round chiuso chi ha vinto. Prende la colonna destra come le carte.
+  const hasRoster = isMinigame && currentMinigame.salaPlayers === true;
+  els.panels.question.classList.toggle('has-roster', hasRoster);
+  // Minigioco tutto palco (`salaOptions: false`, senza colonna): le carte
+  // delle scelte non compaiono e la scena si prende anche il loro spazio.
   els.panels.question.classList.toggle('is-stage-only',
-    isMinigame && currentMinigame.salaOptions === false);
+    isMinigame && currentMinigame.salaOptions === false && !hasRoster);
+  rosterAnswered = [];
+  rosterLive = hasRoster;
+  els.roster.hidden = !hasRoster;
+  els.roster.classList.remove('is-outcome');
+  els.panels.question.classList.remove('is-outcome');
+  if (hasRoster) renderRoster();
   // Il nastro adesivo porta l'etichetta del round: la categoria del quiz non
   // arriva in `game:question`, quindi si usa l'informazione che c'è davvero.
   // Un minigioco può chiedere un nastro diverso dal proprio nome, o nessun
@@ -639,6 +661,112 @@ function renderQuestion(q) {
   SalaAudio.sfx('round-start');
 }
 
+// ─── Colonna dei giocatori (minigiochi con `salaPlayers`) ────────────────────
+//
+// Durante la scelta lo schermo non sapeva niente della stanza: tutto succedeva
+// sui telefoni. Qui ogni giocatore ha il suo posto e, appena sceglie, mostra la
+// faccia con la spunta — senza la mossa, che si scopre solo con la ruota. Chi
+// siede e in che ordine lo decide `AnswerRoster` (client/sala/answer-roster.js).
+
+/** Oltre questo numero di posti i nomi non ci stanno più: restano le facce. */
+const ROSTER_NAMES_MAX = 24;
+/** Con venti bot che scelgono insieme, un tocco per ognuno sarebbe un ronzio. */
+const ROSTER_SFX_GAP_MS = 120;
+
+/** Colonne della griglia dei posti per `n` giocatori: più sono, più stretti. */
+function rosterColumns(n) {
+  if (n <= 4) return 2;
+  if (n <= 9) return 3;
+  if (n <= 20) return 4;
+  if (n <= 30) return 5;
+  return 6;
+}
+
+/**
+ * Dimensiona la griglia per `n` giocatori: colonne, righe e (oltre
+ * `ROSTER_NAMES_MAX`) niente nomi. La misura del singolo posto la ricava il
+ * CSS da qui, sullo spazio vero della colonna.
+ * @param {number} n
+ */
+function sizeRoster(n) {
+  const cols = rosterColumns(n);
+  els.roster.style.setProperty('--roster-cols', String(cols));
+  els.roster.style.setProperty('--roster-rows', String(Math.max(1, Math.ceil(n / cols))));
+  els.roster.classList.toggle('is-crowded', n > ROSTER_NAMES_MAX);
+}
+
+/** Sotto questa scala un posto non si legge più dal fondo della sala. */
+const ROSTER_MIN_FIT = 0.5;
+
+/**
+ * La misura dei posti la stima il CSS da righe e colonne, ma quanto occupa
+ * davvero un posto dipende dal font e dai nomi: qui si MISURA, e se la colonna
+ * trabocca si rimpicciolisce a passi (`--roster-fit`), come `fitQuestionLayout`
+ * fa con le domande. Su un pannello nascosto non c'è niente da misurare: ci
+ * pensa `fitQuestionLayout` appena il pannello compare.
+ */
+function fitRoster() {
+  const box = els.rosterSeats;
+  let fit = 1;
+  els.roster.style.setProperty('--roster-fit', '1');
+  while (fit > ROSTER_MIN_FIT && box.scrollHeight > box.clientHeight + 1) {
+    fit = Math.max(ROSTER_MIN_FIT, fit - 0.05);
+    els.roster.style.setProperty('--roster-fit', fit.toFixed(2));
+  }
+}
+
+/**
+ * Un posto della colonna: la testa del giocatore (o "?" finché non sceglie),
+ * il nome e, se ha scelto, la spunta.
+ * @param {{ nickname: string, avatar: string }} player
+ * @param {{ answered?: boolean, isNew?: boolean }} [state]
+ */
+function buildRosterSeat(player, { answered = true, isNew = false } = {}) {
+  const li = document.createElement('li');
+  li.className = 'sala-roster-seat';
+  li.classList.toggle('is-waiting', !answered);
+  li.classList.toggle('is-new', isNew);
+  const face = document.createElement('span');
+  face.className = 'sala-roster-face';
+  if (answered) AvatarSprite.fill(face, player.avatar);
+  else face.textContent = '?';
+  const name = document.createElement('span');
+  name.className = 'sala-roster-name';
+  name.textContent = player.nickname ?? '';
+  li.append(face, name);
+  if (answered) {
+    const check = document.createElement('span');
+    check.className = 'sala-roster-check';
+    check.setAttribute('aria-hidden', 'true');
+    check.textContent = '✓';
+    li.appendChild(check);
+  }
+  return li;
+}
+
+/**
+ * Ridisegna la colonna durante la scelta. `freshIds` sono quelli che hanno
+ * appena scelto: solo loro fanno lo scatto, gli altri restano fermi al loro
+ * posto. Il totale è quello dei posti a schermo, così "N / M" torna sempre con
+ * quello che la sala vede.
+ * @param {string[]} [freshIds]
+ */
+function renderRoster(freshIds = []) {
+  const seats = AnswerRoster.seatsForRound(currentPlayers, rosterAnswered);
+  const fresh = new Set(freshIds);
+  const answered = seats.filter((s) => s.answered).length;
+  els.rosterCount.textContent = `${answered} / ${seats.length} hanno scelto`;
+  sizeRoster(seats.length);
+  els.rosterSeats.innerHTML = '';
+  for (const seat of seats) {
+    els.rosterSeats.appendChild(buildRosterSeat(seat, {
+      answered: seat.answered,
+      isNew: fresh.has(seat.id),
+    }));
+  }
+  fitRoster();
+}
+
 // ─── Disposizione della domanda ──────────────────────────────────────────────
 //
 // Di norma la scheda sta sopra e le risposte sotto. Una domanda lunga (o con
@@ -695,6 +823,8 @@ function fitQuestionLayout() {
   // lasciavano un palco basso e larghissimo con la mossa piccola in mezzo.
   if (panel.classList.contains('is-minigame')) {
     panel.classList.toggle('is-split', !panel.classList.contains('is-stage-only'));
+    // La colonna dei giocatori si misura solo ora che ha la sua colonna.
+    if (panel.classList.contains('has-roster')) fitRoster();
     return;
   }
 
@@ -928,11 +1058,87 @@ function runVerdict(results, token, onDone) {
   sceneWait(onDone, rightAt + 2400);
 }
 
+/** Un gruppo nuovo della scena degli esiti ogni tanto: abbastanza per leggerlo. */
+const OUTCOME_GROUP_STEP_MS = 700;
+/** Durata della scena degli esiti, poi la classifica. */
+const OUTCOME_SCENE_MS = 4500;
+
+/**
+ * Dopo la ruota: la colonna dei giocatori si ridivide per esito, un gruppo alla
+ * volta (prima chi ha battuto il computer), con i punti presi. Chi ha battuto
+ * il computer si vede subito, senza fare i conti mossa per mossa — e anche chi
+ * in classifica non entra fra i primi trova il proprio esito sullo schermo.
+ */
+function runOutcomeScene(results, token, onDone) {
+  // "Gli stessi posti" della scelta: chi era seduto alla chiusura. Chi ha
+  // lasciato la partita prima del round non finisce fra chi non ha scelto.
+  const seatedIds = AnswerRoster
+    .seatsForRound(currentPlayers, (results.answers ?? []).map((a) => a.playerId))
+    .map((s) => s.id);
+  const groups = AnswerRoster.outcomeGroups(results, seatedIds);
+  // La colonna si allarga e il palco, che ormai mostra solo la mossa del
+  // computer, si stringe: i gruppi hanno bisogno di righe in più.
+  els.panels.question.classList.add('is-outcome');
+  els.roster.hidden = false;
+  els.roster.classList.add('is-outcome');
+  els.rosterCount.textContent = 'Com\'è andata';
+  // Nei gruppi i posti sono compatti e vanno a capo da soli: la misura la
+  // trova `fitRoster`, partendo dalla più grande.
+  sizeRoster(groups.reduce((n, g) => n + g.players.length, 0));
+
+  // Tutti i gruppi subito, ancora invisibili: la misura va presa sulla scena
+  // completa, o la colonna cambierebbe taglia a ogni gruppo che entra.
+  els.rosterSeats.innerHTML = '';
+  const items = groups.map((group) => {
+    const li = document.createElement('li');
+    li.className = `sala-roster-group is-${group.outcome} is-pending`;
+    const title = document.createElement('p');
+    title.className = 'sala-roster-group-title';
+    title.textContent = `${group.label} · +${group.points}`;
+    const seats = document.createElement('ul');
+    seats.className = 'sala-roster-group-seats';
+    for (const player of group.players) seats.appendChild(buildRosterSeat(player));
+    li.append(title, seats);
+    els.rosterSeats.appendChild(li);
+    return li;
+  });
+  // Qui il nome serve più che durante la scelta: è il modo di ritrovarsi fra
+  // venti facce. Si tiene finché rimpicciolendo ci sta, e si toglie solo se
+  // nemmeno alla misura minima la scena entra nella colonna.
+  els.roster.classList.remove('is-crowded');
+  fitRoster();
+  if (els.rosterSeats.scrollHeight > els.rosterSeats.clientHeight + 1) {
+    els.roster.classList.add('is-crowded');
+    fitRoster();
+  }
+
+  // Movimento ridotto: i gruppi compaiono già fatti, tutti insieme.
+  const step = reducedMotion() ? 0 : OUTCOME_GROUP_STEP_MS;
+  items.forEach((li, i) => {
+    sceneWait(() => {
+      if (AudioLogic.isStale(token, phaseToken)) return;
+      li.classList.remove('is-pending');
+      if (step > 0 || i === 0) SalaAudio.sfx(groups[i].outcome === 'win' ? 'reveal' : 'avatar-land');
+    }, i * step);
+  });
+
+  sceneWait(() => {
+    if (AudioLogic.isStale(token, phaseToken)) return;
+    onDone();
+  }, Math.max(OUTCOME_SCENE_MS, groups.length * OUTCOME_GROUP_STEP_MS + 1500));
+}
+
 /** Sequenza completa: parata → verdetto → classifica. */
 function runResultsScene(results, token) {
   // "Scegli l'opzione corretta prima che scada il tempo" non ha più senso: il
   // tempo è scaduto. La domanda resta, l'istruzione no.
   els.questionHint.hidden = true;
+  // Minigioco con la colonna dei giocatori: niente carte né parata, la colonna
+  // si ridivide per esito e poi si va alla classifica.
+  if (currentMinigame?.salaPlayers === true) {
+    runOutcomeScene(results, token, () => renderResults(results, token));
+    return;
+  }
   // Minigioco tutto palco: non ci sono carte su cui far posare gli avatar né
   // risposte da timbrare, e l'esito l'ha già raccontato la scena. Dritti
   // alla classifica.
@@ -1476,6 +1682,8 @@ socket.on('disconnect', () => {
 socket.on('game:snapshot', (snap) => {
   newPhase();
   lastPlayerCount = snap.players?.length ?? 0;
+  currentPlayers = snap.players ?? [];
+  rosterLive = false;
   renderProgress(snap.currentQuestionIndex, snap.totalQuestions);
   // Lo snapshot arriva solo se una partita esiste: se il Pi si è riavviato a
   // metà evento, la musica riprende insieme alla schermata.
@@ -1505,8 +1713,12 @@ socket.on('game:lobby-update', ({ players, state }) => {
   // tornava alla lobby nel mezzo di un round: scena del minigioco, cronometro
   // e reveal spariti dal proiettore. Fuori dalla lobby si aggiorna solo il
   // conteggio; `state` assente vale come lobby, per un server più vecchio.
+  currentPlayers = players;
   if (state && state !== 'LOBBY') {
     lastPlayerCount = players.length;
+    // Un telefono che cade a metà scelta lascia il posto (se non aveva
+    // ancora scelto): la colonna segue chi c'è davvero.
+    if (rosterLive) renderRoster();
     return;
   }
   newPhase();
@@ -1526,6 +1738,24 @@ socket.on('game:lobby-update', ({ players, state }) => {
 socket.on('game:question', renderQuestion);
 
 /**
+ * Qualcuno ha scelto. Arriva per ogni risposta, umana o dei bot, con gli id di
+ * tutti quelli che hanno già scelto: mai cosa. Conta solo se il round in corso
+ * ha la colonna dei giocatori.
+ */
+socket.on('game:answer-count', ({ playerIds } = {}) => {
+  if (!rosterLive || !Array.isArray(playerIds)) return;
+  const before = new Set(rosterAnswered);
+  const fresh = playerIds.filter((id) => !before.has(id));
+  rosterAnswered = playerIds;
+  renderRoster(fresh);
+  const now = Date.now();
+  if (fresh.length > 0 && now - lastRosterSfxAt >= ROSTER_SFX_GAP_MS) {
+    lastRosterSfxAt = now;
+    SalaAudio.sfx('avatar-land');
+  }
+});
+
+/**
  * Il round è chiuso, ma le quattro opzioni restano a schermo: è su di esse che
  * si racconta l'esito, con la scena in due atti descritta più sopra
  * (parata degli avatar → verdetto → classifica).
@@ -1540,6 +1770,9 @@ socket.on('game:question', renderQuestion);
 socket.on('game:results', (results) => {
   const token = newPhase();
   stopCountdown();
+  // Il round è chiuso: nessuna risposta in più nella colonna, che resta ferma
+  // finché non la riprende la scena degli esiti.
+  rosterLive = false;
 
   // Round saltato dall'host: niente da rivelare né da festeggiare, e nessun
   // rullo di tamburi che prometta un esito. Dritti alla classifica.
@@ -1582,11 +1815,13 @@ socket.on('game:reset', () => {
   newPhase();
   stopCountdown();
   lastPlayerCount = 0;
+  rosterLive = false;
 });
 
 socket.on('game:ended', () => {
   newPhase();
   stopCountdown();
+  rosterLive = false;
   SalaAudio.music(null);   // in dissolvenza: la sala torna in silenzio
   els.idleText.textContent = 'Partita terminata.';
   showPanel('idle');

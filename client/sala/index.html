@@ -102,6 +102,14 @@
         </div>
         <ul class="sala-options" id="sala-options"></ul>
 
+        <!-- Colonna dei giocatori, al posto delle carte, nei minigiochi che la
+             chiedono (`salaPlayers`): durante il round chi ha già scelto (mai
+             cosa), dopo il reveal gli stessi divisi per esito. -->
+        <div class="sala-roster" id="sala-roster" hidden>
+          <p class="sala-roster-count" id="sala-roster-count"></p>
+          <ul class="sala-roster-seats" id="sala-roster-seats"></ul>
+        </div>
+
         <!-- Palco della parata: a round chiuso ogni giocatore compare qui con
              nome e avatar, il nome sfuma e l'avatar vola sulla risposta scelta.
              Vive nel pannello DOMANDA perché le quattro opzioni devono restare
@@ -203,6 +211,10 @@
        collegato al Raspberry, non dal tablet dell'host. -->
   <script src="audio-logic.js"></script>
   <script src="audio.js"></script>
+
+  <!-- Chi siede nella colonna dei giocatori e in che gruppi si divide: solo
+       decisioni, il disegno sta in app.js. -->
+  <script src="answer-roster.js"></script>
 
   <script src="app.js"></script>
 </body>

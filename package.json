@@ -18,7 +18,8 @@
     "test:clock": "node tools/test-clock.js",
     "test:intro": "node tools/test-stage-intro.js",
     "test:image": "node tools/test-image.js",
-    "quizzes": "node tools/check-quizzes.js"
+    "quizzes": "node tools/check-quizzes.js",
+    "test:roster": "node tools/test-roster.js"
   },
   "keywords": [
     "quiz",

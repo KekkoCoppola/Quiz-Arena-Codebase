@@ -229,8 +229,18 @@ async function run() {
     assert(q1.correct_index === undefined, 'game:question: correct_index MAI inviato');
     assert(typeof q1.endsAt === 'number' && q1.endsAt > Date.now(), 'game:question: endsAt futuro');
 
+    // La sala (qui `impostor`: un socket senza ruolo) deve sapere chi ha già
+    // risposto, per la colonna dei minigiochi; i telefoni no.
+    let phoneGotCount = false;
+    const onPhoneCount = () => { phoneGotCount = true; };
+    p2.on('game:answer-count', onPhoneCount);
+    const countPromise = once(impostor, 'game:answer-count');
     const a1 = await emitAck(p1, 'player:answer', { optionIndex: 0 });
     assert(a1.ok === true && a1.correct === true && a1.pointsAwarded > 0, 'Alice: risposta corretta con punti');
+    const count1 = await countPromise;
+    assert(count1.answered === 1 && Array.isArray(count1.playerIds)
+      && count1.playerIds.length === 1 && count1.playerIds[0] === joined1.playerId,
+      'game:answer-count: arriva anche a un socket senza ruolo (la sala) con gli id di chi ha risposto');
 
     const again = await emitAck(p1, 'player:answer', { optionIndex: 1 });
     assert(again.ok === false, 'doppia risposta rifiutata');
@@ -241,6 +251,8 @@ async function run() {
     assert(a2.ok === true && a2.correct === false && a2.pointsAwarded === 0, 'Bob: risposta sbagliata, 0 punti');
 
     const r1 = await resultsPromise;
+    p2.off('game:answer-count', onPhoneCount);
+    assert(phoneGotCount === false, 'game:answer-count: i telefoni non lo ricevono');
     assert(Date.now() - closeStart < 1000, 'chiusura anticipata: results subito dopo ultima risposta');
     assert(r1.correctIndex === 0, 'results: correctIndex rivelato');
     assert(r1.distribution[0] === 1 && r1.distribution[2] === 1, 'results: distribuzione corretta');

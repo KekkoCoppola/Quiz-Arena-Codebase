@@ -72,6 +72,18 @@
     salaOptions: true,
 
     /**
+     * Se in sala, accanto alla scena, c'è la colonna dei giocatori al posto
+     * delle carte. Durante il round ogni giocatore ha il suo posto, e chi ha
+     * scelto mostra la faccia con una spunta — mai cosa ha scelto. A round
+     * chiuso, finito il reveal, gli stessi posti si dividono per esito (hanno
+     * vinto, pareggio, hanno perso, non hanno scelto) prima della classifica.
+     * La disegna la sala (`sala/app.js` + `sala/answer-roster.js`), non il
+     * modulo. Di solito va insieme a `salaOptions: false`.
+     * @type {boolean}
+     */
+    salaPlayers: false,
+
+    /**
      * Audio del minigioco in sala, con la stessa forma del manifest
      * (`resources/audio/manifest.json`) e percorsi relativi a
      * `/resources/audio/`:
