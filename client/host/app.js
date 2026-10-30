@@ -245,6 +245,7 @@ loginForm.addEventListener('submit', async (e) => {
       loginPassword.value = '';
       await loadDashboard();
       showView('dashboard');
+      resumeRunningGame();
     } else {
       showLoginError(res.error ?? 'Credenziali non valide.');
     }
@@ -1388,13 +1389,17 @@ function startGameCountdown(endsAt, serverNow) {
 
 /**
  * Apre la schermata di conduzione partita e crea la sessione sul server.
+ * Con `resume` non crea niente: rientra nella partita che il server ha già
+ * (pannello ricaricato a metà serata), e `quiz` è la sua descrizione inviata
+ * da `host:resync`, con `questionCount` al posto delle domande.
  * @param {object} quiz
  * @param {'personal'|'preloaded'} type
+ * @param {{ resume?: boolean }} [opts]
  */
-function openGame(quiz, type) {
+function openGame(quiz, type, { resume = false } = {}) {
   state.currentQuiz = quiz;
 
-  const count = Array.isArray(quiz.questions) ? quiz.questions.length : 0;
+  const count = Array.isArray(quiz.questions) ? quiz.questions.length : (quiz.questionCount ?? 0);
 
   gameQuizTitle.textContent     = quiz.title;
   gameQuestionCount.textContent = `${count} domand${count === 1 ? 'a' : 'e'}`;
@@ -1411,11 +1416,33 @@ function openGame(quiz, type) {
   setGameProgress(0, 0);
 
   loadJoinInfo();
-  connectGameSocket(quiz, type);
+  connectGameSocket(quiz, type, { resume });
   showView('game');
 }
 
-function connectGameSocket(quiz, type) {
+/**
+ * Ricaricare la pagina del pannello a metà partita la riportava alla
+ * dashboard, con la partita ancora viva sul server ma irraggiungibile: telefoni
+ * e sala fermi, e il primo "Gioca" la distruggeva. All'avvio si chiede quindi
+ * al server se una partita c'è, e se sì ci si rientra. Il socket di prova non
+ * si riconnette: se il server non risponde, si resta sulla dashboard.
+ */
+function resumeRunningGame() {
+  const probe = io('/', { auth: { token: state.token }, reconnection: false });
+  probe.on('connect_error', () => probe.disconnect());
+  probe.on('connect', () => {
+    probe.emit('host:resync', null, (res) => {
+      probe.disconnect();
+      if (!res?.ok || res.state === null || !res.quiz) return;
+      // Nel frattempo l'host potrebbe aver già aperto altro (un quiz,
+      // l'editor): la sua scelta vale più del rientro automatico.
+      if (!document.getElementById('view-dashboard').classList.contains('active')) return;
+      openGame(res.quiz, res.quiz.type ?? 'personal', { resume: true });
+    });
+  });
+}
+
+function connectGameSocket(quiz, type, { resume = false } = {}) {
   disconnectGameSocket();
 
   gameSocket = io('/', { auth: { token: state.token } });
@@ -1424,8 +1451,9 @@ function connectGameSocket(quiz, type) {
   // `connect` a ogni riconnessione (il Wi-Fi del tablet che cade un attimo, la
   // scheda in secondo piano che il browser rallenta): ricreare la partita lì
   // buttava fuori i telefoni e rimandava la sala in lobby. Da riconnessi si
-  // chiede lo stato al server e si ridisegna il pannello.
-  let gameCreated = false;
+  // chiede lo stato al server e si ridisegna il pannello. Chi rientra in una
+  // partita esistente (`resume`) parte già da "creata".
+  let gameCreated = resume;
   const createGame = () => {
     gameSocket.emit('host:create-game', { quizId: quiz.id, quizType: type }, (res) => {
       if (!res.ok) {
@@ -1908,6 +1936,7 @@ async function init() {
   if (isAuthenticated) {
     await loadDashboard();
     showView('dashboard');
+    resumeRunningGame();
   } else {
     showView('login');
   }
