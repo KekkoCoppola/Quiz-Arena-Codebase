@@ -59,6 +59,44 @@
   /** Durata predefinita della cerimonia completa prima del loop celebrativo (14.5s). */
   const DEFAULT_DURATION_MS = 14500;
 
+  // ─── Qualità adattiva ─────────────────────────────────────────────────────
+  // Sul Raspberry (GPU V3D) la scena piena non regge i 60 fps. Invece di una
+  // scena "da Pi" scritta a parte, la cerimonia misura i propri fotogrammi e
+  // scende a gradini finché regge; non risale mai, così non oscilla davanti
+  // alla sala. I gradini tolgono prima ciò che si vede meno:
+  //   1 — le luci vere del pubblico e del logo (i coni dei faretti restano)
+  //   2 — tutte le luci puntiformi: il palco lo illuminano cielo e luci fisse
+  //   3 — disegno al 75% della risoluzione, ingrandito: sul proiettore non si nota
+  //   4 — al 60%
+  const MAX_QUALITY_LEVEL = 4;
+  const QUALITY_WARMUP_FRAMES = 8;    // i primi fotogrammi compilano gli shader
+  const QUALITY_WINDOW_FRAMES = 20;
+  const QUALITY_SLOW_MS = 24;         // sotto i ~40 fps si scende di un gradino
+  const QUALITY_VERY_SLOW_MS = 50;    // sotto i 20 fps di due
+  const QUALITY_PIXEL_SCALE = [1, 1, 1, 0.75, 0.6];
+
+  /**
+   * Gradino successivo dato il tempo medio di un fotogramma. Pura.
+   * @param {number} avgFrameMs
+   * @param {number} level gradino attuale (0 = qualità piena)
+   * @returns {number}
+   */
+  function nextQualityLevel(avgFrameMs, level) {
+    const current = clamp(Math.floor(Number(level) || 0), 0, MAX_QUALITY_LEVEL);
+    if (!(avgFrameMs > QUALITY_SLOW_MS)) return current;
+    const step = avgFrameMs > QUALITY_VERY_SLOW_MS ? 2 : 1;
+    return Math.min(MAX_QUALITY_LEVEL, current + step);
+  }
+
+  // Il gradino trovato resta per le premiazioni successive della stessa pagina:
+  // la seconda partita della serata parte già leggera, senza riscoprirlo.
+  let learnedQualityLevel = 0;
+
+  // Su una GPU piccola si parte già senza luci puntiformi: scoprirlo misurando
+  // costava i primi secondi a scatti, e ogni gradino di luci tolte ricompila
+  // gli shader proprio mentre il 3° sale sul podio.
+  const LOW_POWER_START_LEVEL = 2;
+
   /** Coordinate geometriche del Podio Olimpico 3D sul mini-palco. */
   const PODIUM_STEPS = Object.freeze({
     first: Object.freeze({
@@ -2009,20 +2047,34 @@
     return threeModulePromise;
   }
 
-  function detectSoftwareWebGL() {
-    if (typeof document === 'undefined') return true;
+  /** Nome della GPU dichiarato da WebGL; null senza WebGL. */
+  function detectGpuRenderer() {
+    if (typeof document === 'undefined') return null;
     try {
       const c = document.createElement('canvas');
       const gl = c.getContext('webgl2') || c.getContext('webgl');
-      if (!gl) return true;
+      if (!gl) return null;
       const ext = gl.getExtension('WEBGL_debug_renderer_info');
       const param = ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER;
       const gpu = String(gl.getParameter(param) || '');
       gl.getExtension('WEBGL_lose_context')?.loseContext();
-      return /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(gpu);
+      return gpu;
     } catch (_) {
-      return true;
+      return null;
     }
+  }
+
+  function detectSoftwareWebGL(gpu) {
+    return gpu === null || /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(gpu);
+  }
+
+  /**
+   * GPU da dispositivo piccolo (V3D/VideoCore del Raspberry, Mali, Adreno...).
+   * Serve solo per l'antialias, l'unica scelta che non si può cambiare dopo:
+   * è un attributo del contesto WebGL. Il resto lo decide la misura.
+   */
+  function detectLowPowerGpu(gpu) {
+    return /V3D|VC4|VideoCore|Mali|Adreno|PowerVR/i.test(gpu || '');
   }
 
   const activeInstancesByElement = new WeakMap();
@@ -2064,6 +2116,7 @@
 
     const initialU = clamp(Number(options.startU) || 0, 0, 1);
     const initialDurationMs = Math.max(2000, Number(options.durationMs) || DEFAULT_DURATION_MS);
+    const gpuName = detectGpuRenderer();
 
     const state = {
       destroyed: false,
@@ -2084,7 +2137,19 @@
       overlayCanvas,
       overlayCtx,
       particleController: createConfettiExplosionController(),
-      isSoftwareGl: detectSoftwareWebGL(),
+      isSoftwareGl: detectSoftwareWebGL(gpuName),
+      isLowPowerGpu: detectLowPowerGpu(gpuName),
+      quality: {
+        level: Math.max(learnedQualityLevel, detectLowPowerGpu(gpuName) ? LOW_POWER_START_LEVEL : 0),
+        basePixelRatio: 1,
+        frames: 0,
+        sumMs: 0,
+        count: 0,
+        pointLights: [],
+        podiumLights: new Set(),
+        hemiLight: null,
+        hemiBaseIntensity: 0,
+      },
       frameId: 0,
       lastTickMs: 0,
       cuesFired: new Set(),
@@ -2281,28 +2346,70 @@
       state.frameId = window.requestAnimationFrame(cb);
     }
 
+    function applyQualityLevel(level) {
+      const q = state.quality;
+      q.level = clamp(level, 0, MAX_QUALITY_LEVEL);
+      learnedQualityLevel = Math.max(learnedQualityLevel, q.level);
+      q.pointLights.forEach((light) => {
+        light.visible = q.level === 0 || (q.level === 1 && q.podiumLights.has(light));
+      });
+      // Senza le luci puntiformi il palco si scurisce: il cielo compensa un poco.
+      if (q.hemiLight) {
+        q.hemiLight.intensity = q.hemiBaseIntensity * (q.level >= 2 ? 1.2 : 1);
+      }
+      if (state.renderer) {
+        state.renderer.setPixelRatio(q.basePixelRatio * QUALITY_PIXEL_SCALE[q.level]);
+      }
+    }
+
+    function measureQuality(frameMs) {
+      const q = state.quality;
+      if (!state.renderer || q.level >= MAX_QUALITY_LEVEL) return;
+      q.frames += 1;
+      if (q.frames <= QUALITY_WARMUP_FRAMES) return;
+      q.sumMs += frameMs;
+      q.count += 1;
+      if (q.count < QUALITY_WINDOW_FRAMES) return;
+      const avg = q.sumMs / q.count;
+      const next = nextQualityLevel(avg, q.level);
+      q.sumMs = 0;
+      q.count = 0;
+      if (next !== q.level) {
+        // Nel kiosk del Pi la console finisce nel journal: è da qui che si
+        // capisce fin dove scende la scena sull'hardware vero.
+        console.info(`[premiazione] gradino ${q.level} -> ${next} (fotogramma medio ${avg.toFixed(1)} ms)`);
+        applyQualityLevel(next);
+        q.frames = 0;   // cambiare le luci ricompila gli shader: si riscalda di nuovo
+      }
+    }
+
     function tick() {
       if (state.destroyed || state.paused) return;
       const now = performance.now();
-      const rawDtMs = state.lastTickMs ? clamp(now - state.lastTickMs, 4, 50) : 16.67;
+      const rawDtMs = state.lastTickMs ? Math.max(0, now - state.lastTickMs) : 16.67;
       state.lastTickMs = now;
-      // Filtro esponenziale morbido sul delta-time per eliminare micro-jitter del timer browser
-      state.smoothedDtMs = state.smoothedDtMs
-        ? state.smoothedDtMs * 0.75 + rawDtMs * 0.25
-        : rawDtMs;
-      const dtMs = state.smoothedDtMs;
-      const dtSec = dtMs / 1000;
+      measureQuality(rawDtMs);
 
-      // Il clock continuo avanza all'infinito anche dopo u = 1.0 (Idle Finale Infinito!)
-      state.elapsedSec += dtSec;
+      // La coreografia segue l'orologio vero, senza tetto al passo: un
+      // fotogramma lento si recupera. Col passo limitato a 50 ms, a 10 fps la
+      // cerimonia andava al rallentatore e finiva DOPO il game:ceremony-done
+      // del server, cioè dopo che i telefoni mostravano già la posizione.
+      // Il clock continuo avanza all'infinito anche dopo u = 1.0 (Idle Finale).
+      state.elapsedSec += rawDtMs / 1000;
 
       if (state.u < 1) {
-        state.u = clamp(state.u + dtMs / state.durationMs, 0, 1);
+        state.u = clamp(state.u + rawDtMs / state.durationMs, 0, 1);
         checkAndFireAudioCues(state.u);
       }
 
+      // Solo i coriandoli hanno una fisica a passi: per loro il passo resta
+      // limitato e filtrato, altrimenti un fotogramma lento li farebbe saltare.
+      const stepMs = clamp(rawDtMs, 4, 50);
+      state.smoothedDtMs = state.smoothedDtMs
+        ? state.smoothedDtMs * 0.75 + stepMs * 0.25
+        : stepMs;
       if (state.particleController) {
-        state.particleController.step(dtSec);
+        state.particleController.step(state.smoothedDtMs / 1000);
       }
 
       const snap = applyStateTo3DScene(state.u, state.elapsedSec, { isSeek: false });
@@ -2336,7 +2443,7 @@
         overlayCanvas.height = height;
 
         const renderer = new THREE.WebGLRenderer({
-          antialias: !state.isSoftwareGl,
+          antialias: !state.isSoftwareGl && !state.isLowPowerGpu,
           alpha: true,
           powerPreference: 'high-performance',
         });
@@ -2347,7 +2454,8 @@
           renderer.toneMapping = THREE.ACESFilmicToneMapping;
           renderer.toneMappingExposure = 1.12;
         }
-        renderer.setPixelRatio(state.isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, 2));
+        state.quality.basePixelRatio = state.isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, 2);
+        renderer.setPixelRatio(state.quality.basePixelRatio * QUALITY_PIXEL_SCALE[state.quality.level]);
         renderer.setSize(width, height);
         renderer.domElement.style.cssText = 'width:100%;height:100%;display:block;position:relative;z-index:1;';
         hostBox.insertBefore(renderer.domElement, overlayCanvas);
@@ -2477,6 +2585,22 @@
         state.renderer = renderer;
         state.scene = scene;
         state.camera = camera;
+
+        // Le luci che la qualità adattiva può spegnere: tutte le puntiformi,
+        // e fra queste quelle dei tre faretti del podio, le ultime a cedere.
+        {
+          const q = state.quality;
+          [spot1, spot2, spot3].forEach((s) => s.group.traverse((o) => {
+            if (o.isPointLight) q.podiumLights.add(o);
+          }));
+          scene.traverse((o) => {
+            if (o.isPointLight) q.pointLights.push(o);
+          });
+          q.hemiLight = hemiLight;
+          q.hemiBaseIntensity = hemiLight.intensity;
+          applyQualityLevel(q.level);
+          console.info(`[premiazione] GPU "${gpuName}", gradino iniziale ${q.level}`);
+        }
 
         // La misura del contenitore non è fissa (finestra ridimensionata, sala
         // aperta su un monitor diverso dal proiettore): renderer, camera e
@@ -2655,6 +2779,8 @@
     PODIUM_STEPS,
     DEFAULT_DURATION_MS,
     DEFAULT_PLAYERS,
+    MAX_QUALITY_LEVEL,
+    nextQualityLevel,
     computeCrowdLayout,
     computeCeremonyStateAt,
     createConfettiExplosionController,

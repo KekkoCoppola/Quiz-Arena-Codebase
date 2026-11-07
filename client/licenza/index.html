@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="it" translate="no">
+
+<head>
+  <link rel="icon" type="image/svg+xml" href="/resources/img/Logo.svg">
+  <meta charset="UTF-8">
+  <meta name="google" content="notranslate">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Quiz-Zata! — Licenza</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <header class="appbar">
+    <img src="/resources/img/Logo.svg" alt="Quiz-Zata!" class="appbar-logo">
+    <span class="appbar-title">Licenza</span>
+  </header>
+
+  <main class="page">
+    <!-- Esito dell'attivazione arrivata da un link (#QZ1.…) -->
+    <section id="activation" class="card" hidden aria-live="polite">
+      <p id="activation-text" class="activation-text"></p>
+    </section>
+
+    <!-- Stato della licenza -->
+    <section id="status" class="card" hidden>
+      <div id="status-badge" class="status-badge"></div>
+      <p id="status-text" class="status-text"></p>
+      <dl class="details">
+        <div class="row" id="row-customer"><dt>Cliente</dt><dd id="d-customer"></dd></div>
+        <div class="row" id="row-until"><dt>Valida fino al</dt><dd id="d-until"></dd></div>
+        <div class="row"><dt>Giocatori</dt><dd id="d-players"></dd></div>
+        <div class="row"><dt>Minigiochi</dt><dd id="d-minigames"></dd></div>
+        <div class="row row-serial">
+          <dt>Seriale</dt>
+          <dd class="serial-cell">
+            <input id="d-serial" class="serial" readonly aria-label="Seriale del dispositivo">
+            <button id="copy-serial" class="btn btn-secondary btn-sm" type="button">Copia</button>
+          </dd>
+        </div>
+      </dl>
+      <a id="renew" class="btn btn-primary" hidden target="_blank" rel="noopener">Rinnova su WhatsApp</a>
+    </section>
+
+    <!-- Codice incollato a mano, se il link non si apre -->
+    <section class="card">
+      <h2 class="card-title">Hai ricevuto un codice?</h2>
+      <p class="hint">Tieni premuto nel riquadro e scegli <strong>Incolla</strong>: va bene anche il link intero.</p>
+      <form id="form" novalidate>
+        <textarea id="code" rows="3" spellcheck="false" autocomplete="off" aria-label="Codice di licenza" placeholder="QZ1.…"></textarea>
+        <p id="form-error" class="form-error" role="alert" hidden></p>
+        <button class="btn btn-secondary" type="submit">Attiva codice</button>
+      </form>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+
+</html>

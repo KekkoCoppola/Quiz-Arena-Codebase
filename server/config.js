@@ -67,6 +67,39 @@ const config = {
    */
   debugTools: process.env.DEBUG_TOOLS === '1',
 
+  /**
+   * La rete Wi-Fi della sala, come la mostra la guida sullo schermo
+   * proiettato (passo 1: "Connettiti al Wi-Fi"). Il server non crea la rete:
+   * la configura deploy/setup-pi.sh, che scrive qui gli stessi valori che
+   * riceve con --ssid e --pass. Password vuota = rete aperta.
+   */
+  wifi: {
+    ssid: (process.env.WIFI_SSID || '').trim() || 'QuizZata',
+    password: process.env.WIFI_PASSWORD || '',
+  },
+
+  /**
+   * Il nome della sala da scrivere sotto il QR (es. "quizzata.gioca"), più
+   * facile da dettare e da digitare dell'IP. Lo risolve il DNS dell'access
+   * point, che configura deploy/setup-pi.sh: fuori da quella rete non esiste,
+   * quindi senza questa variabile la sala scrive l'indirizzo IP. Il QR resta
+   * sempre sull'IP, che non dipende dal DNS del telefono.
+   */
+  joinHost: (process.env.JOIN_HOST || '').trim(),
+
+  /**
+   * Licenza annuale (vedi server/license.js): accesa solo con
+   * `LICENSE_REQUIRED=1`. Spenta, non c'è nessun limite e nessun controllo —
+   * è lo stato del PC di sviluppo, che non ha un seriale Raspberry.
+   */
+  licenseRequired: process.env.LICENSE_REQUIRED === '1',
+
+  /**
+   * Numero WhatsApp di chi vende (solo cifre, col prefisso: 393331234567) per
+   * il bottone "Rinnova" quando la licenza non ne porta uno suo. Facoltativo.
+   */
+  licenseContact: String(process.env.LICENSE_CONTACT || '').replace(/\D/g, ''),
+
   /** true se l'app gira in modalità sviluppo. */
   isDev: process.env.NODE_ENV !== 'production',
 };

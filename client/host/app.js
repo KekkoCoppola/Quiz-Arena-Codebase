@@ -369,6 +369,35 @@ async function loadDashboard() {
 
   renderPersonalSection();
   renderPreloadedSection();
+  loadLicenseNotice();
+}
+
+/**
+ * Avviso della licenza in cima alla dashboard: solo quando c'è qualcosa da
+ * fare (in scadenza, scaduta, demo). Porta alla pagina /licenza, che ha il
+ * seriale e il bottone per rinnovare su WhatsApp.
+ */
+async function loadLicenseNotice() {
+  const box = document.getElementById('license-notice');
+  try {
+    const res = await fetch('/api/license').then((r) => r.json());
+    const s = res?.data;
+    const days = (n) => `${n} ${n === 1 ? 'giorno' : 'giorni'}`;
+    const text = !s || !s.required ? null : {
+      expiring: `La licenza scade tra ${days(s.daysLeft)}.`,
+      grace: `Licenza scaduta: ancora ${days(s.graceDaysLeft)}, poi versione demo.`,
+      expired: `Licenza scaduta: versione demo, al massimo ${s.entitlements?.maxPlayers} giocatori.`,
+      missing: `Nessuna licenza: versione demo, al massimo ${s.entitlements?.maxPlayers} giocatori.`,
+      'wrong-device': `Licenza di un altro dispositivo: versione demo, al massimo ${s.entitlements?.maxPlayers} giocatori.`,
+    }[s.state];
+    box.hidden = !text;
+    if (text) {
+      document.getElementById('license-notice-text').textContent = text;
+      box.classList.toggle('is-bad', s.demo);
+    }
+  } catch {
+    box.hidden = true;
+  }
 }
 
 /* ── Slot counter ── */
@@ -1428,7 +1457,7 @@ function openGame(quiz, type, { resume = false } = {}) {
  * si riconnette: se il server non risponde, si resta sulla dashboard.
  */
 function resumeRunningGame() {
-  const probe = io('/', { auth: { token: state.token }, reconnection: false });
+  const probe = io('/', { auth: socketAuth, reconnection: false });
   probe.on('connect_error', () => probe.disconnect());
   probe.on('connect', () => {
     probe.emit('host:resync', null, (res) => {
@@ -1442,10 +1471,19 @@ function resumeRunningGame() {
   });
 }
 
+/**
+ * Handshake del socket host: il JWT, più l'ora del tablet, con cui il Pi
+ * (offline, senza orologio a batteria) ricava che giorno è per la licenza.
+ * Funzione e non oggetto: ogni riconnessione manda l'ora di quel momento.
+ */
+function socketAuth(cb) {
+  cb({ token: state.token, clientNow: Date.now() });
+}
+
 function connectGameSocket(quiz, type, { resume = false } = {}) {
   disconnectGameSocket();
 
-  gameSocket = io('/', { auth: { token: state.token } });
+  gameSocket = io('/', { auth: socketAuth });
 
   // La partita si crea UNA volta, alla prima connessione. Socket.io rilancia
   // `connect` a ogni riconnessione (il Wi-Fi del tablet che cade un attimo, la

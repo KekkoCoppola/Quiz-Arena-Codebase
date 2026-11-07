@@ -340,8 +340,18 @@ body {
   object-fit: contain;
 }
 
-/* In attesa il logo è già grande al centro: in testata sarebbe un doppione. */
-.sala-shell:has(#sala-idle:not([hidden])) .sala-logo-wrap { visibility: hidden; }
+/* In attesa il logo è già grande al centro: in testata sarebbe un doppione.
+   Con la guida a tutto schermo il logo grande non c'è, e torna quello qui. */
+.sala-shell:has(#sala-idle:not([hidden]):not(.is-guide)) .sala-logo-wrap { visibility: hidden; }
+
+/* In lobby la testata non ha nulla al centro né a destra (avanzamento e
+   cronometro sono spenti): esce dal flusso, così il QR sale fino in cima e
+   cresce. La guida, a sinistra, comincia sotto il logo (vedi "Lobby"). */
+.sala-shell:has(#sala-lobby:not([hidden])) .sala-top-bar {
+  position: absolute;
+  inset: 0 0 auto;
+}
+.sala-shell:has(#sala-lobby:not([hidden])) .sala-stage { padding-top: var(--hud-pad); }
 
 .sala-timer-wrap {
   grid-column: 3;
@@ -457,6 +467,242 @@ body {
   border-radius: var(--radius-full);
   box-shadow: var(--block);
   padding: 1.25rem 3rem;
+}
+
+/* In attesa dell'host la guida prende il centro e il cartello si fa piccolo,
+   sotto: dice cosa succede, ma la cosa da leggere ora sono i passi. */
+#sala-idle.is-guide { gap: 1.8vh; }
+#sala-idle.is-guide .sala-idle-logo { display: none; }
+#sala-idle:not(.is-guide) .sala-guide-slot { display: none; }
+
+#sala-idle .sala-guide-slot {
+  font-size: min(2.7vh, 1.55vw);
+  max-width: 40em;
+}
+
+#sala-idle.is-guide .sala-idle-text {
+  font-size: min(2.5vh, 1.45vw);
+  line-height: 1.3;
+  padding: 0.45em 1.6em;
+  box-shadow: var(--block-sm);
+}
+
+/* ─── Guida "come si entra" ─────────────────────────────────────────────── */
+/* Quattro schede a zig-zag unite da un tratteggio, come un percorso segnato a
+   penna: le dispari a sinistra, le pari a destra. Ogni passo ha un colore, ma
+   solo sul disco e sull'etichetta: i bordi restano inchiostro (DESIGN.md, The
+   Stamped-Ink Rule), come ogni altra superficie della sala.
+
+   Tutto è in `em`: la misura la decide il font-size di `.sala-guide-slot`,
+   diverso in attesa e in lobby e dato in vh, così la stessa guida regge un
+   proiettore 720p e uno 1080p senza ritocchi. */
+
+.sala-guide-slot {
+  --guide-c:    0.8;     /* larghezza di una scheda, in frazione della colonna */
+  --guide-gap:  1.5em;   /* aria fra due schede: ci passa il tratteggio */
+  --guide-disc: 2.6em;
+  width: 100%;
+  /* Il disco sborda di metà dal lato esterno della scheda. */
+  padding-inline: calc(var(--guide-disc) / 2 + 0.5em);
+}
+
+.sala-guide {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--guide-gap);
+}
+
+.sala-guide-step {
+  --step:     var(--indigo);
+  --step-ink: var(--white);
+  position: relative;
+  align-self: flex-start;
+  width: calc(var(--guide-c) * 100%);
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  background: var(--white);
+  border: var(--border);
+  border-radius: 1.1em;
+  box-shadow: var(--block);
+  padding: 0.85em 1.3em 0.85em calc(var(--guide-disc) / 2 + 0.9em);
+}
+.sala-guide-step:nth-child(even) {
+  align-self: flex-end;
+  padding: 0.85em calc(var(--guide-disc) / 2 + 0.9em) 0.85em 1.3em;
+}
+
+.sala-guide-step.is-step-2 { --step: var(--logo-yellow);  --step-ink: var(--retro-dark); }
+.sala-guide-step.is-step-3 { --step: var(--arcade-teal);  --step-ink: var(--retro-dark); }
+.sala-guide-step.is-step-4 { --step: var(--ticket-ochre); --step-ink: var(--retro-dark); }
+
+/* Il disco del passo, a cavallo del bordo esterno. */
+.sala-guide-disc {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 0;
+  translate: -50% -50%;
+  width: var(--guide-disc);
+  height: var(--guide-disc);
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--step);
+  color: var(--step-ink);
+  border: var(--border);
+  box-shadow: var(--block-sm);
+}
+.sala-guide-step:nth-child(even) .sala-guide-disc {
+  left: auto;
+  right: 0;
+  translate: 50% -50%;
+}
+
+.sala-guide-disc .material-symbols-outlined { font-size: 1.45em; }
+
+/* Finché il font delle icone non è arrivato, al suo posto c'è il NOME
+   dell'icona ("qr_code_scanner") in un font qualunque, che sbordava dal disco.
+   Una scatola di 1em che taglia il resto lo nasconde. */
+.sala-guide .material-symbols-outlined { width: 1em; overflow: hidden; }
+.sala-guide-head { font-size: 1.2em; display: inline-flex; }
+
+/* I raggi intorno al disco, solo sul lato che guarda fuori: il "flash" da
+   fumetto dell'esplosione del logo. Statici, si dipingono una volta. */
+.sala-guide-disc::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -0.8em;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 4deg, var(--retro-dark) 0 7deg, transparent 7deg 30deg);
+  -webkit-mask:
+    radial-gradient(closest-side, transparent 70%, #000 71%),
+    linear-gradient(to right, #000 50%, transparent 50%);
+  -webkit-mask-composite: source-in;
+  mask:
+    radial-gradient(closest-side, transparent 70%, #000 71%),
+    linear-gradient(to right, #000 50%, transparent 50%);
+  mask-composite: intersect;
+}
+.sala-guide-step:nth-child(even) .sala-guide-disc::before {
+  -webkit-mask:
+    radial-gradient(closest-side, transparent 70%, #000 71%),
+    linear-gradient(to left, #000 50%, transparent 50%);
+  -webkit-mask-composite: source-in;
+  mask:
+    radial-gradient(closest-side, transparent 70%, #000 71%),
+    linear-gradient(to left, #000 50%, transparent 50%);
+  mask-composite: intersect;
+}
+
+/* "Passo N": la pillola a cavallo del bordo alto, come il nastro della
+   scheda domanda e l'etichetta del QR. */
+.sala-guide-kicker {
+  position: absolute;
+  top: 0;
+  left: calc(var(--guide-disc) / 2 + 0.9em);
+  translate: 0 -58%;
+  font-size: 0.62em;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  background: var(--step);
+  color: var(--step-ink);
+  border: 3px solid var(--retro-dark);
+  border-radius: var(--radius-full);
+  box-shadow: 3px 3px 0 0 var(--retro-dark);
+  padding: 0.3em 1em;
+}
+.sala-guide-step:nth-child(even) .sala-guide-kicker {
+  left: auto;
+  right: calc(var(--guide-disc) / 2 + 0.9em);
+}
+
+.sala-guide-body { flex: 1 1 auto; min-width: 0; }
+
+.sala-guide-title {
+  font-size: 1.4em;
+  font-weight: 900;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+}
+
+.sala-guide-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35em;
+  margin-top: 0.35em;
+  font-size: 0.9em;
+  line-height: 1.3;
+}
+.sala-guide-sub .material-symbols-outlined { font-size: 1.3em; }
+
+/* Nome e password della rete: si devono trovare con un'occhiata. */
+.sala-guide-chip {
+  font-weight: 900;
+  background: var(--logo-yellow);
+  border: 3px solid var(--retro-dark);
+  border-radius: var(--radius-full);
+  padding: 0.1em 0.6em;
+}
+
+/* Il QR del Wi-Fi: inquadrato, il telefono propone di collegarsi da solo.
+   Niente cornice: sta già su una scheda bianca, e il margine bianco del QR
+   (il "silenzio" che serve alla fotocamera) lo dà lo svg stesso. */
+.sala-guide-wifi-qr {
+  flex: 0 0 auto;
+  width: 3.4em;
+  height: 3.4em;
+  display: flex;
+}
+.sala-guide-wifi-qr svg { width: 100%; height: 100%; display: block; }
+
+/* Il tratteggio verso il passo dopo. Parte da un bottone sul bordo interno,
+   corre in orizzontale fino al lato opposto della colonna e scende sul disco
+   della scheda successiva. È figlio della scheda che lo apre, quindi la
+   scheda dopo (che viene dopo nel DOM) gli passa sopra: il tratto che finisce
+   dietro di lei sparisce da solo, qualunque sia l'altezza delle due.
+   La larghezza è "la colonna meno questa scheda": 100% qui è la scheda. */
+.sala-guide-link {
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  width: calc(100% / var(--guide-c) - 100% + 8px);
+  height: calc(100% + var(--guide-gap));
+  border-top: 0.16em dashed var(--retro-dark);
+  border-right: 0.16em dashed var(--retro-dark);
+  border-top-right-radius: 1.4em;
+  pointer-events: none;
+}
+.sala-guide-step:nth-child(even) .sala-guide-link {
+  left: auto;
+  right: 100%;
+  border-right: 0;
+  border-left: 0.16em dashed var(--retro-dark);
+  border-top-right-radius: 0;
+  border-top-left-radius: 1.4em;
+}
+
+.sala-guide-link::before {
+  content: '';
+  position: absolute;
+  top: -0.08em;
+  left: 0;
+  width: 0.85em;
+  height: 0.85em;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: var(--step);
+  border: 3px solid var(--retro-dark);
+}
+.sala-guide-step:nth-child(even) .sala-guide-link::before {
+  left: auto;
+  right: 0;
+  translate: 50% -50%;
 }
 
 /* ─── Scheda domanda ────────────────────────────────────────────────────── */
@@ -1290,17 +1536,58 @@ body:has(#sala-question.has-roster:not([hidden])) .sala-shape--burst {
 .sala-podium-stage { width: 100%; height: 100%; }
 
 /* ─── Lobby ─────────────────────────────────────────────────────────────── */
+/* Guida a sinistra, QR a destra quasi a metà schermo, e sotto la striscia di
+   chi è entrato. La testata qui è fuori dal flusso (vedi "Testata"): la
+   colonna del QR parte dall'alto, quella della guida sotto il logo. */
 
-#sala-lobby { justify-content: center; }
+#sala-lobby { justify-content: stretch; }
 
 .sala-lobby-grid {
+  flex: 1 1 auto;
+  min-height: 0;
   width: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
-  gap: 3rem;
-  align-items: center;
-  padding: 0 2rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "guide join"
+    "strip strip";
+  column-gap: 2.5rem;
+  row-gap: 1.25rem;
 }
+
+#sala-lobby .sala-guide-slot {
+  grid-area: guide;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-top: var(--hud-logo);
+  font-size: min(2.4vh, 1.35vw);
+}
+
+/* La scheda del QR tenuta dal personaggio del gioco: la testa spunta da
+   dietro il bordo alto, le mani la stringono sui lati. Tutto in vh: l'altezza
+   della colonna è il vincolo (testa + scheda devono stare sopra la striscia),
+   e la stessa proporzione regge 720p e 1080p. */
+.sala-join {
+  grid-area: join;
+  align-self: center;
+  /* Spazio per le mani, che sbordano dai lati della scheda: a destra
+     uscirebbero dallo schermo. */
+  padding-inline: 3vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* La testa sta prima della scheda nel DOM e la scheda è posizionata: le passa
+   sopra e ne nasconde il mento. Il margine negativo è la parte nascosta. */
+.sala-mascot-peek {
+  width: 22vh;
+  margin-bottom: -3vh;
+}
+.sala-mascot-head { display: block; width: 100%; height: auto; }
 
 .sala-join-card {
   position: relative;
@@ -1308,82 +1595,152 @@ body:has(#sala-question.has-roster:not([hidden])) .sala-shape--burst {
   border: var(--border);
   border-radius: var(--radius-lg);
   box-shadow: 10px 10px 0 0 var(--retro-dark);
-  padding: 2.75rem 2rem 1.75rem;
+  padding: 2vh 4vh 1.8vh;   /* di lato: le mani non devono toccare il QR */
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
+  gap: 1.1vh;
 }
 
-/* Stessa pillola a cavallo del bordo della scheda domanda. */
-.sala-join-kicker {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  translate: -50% -50%;
-  white-space: nowrap;
-  font-size: var(--headline-md);
+.sala-join-title {
+  font-size: min(2.8vh, 1.6vw);
   font-weight: 900;
+  line-height: 1.15;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--white);
-  background: var(--indigo);
-  border: var(--border);
-  border-radius: var(--radius-full);
-  box-shadow: var(--block-sm);
-  padding: 0.4rem 1.5rem;
+  letter-spacing: 0.05em;
+  color: var(--indigo);
+  text-align: center;
 }
 
+/* Il QR della partita: la cosa più grande della lobby, perché si inquadra da
+   in fondo alla sala. Niente cornice propria: sta già sulla scheda bianca, e
+   il margine bianco che serve alla fotocamera lo dà lo svg. */
 .sala-qr {
-  width: 100%;
-  max-width: 20rem;
+  width: min(50vh, 34vw);
   aspect-ratio: 1;
-  background: var(--white);
-  border: var(--border);
-  border-radius: var(--radius);
-  padding: 0.75rem;
   display: flex;
 }
 
 .sala-qr svg { width: 100%; height: 100%; display: block; }
 
+/* Il QR disegnato (qr-art.js): moduli inchiostro, occhi indaco con la pupilla
+   inchiostro, targhetta bianca per il logo. Niente giallo sui moduli: su
+   bianco è troppo chiaro perché il lettore lo conti come scuro. */
+.qr-art .qa-dot      { fill: var(--retro-dark); }
+.qr-art .qa-eye-ring { fill: var(--indigo); }
+.qr-art .qa-eye-gap  { fill: var(--white); }
+.qr-art .qa-eye-core { fill: var(--retro-dark); }
+.qr-art .qa-plate    { fill: var(--white); stroke: var(--retro-dark); stroke-width: 0.35; }
+
+/* L'indirizzo da digitare se il QR non va: il nome della sala (JOIN_HOST),
+   con "http://" davanti perché un ".gioca" scritto da solo diventa una
+   ricerca. Dove il nome non c'è, l'IP del QR. */
 .sala-join-url {
-  font-size: var(--headline-md);
+  font-size: min(2.8vh, 1.6vw);
   font-weight: 900;
   color: var(--indigo-deep);
   word-break: break-all;
   text-align: center;
 }
 
-.sala-lobby-players { min-width: 0; }
-
-.sala-player-grid {
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 1rem;
-  max-height: 55vh;
-  overflow: hidden;
-  align-content: flex-start;
+/* Le mani: blocchi col colore della testa, sopra il bordo della scheda. Non
+   entrano oltre il margine bianco del QR, che la fotocamera deve vedere. */
+.sala-mascot-hand {
+  position: absolute;
+  width: 8.5vh;
+  height: auto;
+}
+.sala-mascot-hand--left {
+  left: 0;
+  top: 42%;
+  translate: -58% -50%;
+  rotate: -10deg;
+}
+.sala-mascot-hand--right {
+  right: 0;
+  top: 84%;
+  translate: 58% -50%;
+  rotate: 12deg;
 }
 
-.sala-player-chip {
+/* Il disegno: colore del personaggio "giallo" del catalogo, contorni inchiostro. */
+.sala-mascot .m-skin   { fill: var(--insert-coin-yellow); stroke: var(--retro-dark); stroke-width: 7; }
+.sala-mascot .m-line   { fill: none; stroke: var(--retro-dark); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+.sala-mascot .m-shine  { fill: var(--white); opacity: 0.55; }
+.sala-mascot .m-cheek  { fill: #ff7a6b; opacity: 0.45; }
+.sala-mascot .m-eye    { fill: var(--white); stroke: var(--retro-dark); stroke-width: 5; }
+.sala-mascot .m-pupil  { fill: var(--retro-dark); }
+.sala-mascot .m-glint  { fill: var(--white); }
+.sala-mascot .m-mouth  { fill: #4a1414; }
+.sala-mascot .m-teeth  { fill: var(--white); }
+.sala-mascot .m-tongue { fill: #ef5b52; }
+
+/* La striscia di chi è entrato: una riga sola, l'ultimo arrivato in testa.
+   Chi non ci sta più finisce nel "+N" (fitLobbyStrip in app.js). */
+.sala-lobby-strip {
+  grid-area: strip;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  font-size: min(2.2vh, 1.25vw);
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--block);
+  padding: 0.4em 0.7em 0.4em 1.4em;
+  /* L'altezza di una riga di chip anche a striscia vuota: senza, l'arrivo del
+     primo giocatore la allungava e guida e QR saltavano in su. È la somma di
+     chip (2.415em + 8px di bordo), spazio della riga, imbottitura e bordo. */
+  min-height: calc(4.165em + 16px);
+}
+
+.sala-strip-title {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: 1.35em;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.sala-player-strip {
+  /* Riferimento delle misure di fitLobbyStrip (offsetLeft dei chip). */
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  list-style: none;
+  display: flex;
+  gap: 0.6em;
+  overflow: hidden;
+  /* Spazio per l'ombra dei chip e per il rimbalzo del pop d'ingresso, che
+     altrimenti verrebbero tagliati dal bordo della riga. */
+  padding: 0.35em 0.4em 0.6em;
+}
+.sala-player-strip:empty { display: none; }
+
+.sala-player-chip,
+.sala-player-more {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 0.4em;
-  font-size: var(--body-lg);
+  font-size: 1.15em;
   font-weight: 900;
-  padding: 0.35em 0.8em;
+  white-space: nowrap;
+  padding: 0.3em 0.8em;
   background: var(--white);
   border: var(--border);
   border-radius: var(--radius-full);
   box-shadow: var(--block-sm);
-  animation: sala-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.sala-player-chip .avatar { font-size: 1.4em; line-height: 1; }
+.sala-player-chip { animation: sala-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+.sala-player-chip .avatar { font-size: 1.2em; line-height: 1; }
 .sala-player-chip.is-disconnected { opacity: 0.45; }
+
+.sala-player-more { background: var(--logo-yellow); }
 
 /* L'ingresso di un giocatore è metà dello spettacolo d'apertura: si vede. */
 @keyframes sala-pop {
@@ -1391,10 +1748,7 @@ body:has(#sala-question.has-roster:not([hidden])) .sala-shape--burst {
   to   { transform: scale(1) rotate(0deg);    opacity: 1; }
 }
 
-.sala-lobby-empty {
-  font-size: var(--body-lg);
-  margin-top: 1rem;
-}
+.sala-lobby-empty { font-size: 1.15em; }
 
 /* ─── Risultati ─────────────────────────────────────────────────────────── */
 

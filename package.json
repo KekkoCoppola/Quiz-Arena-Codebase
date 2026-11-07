@@ -19,7 +19,9 @@
     "test:intro": "node tools/test-stage-intro.js",
     "test:image": "node tools/test-image.js",
     "quizzes": "node tools/check-quizzes.js",
-    "test:roster": "node tools/test-roster.js"
+    "test:roster": "node tools/test-roster.js",
+    "test:qr": "node tools/test-qr-art.js",
+    "test:license": "node tools/test-license.js"
   },
   "keywords": [
     "quiz",

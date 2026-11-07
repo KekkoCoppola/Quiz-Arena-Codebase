@@ -195,20 +195,43 @@ body.is-urgent::after {
    in basso, o le due colonne arrivano insieme e la sequenza non si vede. */
 #sala-lobby.is-entering > .sala-lobby-grid { animation: none; }
 
-#sala-lobby.is-entering .sala-join-card {
-  animation: mo-slam-left var(--mo-slow) var(--mo-snap) both;
+#sala-lobby.is-entering .sala-join {
+  animation: mo-slam-right var(--mo-slow) var(--mo-snap) both;
 }
-#sala-lobby.is-entering .sala-lobby-players {
-  animation: mo-rise-in var(--mo-base) var(--mo-snap) both;
-  animation-delay: calc(var(--mo-stagger) * 2);
+/* Piantata la scheda, il personaggio sbuca da dietro il bordo. */
+#sala-lobby.is-entering .sala-mascot-peek {
+  animation: mo-peek-up var(--mo-slow) var(--mo-snap) both;
+  animation-delay: calc(var(--mo-slow) * 0.6);
 }
 
-/* La scheda del QR arriva da sinistra e si pianta: è l'invito a entrare, il
+@keyframes mo-peek-up {
+  from { transform: translateY(70%); }
+  to   { transform: translateY(0);   }
+}
+#sala-lobby.is-entering .sala-lobby-strip {
+  animation: mo-rise-in var(--mo-base) var(--mo-snap) both;
+  animation-delay: calc(var(--mo-stagger) * 6);
+}
+
+/* La scheda del QR arriva da destra e si pianta: è l'invito a entrare, il
    primo oggetto che la sala deve vedere all'apertura delle danze. */
-@keyframes mo-slam-left {
-  0%   { opacity: 0; transform: translateX(-60px) rotate(-6deg); }
-  70%  { opacity: 1; transform: translateX(4px)   rotate(0.8deg); }
-  100% { opacity: 1; transform: translateX(0)     rotate(0deg); }
+@keyframes mo-slam-right {
+  0%   { opacity: 0; transform: translateX(60px) rotate(6deg); }
+  70%  { opacity: 1; transform: translateX(-4px) rotate(-0.8deg); }
+  100% { opacity: 1; transform: translateX(0)    rotate(0deg); }
+}
+
+/* La guida (in attesa e in lobby) arriva un passo alla volta, dall'alto in
+   basso: è un percorso, e lo scaglionamento lo fa leggere come tale. Il
+   contenitore non si anima da sé, o i passi arriverebbero insieme. */
+.sala-panel.is-entering > .sala-guide-slot { animation: none; }
+.sala-panel.is-entering .sala-guide-step {
+  animation: mo-rise-in var(--mo-base) var(--mo-snap) both;
+  animation-delay: calc(var(--i, 0) * var(--mo-stagger) * 1.5);
+}
+/* Il cartello sotto la guida arriva dopo l'ultimo passo. */
+#sala-idle.is-guide.is-entering > .sala-idle-text {
+  animation-delay: calc(var(--mo-stagger) * 6);
 }
 
 /* ─── L'eccezione: i risultati ───────────────────────────────────────────────
@@ -237,6 +260,19 @@ body.is-urgent::after {
    la serata cominci: è letteralmente la prima impressione del prodotto. Respira
    piano, sotto il logo che galleggia. */
 .sala-idle-text { animation: mo-idle-breathe 4.5s ease-in-out infinite; }
+
+/* I dischi della guida danno un colpo a turno, dal primo al quarto, poi
+   stanno fermi qualche secondo: l'occhio di chi guarda segue il percorso.
+   Solo transform (il disco si centra con `translate`, che si compone). */
+.sala-guide-disc {
+  animation: mo-guide-beat 7s var(--mo-stamp) infinite;
+  animation-delay: calc(1.4s + var(--i, 0) * 0.45s);
+}
+
+@keyframes mo-guide-beat {
+  0%, 9%, 100% { transform: scale(1)    rotate(0deg);  }
+  4%           { transform: scale(1.16) rotate(-8deg); }
+}
 
 @keyframes mo-idle-breathe {
   0%, 100% { transform: scale(1);     }
@@ -292,6 +328,17 @@ body.is-urgent::after {
 }
 
 .sala-lobby-empty { animation: mo-soft-pulse 2.8s ease-in-out infinite; }
+
+/* Il personaggio che tiene il QR respira: la testa si affaccia appena di più
+   e torna giù, ogni tanto. Solo transform, sulla testa (l'ingresso anima il
+   suo contenitore, così i due non si pestano). */
+.sala-mascot-head { animation: mo-mascot-peek 4.6s ease-in-out infinite; }
+
+@keyframes mo-mascot-peek {
+  0%, 60%, 100% { transform: translateY(0)    rotate(0deg);  }
+  75%           { transform: translateY(-3%)  rotate(-3deg); }
+  88%           { transform: translateY(-1%)  rotate(2deg);  }
+}
 
 @keyframes mo-soft-pulse {
   0%, 100% { opacity: 0.55; }
@@ -472,6 +519,8 @@ body.is-urgent::after {
   .sala-logo-wrap,
   .sala-idle-logo,
   .sala-idle-text,
+  .sala-guide-disc,
+  .sala-mascot-head,
   .sala-lobby-empty,
   .q-media img,
   #sala-lobby:not(.has-players) .sala-qr,
@@ -485,8 +534,10 @@ body.is-urgent::after {
 
   .sala-panel.is-entering > *,
   .sala-panel.is-entering .q-tape,
-  #sala-lobby.is-entering .sala-join-card,
-  #sala-lobby.is-entering .sala-lobby-players,
+  #sala-lobby.is-entering .sala-join,
+  #sala-lobby.is-entering .sala-mascot-peek,
+  #sala-lobby.is-entering .sala-lobby-strip,
+  .sala-panel.is-entering .sala-guide-step,
   .sala-option-card,
   .sala-player-chip.is-new,
   .sala-count-bubble.is-bumped,

@@ -15,7 +15,10 @@
 
 const SESSION_KEY = 'quizzata-player';
 
-const socket = io();
+// L'ora del telefono viaggia nell'handshake: il Pi, offline e senza orologio a
+// batteria, ricava dai telefoni che giorno è per la licenza. Una funzione e non
+// un oggetto, così ogni riconnessione manda l'ora di quel momento.
+const socket = io({ auth: (cb) => cb({ clientNow: Date.now() }) });
 
 let playerId = null;
 let selectedAvatar = null;

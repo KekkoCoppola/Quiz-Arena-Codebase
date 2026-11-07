@@ -120,3 +120,13 @@ CREATE TABLE IF NOT EXISTS quiz_images (
     height      INTEGER NOT NULL,
     created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
 );
+
+-- ─── Impostazioni del dispositivo ────────────────────────────────────────────
+-- Chiave/valore per ciò che appartiene al Pi e non a un quiz: oggi la licenza
+-- attiva (`license.code`) e l'ora più alta confermata dai telefoni
+-- (`license.clockFloor`, ms epoch). Vedi server/license-service.js.
+CREATE TABLE IF NOT EXISTS settings (
+    key         TEXT    PRIMARY KEY,
+    value       TEXT    NOT NULL,
+    updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);

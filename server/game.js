@@ -149,6 +149,13 @@ class NotAMinigameError extends Error {
   }
 }
 
+class GameFullError extends Error {
+  constructor(message = 'Partita piena.') {
+    super(message);
+    this.name = 'GameFullError';
+  }
+}
+
 class AnswersNotOpenError extends Error {
   constructor(message = 'Le risposte non sono ancora aperte: guarda lo schermo!') {
     super(message);
@@ -176,11 +183,15 @@ class AnswersNotOpenError extends Error {
  * sempre un `minigameType` reale e i client non vedono mai `'random'`.
  * @param {string} type chiave di MINIGAME_TYPES oppure RANDOM_TYPE
  * @param {{ next: () => (string|null) }} bag sacchetto della sessione
+ * @param {Set<string> | null} [allowed] minigiochi inclusi nella licenza
+ *   (null = tutti): il sacchetto contiene già solo quelli, qui si filtrano i
+ *   tipi chiesti per nome
  * @returns {object | null} la definizione, o null se il tipo non è utilizzabile
  */
-function resolveMinigameDef(type, bag) {
+function resolveMinigameDef(type, bag, allowed = null) {
   const concreteType = type === RANDOM_TYPE ? bag.next() : type;
-  return concreteType ? minigames.get(concreteType) : null;
+  if (!concreteType || (allowed && !allowed.has(concreteType))) return null;
+  return minigames.get(concreteType);
 }
 
 /**
@@ -214,16 +225,19 @@ function buildMinigameRounds(def) {
  *
  * @param {object} quiz
  * @param {{ next: () => (string|null) }} bag sacchetto per gli slot `random`
+ * @param {Set<string> | null} [allowed] minigiochi inclusi nella licenza
  * @returns {Array<object>} rounds
  */
-function buildRounds(quiz, bag) {
+function buildRounds(quiz, bag, allowed = null) {
   const rounds = quiz.questions.map((q) => ({ kind: 'question', ...q }));
 
   const slots = Array.isArray(quiz.minigames) ? quiz.minigames : [];
   const sortedSlots = slots.slice().sort((a, b) => b.afterQuestionIndex - a.afterQuestionIndex);
   for (const slot of sortedSlots) {
-    const def = resolveMinigameDef(slot.type, bag);
-    if (!def) continue; // tipo sconosciuto: validato a monte in routes, qui difesa in profondità
+    const def = resolveMinigameDef(slot.type, bag, allowed);
+    // Tipo sconosciuto (validato a monte in routes, qui difesa in profondità) o
+    // non incluso nella licenza: lo slot si salta, la partita resta giocabile.
+    if (!def) continue;
     rounds.splice(slot.afterQuestionIndex + 1, 0, ...buildMinigameRounds(def));
   }
 
@@ -242,6 +256,10 @@ class GameSession {
    *   ogni minigioco (vedi `_enterRound`); 0 di default, perché la durata è una
    *   scelta di messa in scena e la decide chi crea la sessione (game-socket.js,
    *   da config).
+   *   I limiti della licenza arrivano da chi crea la sessione, come il sipario:
+   *   `maxPlayers` (numero, oppure funzione che lo restituisce, così una
+   *   licenza rinnovata in lobby vale subito; null = nessun limite) e
+   *   `allowedMinigames` (elenco dei tipi inclusi; null = tutti).
    */
   constructor(quiz, options = {}) {
     if (!quiz || !Array.isArray(quiz.questions) || quiz.questions.length === 0) {
@@ -250,6 +268,10 @@ class GameSession {
 
     this._rnd = options.rnd ?? Math.random;
     this._minigameIntroMs = Math.max(0, options.minigameIntroMs ?? 0);
+    this._maxPlayers = options.maxPlayers ?? null;
+    this._allowedMinigames = Array.isArray(options.allowedMinigames)
+      ? new Set(options.allowedMinigames)
+      : null;
 
     /**
      * Sacchetto di estrazione dei minigiochi, condiviso fra gli slot `random`
@@ -257,10 +279,13 @@ class GameSession {
      * quindi la varietà è garantita all'interno di una singola partita e
      * ricomincia da capo a ogni nuova GameSession (incluso il riavvio).
      */
-    this._minigameBag = minigames.createShuffleBag(MINIGAME_TYPE_KEYS, this._rnd);
+    const bagKeys = this._allowedMinigames
+      ? MINIGAME_TYPE_KEYS.filter((k) => this._allowedMinigames.has(k))
+      : MINIGAME_TYPE_KEYS;
+    this._minigameBag = minigames.createShuffleBag(bagKeys, this._rnd);
 
     this.quiz = quiz;
-    this.rounds = buildRounds(quiz, this._minigameBag);
+    this.rounds = buildRounds(quiz, this._minigameBag, this._allowedMinigames);
     this.state = STATES.LOBBY;
     this.currentRoundIndex = -1;
     this.roundStartedAt = null;
@@ -347,6 +372,11 @@ class GameSession {
    */
   addPlayer(nickname, avatarId = null) {
     this._assertState(STATES.LOBBY, 'addPlayer');
+
+    const max = typeof this._maxPlayers === 'function' ? this._maxPlayers() : this._maxPlayers;
+    if (Number.isInteger(max) && max > 0 && this.players.size >= max) {
+      throw new GameFullError(`Partita piena: al massimo ${max} giocatori.`);
+    }
 
     const trimmed = String(nickname ?? '').trim();
     if (!trimmed) {
@@ -745,7 +775,11 @@ class GameSession {
    */
   insertMinigame(type, now = Date.now()) {
     this._assertState(STATES.RESULTS, 'insertMinigame');
-    const def = resolveMinigameDef(type, this._minigameBag);
+    if (this._allowedMinigames && type !== RANDOM_TYPE && minigames.get(type)
+        && !this._allowedMinigames.has(type)) {
+      throw new InvalidMinigameTypeError('Questo minigioco non è incluso nella licenza.');
+    }
+    const def = resolveMinigameDef(type, this._minigameBag, this._allowedMinigames);
     if (!def) {
       throw new InvalidMinigameTypeError();
     }
@@ -805,4 +839,5 @@ module.exports = {
   EmptyQuizError,
   NotEnoughPlayersError,
   InvalidMinigameTypeError,
+  GameFullError,
 };

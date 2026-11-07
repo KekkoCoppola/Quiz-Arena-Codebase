@@ -624,6 +624,33 @@ button { cursor: pointer; background: none; border: 0; }
   margin-bottom: 24px;
 }
 
+/* Avviso licenza: un'informazione con un comando, non una decorazione.
+   Ambra in scadenza, rosso quando si è già in demo. */
+.license-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  padding: 14px 16px;
+  color: var(--ink);
+  text-decoration: none;
+  background: #fbecd6;
+  border: var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--stamp-sm);
+}
+.license-notice.is-bad { background: var(--red-soft); }
+.license-notice-text { flex: 1; font-size: var(--fs-md); line-height: 1.3; }
+.license-notice-cta {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  background: var(--surface);
+  border: var(--line);
+  border-radius: var(--radius-sm);
+}
+.license-notice:active { transform: translate(3px, 3px); box-shadow: none; }
+.license-notice:focus-visible { outline: 3px solid var(--indigo); outline-offset: 3px; }
+
 .section-head {
   display: flex;
   align-items: center;

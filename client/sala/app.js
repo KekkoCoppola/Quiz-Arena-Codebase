@@ -33,6 +33,8 @@ const els = {
   },
 
   idleText:     document.getElementById('sala-idle-text'),
+  guideIdle:    document.getElementById('sala-guide-idle'),
+  guideLobby:   document.getElementById('sala-guide-lobby'),
 
   qr:           document.getElementById('sala-qr'),
   joinUrl:      document.getElementById('sala-join-url'),
@@ -391,28 +393,193 @@ function renderProgress(index, total) {
   }
 }
 
+// ─── Attesa ──────────────────────────────────────────────────────────────────
+
+/**
+ * Il pannello d'attesa ha due facce: con `guide` la guida in quattro passi a
+ * tutto schermo e il cartello piccolo sotto (si aspetta l'host: è il momento
+ * in cui la gente entra nella rete); senza, il logo grande e il cartello come
+ * unico messaggio (connessione persa, partita finita, rientro a metà round —
+ * lì la guida direbbe di entrare in una partita in cui non si entra).
+ */
+function setIdle(text, { guide = false } = {}) {
+  els.idleText.textContent = text;
+  els.panels.idle.classList.toggle('is-guide', guide);
+}
+
+// ─── Guida "come si entra" ───────────────────────────────────────────────────
+//
+// Quattro passi, a tutto schermo in attesa dell'host e sulla sinistra in
+// lobby, accanto al QR. Le due copie nascono dallo stesso elenco: cambia solo
+// la riga sotto il titolo dove la guida indica qualcosa che in attesa non c'è
+// ancora (il QR, la striscia dei nomi).
+
+/** Un elemento con classe e, facoltativo, testo. */
+function guideNode(tag, className, text) {
+  const node = document.createElement(tag);
+  node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+}
+
+/** Una riga sotto il titolo; `icon` la chiude con un simbolo (una freccia). */
+function guideLine(text, icon) {
+  const p = guideNode('p', 'sala-guide-sub', text);
+  if (icon) {
+    const i = guideNode('span', 'material-symbols-outlined', icon);
+    i.setAttribute('aria-hidden', 'true');
+    p.append(' ', i);
+  }
+  return p;
+}
+
+const GUIDE_STEPS = [
+  {
+    icon: 'wifi',
+    title: 'Connettiti al Wi-Fi',
+    // Nome, password e QR della rete arrivano da /api/join-info (applyWifi):
+    // qui solo i posti dove scriverli.
+    lines: () => {
+      const net = guideNode('p', 'sala-guide-sub', 'Rete ');
+      net.append(guideNode('b', 'sala-guide-chip sala-guide-ssid', 'QuizZata'));
+      const pass = guideNode('p', 'sala-guide-sub sala-guide-pass', 'Password ');
+      pass.append(guideNode('b', 'sala-guide-chip sala-guide-pw'));
+      pass.hidden = true;
+      return [net, pass];
+    },
+    extra: () => {
+      const qr = guideNode('div', 'sala-guide-wifi-qr');
+      qr.setAttribute('role', 'img');
+      qr.setAttribute('aria-label', 'QR code per collegarsi al Wi-Fi');
+      qr.hidden = true;
+      return qr;
+    },
+  },
+  {
+    icon: 'qr_code_scanner',
+    title: 'Scannerizza il QR code',
+    lines: (where) => [where === 'lobby'
+      ? guideLine('Quello grande qui accanto', 'arrow_forward')
+      : guideLine('Compare qui quando l\'host apre la partita')],
+  },
+  {
+    // Il personaggio vero, non un'icona: è lui che si sta per scegliere.
+    avatar: 'sunny_yellow:wink:sport',
+    title: 'Personalizza il tuo personaggio',
+    lines: () => [guideLine('Nome, colore, faccia e outfit')],
+  },
+  {
+    icon: 'sports_esports',
+    title: 'Sei pronto a giocare!',
+    lines: (where) => [where === 'lobby'
+      ? guideLine('Il tuo nome compare qui sotto', 'arrow_downward')
+      : guideLine('Si parte quando l\'host avvia il quiz')],
+  },
+];
+
+/** Disegna la guida dentro `slot`. `where`: 'idle' | 'lobby'. */
+function renderGuide(slot, where) {
+  const list = guideNode('ol', 'sala-guide');
+  list.setAttribute('aria-label', 'Come si entra in partita');
+  GUIDE_STEPS.forEach((step, i) => {
+    const li = guideNode('li', `sala-guide-step is-step-${i + 1}`);
+    li.style.setProperty('--i', i);
+
+    const disc = guideNode('span', 'sala-guide-disc');
+    disc.setAttribute('aria-hidden', 'true');
+    if (step.avatar) {
+      const head = guideNode('span', 'sala-guide-head');
+      AvatarSprite.fill(head, step.avatar);
+      disc.append(head);
+    } else {
+      disc.append(guideNode('span', 'material-symbols-outlined', step.icon));
+    }
+
+    const body = guideNode('div', 'sala-guide-body');
+    body.append(guideNode('p', 'sala-guide-title', step.title), ...step.lines(where));
+
+    li.append(disc, guideNode('span', 'sala-guide-kicker', `Passo ${i + 1}`), body);
+    if (step.extra) li.append(step.extra(where));
+    // Il tratteggio che porta al passo dopo: parte dal bordo interno di
+    // questa scheda e scende sul disco della successiva (style.css).
+    if (i < GUIDE_STEPS.length - 1) {
+      const link = guideNode('span', 'sala-guide-link');
+      link.setAttribute('aria-hidden', 'true');
+      li.append(link);
+    }
+    list.append(li);
+  });
+  slot.replaceChildren(list);
+}
+
+/**
+ * Il testo di un QR "Wi-Fi" (lo standard che le fotocamere di Android e iOS
+ * riconoscono: inquadrato, il telefono propone di collegarsi). I caratteri
+ * speciali del formato vanno protetti con la barra rovesciata.
+ */
+function wifiQrText({ ssid, password }) {
+  const esc = (s) => String(s).replace(/([\\;,:"])/g, '\\$1');
+  return password
+    ? `WIFI:T:WPA;S:${esc(ssid)};P:${esc(password)};;`
+    : `WIFI:T:nopass;S:${esc(ssid)};;`;
+}
+
+/** Scrive nome, password e QR della rete in entrambe le copie della guida. */
+function applyWifi(wifi) {
+  if (!wifi?.ssid) return;
+  let svg = '';
+  try {
+    const qr = qrcode(0, 'M');
+    qr.addData(wifiQrText(wifi));
+    qr.make();
+    svg = QrArt.render(qr, { margin: 1 });
+  } catch {
+    // Senza QR resta il nome della rete scritto, che basta.
+  }
+  for (const n of document.querySelectorAll('.sala-guide-ssid')) n.textContent = wifi.ssid;
+  for (const n of document.querySelectorAll('.sala-guide-pw')) n.textContent = wifi.password ?? '';
+  for (const n of document.querySelectorAll('.sala-guide-pass')) n.hidden = !wifi.password;
+  for (const n of document.querySelectorAll('.sala-guide-wifi-qr')) {
+    n.innerHTML = svg;
+    n.hidden = !svg;
+  }
+}
+
 // ─── Lobby ───────────────────────────────────────────────────────────────────
 
-/** Carica l'URL LAN e disegna il QR. Endpoint pubblico: la sala non ha token. */
+/**
+ * Carica l'URL LAN e la rete Wi-Fi, disegna il QR della partita e completa la
+ * guida. Endpoint pubblico: la sala non ha token.
+ */
 async function loadJoinInfo() {
   els.qr.innerHTML = '';
   els.joinUrl.textContent = '';
   let url;
+  let label = null;
+  let wifi = null;
   try {
     const res = await fetch('/api/join-info');
     const body = await res.json();
     url = body.data.url;
+    // Sotto il QR il nome della sala, se il server ne ha uno (JOIN_HOST):
+    // si detta e si digita meglio dell'IP. Il QR resta sull'IP.
+    label = body.data.label ?? null;
+    wifi = body.data.wifi ?? null;
   } catch {
     // Ripiego: l'indirizzo di questa pagina. Sul Pi in kiosk è "localhost" e
     // quindi inutile a un telefono, ma è meglio di uno spazio vuoto.
     url = `${location.protocol}//${location.host}`;
   }
-  els.joinUrl.textContent = url;
+  els.joinUrl.textContent = label || url;
+  applyWifi(wifi);
   try {
-    const qr = qrcode(0, 'M');
+    // Livello H: la correzione d'errore ricostruisce i moduli coperti dal
+    // logo al centro (vedi qr-art.js, che lo toglie se il codice è troppo
+    // grande per averne uno).
+    const qr = qrcode(0, 'H');
     qr.addData(url);
     qr.make();
-    els.qr.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+    els.qr.innerHTML = QrArt.render(qr, { logo: '/resources/img/Logo.svg' });
   } catch {
     // Il QR non è indispensabile: resta l'URL scritto, leggibile a voce.
   }
@@ -447,8 +614,11 @@ function renderLobby(players) {
   const seen = new Set();
   let arrivals = 0;
 
+  // La striscia in basso ha una riga sola: l'ultimo arrivato va in testa,
+  // dove lo si vede comparire, e chi non ci sta più è il primo entrato
+  // (fitLobbyStrip lo riassume in "+N").
   els.players.innerHTML = '';
-  for (const p of players) {
+  for (const p of [...players].reverse()) {
     const key = playerKey(p);
     seen.add(key);
     const isNew = !shownPlayerKeys.has(key);
@@ -476,6 +646,38 @@ function renderLobby(players) {
     void els.playerCount.offsetWidth;
     els.playerCount.classList.add('is-bumped');
   }
+
+  // Si misura a pannello visibile: chi chiama mostra la lobby subito dopo.
+  requestAnimationFrame(fitLobbyStrip);
+}
+
+/**
+ * La striscia dei giocatori è una riga sola: i chip che sbordano si
+ * nascondono e un ultimo chip dice quanti sono. Va misurata, perché dipende
+ * dalla lunghezza dei nomi. Le misure ignorano le trasformazioni, quindi il
+ * pop d'ingresso in corso non le falsa.
+ */
+function fitLobbyStrip() {
+  const list = els.players;
+  list.querySelector('.sala-player-more')?.remove();
+  const chips = [...list.querySelectorAll('.sala-player-chip')];
+  for (const c of chips) c.hidden = false;
+  if (!list.clientWidth) return;   // pannello nascosto: si rifà al prossimo giro
+
+  const fits = (node) => node.offsetLeft + node.offsetWidth <= list.clientWidth;
+  let visible = chips.filter(fits).length;
+  if (visible === chips.length) return;
+
+  const more = document.createElement('li');
+  more.className = 'sala-player-more';
+  list.appendChild(more);
+  // Il "+N" deve starci anche lui: si toglie un chip alla volta finché entra.
+  do {
+    for (let i = 0; i < chips.length; i++) chips[i].hidden = i >= visible;
+    more.textContent = `+${chips.length - visible}`;
+    if (fits(more)) break;
+    visible--;
+  } while (visible > 0);
 }
 
 // ─── Domanda ─────────────────────────────────────────────────────────────────
@@ -842,6 +1044,7 @@ function fitQuestionLayout() {
 // Il font del titolo può arrivare dopo la prima domanda e cambiarne l'altezza;
 // la finestra cambia misura solo sul desktop di sviluppo, ma costa poco.
 window.addEventListener('resize', fitQuestionLayout);
+window.addEventListener('resize', fitLobbyStrip);
 document.fonts?.ready.then(fitQuestionLayout);
 
 // ─── Scena dei risultati sulle opzioni ───────────────────────────────────────
@@ -1661,13 +1864,13 @@ function stopPodium3D() {
 const socket = io('/');
 
 socket.on('connect', () => {
-  els.idleText.textContent = 'In attesa dell\'host…';
+  setIdle('In attesa dell\'host…', { guide: true });
 });
 
 socket.on('disconnect', () => {
   newPhase();
   stopCountdown();
-  els.idleText.textContent = 'Connessione persa. Riconnessione in corso…';
+  setIdle('Connessione persa. Riconnessione in corso…');
   showPanel('idle');
 });
 
@@ -1701,9 +1904,9 @@ socket.on('game:snapshot', (snap) => {
     renderFinal(snap.players ?? [], { animate: false });
     return;
   }
-  els.idleText.textContent = snap.state === 'RESULTS'
+  setIdle(snap.state === 'RESULTS'
     ? 'Risultati del round…'
-    : `Round ${(snap.currentQuestionIndex ?? 0) + 1} in corso…`;
+    : `Round ${(snap.currentQuestionIndex ?? 0) + 1} in corso…`);
   showPanel('idle');
 });
 
@@ -1823,7 +2026,7 @@ socket.on('game:ended', () => {
   stopCountdown();
   rosterLive = false;
   SalaAudio.music(null);   // in dissolvenza: la sala torna in silenzio
-  els.idleText.textContent = 'Partita terminata.';
+  setIdle('Partita terminata.');
   showPanel('idle');
 });
 
@@ -1844,5 +2047,7 @@ if (new URLSearchParams(location.search).has('muto')) {
 } else {
   SalaAudio.arm();
 }
+renderGuide(els.guideIdle, 'idle');
+renderGuide(els.guideLobby, 'lobby');
 loadJoinInfo();
 showPanel('idle');

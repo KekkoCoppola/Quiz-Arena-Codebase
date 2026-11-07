@@ -27,7 +27,9 @@ const jwt      = require('jsonwebtoken');
 const config                                          = require('../config');
 const { verifyToken }                                 = require('../middleware/auth');
 const { lanJoinUrl }                                  = require('../lan-url');
-const { listForUi: listMinigamesForUi }               = require('../minigames');
+const { listForUi: listMinigamesForUi, RANDOM_TYPE }  = require('../minigames');
+const licenseService                                  = require('../license-service');
+const { isMinigameAllowed }                           = require('../license');
 const { validateQuiz }                                = require('../quiz-schema');
 const {
   getUserByUsername,
@@ -395,10 +397,15 @@ router.post(
  * Generato dal registry `server/minigames/`: è l'unica fonte di verità per la
  * UI, così l'editor non deve mai elencare i tipi a mano e un minigioco appena
  * aggiunto compare da solo nel menù.
+ * Solo quelli inclusi nella licenza: un pacchetto ridotto non mostra nel menù
+ * ciò che poi la partita salterebbe.
  * Risposta: { success: true, data: { minigames: [{ type, label, description }] } }
  */
 router.get('/minigames', verifyToken, (_req, res) => {
-  return res.status(200).json({ success: true, data: { minigames: listMinigamesForUi() } });
+  const entitlements = licenseService.entitlements();
+  const minigames = listMinigamesForUi()
+    .filter((m) => m.type === RANDOM_TYPE || isMinigameAllowed(entitlements, m.type));
+  return res.status(200).json({ success: true, data: { minigames } });
 });
 
 // ─── GET /preloaded-quizzes ─────────────────────────────────────────────────────────────────────

@@ -26,8 +26,9 @@ const db           = require('./quiz-manager');
 const { isValidImageHash } = require('./quiz-schema');
 const hostRouter   = require('./routes/host');
 const playerRouter = require('./routes/player');
-const { lanJoinUrl } = require('./lan-url');
+const { lanJoinUrl, displayJoinUrl } = require('./lan-url');
 const { attachGameHandlers } = require('./game-socket');
+const licenseService = require('./license-service');
 
 // ─── App Express ─────────────────────────────────────────────────────────────
 
@@ -89,6 +90,13 @@ if (config.debugTools) {
   app.use('/debug', express.static(path.join(__dirname, '../client/debug')));
 }
 
+// ─── Static: pagina Licenza ───────────────────────────────────────────────────
+// Pubblica come /sala: è il bersaglio del link di rinnovo che il cliente tocca
+// su WhatsApp (http://192.168.4.1/licenza#QZ1.…), e un link non può portarsi
+// dietro un login. Non c'è niente da proteggere: un codice vale solo se firmato
+// da chi vende, quindi chi lo attiva può solo attivare ciò che è stato venduto.
+app.use('/licenza', express.static(path.join(__dirname, '../client/licenza')));
+
 // ─── API Host ─────────────────────────────────────────────────────────────────
 app.use('/api/host', hostRouter);
 
@@ -96,9 +104,28 @@ app.use('/api/host', hostRouter);
 // Stessa informazione di /api/host/game/join-info, senza autenticazione: serve
 // alla vista sala per disegnare il QR, e la sala non ha un token. Non espone
 // nulla di riservato — è l'URL che finisce proiettato in caratteri giganti
-// davanti a tutta la stanza.
+// davanti a tutta la stanza. Lo stesso vale per la rete Wi-Fi: nome ed
+// eventuale password li scrive la guida sullo schermo, e chi può chiedere
+// questo endpoint è per forza già entrato in quella rete.
 app.get('/api/join-info', (_req, res) => {
-  res.json({ success: true, data: { url: lanJoinUrl() } });
+  res.json({
+    success: true,
+    data: { url: lanJoinUrl(), label: displayJoinUrl(), wifi: { ...config.wifi } },
+  });
+});
+
+// ─── Licenza ──────────────────────────────────────────────────────────────────
+// Pubbliche per la stessa ragione della pagina /licenza. Lo stato espone il
+// seriale (il cliente deve poterlo leggere e mandare) e il nome del cliente:
+// niente che chi è già sulla rete del Pi non veda sul pannello.
+app.get('/api/license', (_req, res) => {
+  res.json({ success: true, data: licenseService.status() });
+});
+
+app.post('/api/license/activate', (req, res) => {
+  const result = licenseService.activate(req.body?.code);
+  if (!result.ok) return res.status(400).json({ success: false, error: result.error });
+  return res.json({ success: true, data: result.status });
 });
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
@@ -231,6 +258,8 @@ attachGameHandlers(io);
 // Va chiamata prima di listen() così le route trovano il DB già pronto
 // al momento della prima richiesta.
 db.initDb(config.dbPath);
+// La licenza legge dal DB il codice attivo e l'ora fidata: dopo initDb.
+licenseService.init();
 
 // ─── Avvio Server ─────────────────────────────────────────────────────────────
 httpServer.listen(config.port, () => {

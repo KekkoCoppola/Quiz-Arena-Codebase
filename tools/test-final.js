@@ -106,6 +106,21 @@ section('Disposizione del podio e del pubblico');
   assert(layout.podium.first.expression === 'laugh', 'le espressioni aggiunte al catalogo arrivano alla scena');
 }
 
+// ─── Qualità adattiva della scena 3D ─────────────────────────────────────────────
+
+section('Qualità adattiva');
+
+{
+  const next = Podium.nextQualityLevel;
+  const MAX = Podium.MAX_QUALITY_LEVEL;
+  assert(next(16, 0) === 0, '60 fps: resta a qualità piena');
+  assert(next(30, 0) === 1, '33 fps: scende di un gradino');
+  assert(next(80, 0) === 2, '12 fps: scende di due gradini');
+  assert(next(80, MAX - 1) === MAX && next(200, MAX) === MAX, 'non scende oltre l\'ultimo gradino');
+  assert(next(10, 3) === 3, 'non risale mai: una scena che oscilla davanti alla sala è peggio');
+  assert(next(NaN, 1) === 1 && next(undefined, 2) === 2, 'una misura assente non cambia nulla');
+}
+
 // ─── Esito ───────────────────────────────────────────────────────────────────────
 
 console.log(`\n${passed} passati, ${failed} falliti`);

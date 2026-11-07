@@ -578,6 +578,30 @@ function gcOrphanImages() {
     .run(...referenced).changes;
 }
 
+// ─── Impostazioni del dispositivo ──────────────────────────────────────────────────────────────
+
+/**
+ * Valore di un'impostazione del dispositivo (tabella `settings`), o null.
+ * @param {string} key
+ * @returns {string | null}
+ */
+function getSetting(key) {
+  const row = getDb().prepare('SELECT value FROM settings WHERE key = ?').get(String(key));
+  return row ? row.value : null;
+}
+
+/**
+ * Scrive (o sovrascrive) un'impostazione del dispositivo.
+ * @param {string} key
+ * @param {string} value
+ */
+function setSetting(key, value) {
+  getDb()
+    .prepare(`INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
+              ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`)
+    .run(String(key), String(value));
+}
+
 // ─── Exports ────────────────────────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -603,6 +627,9 @@ module.exports = {
   putImage,
   getImage,
   gcOrphanImages,
+  // Impostazioni del dispositivo (licenza)
+  getSetting,
+  setSetting,
   // Error classes (usate dai route handler per il mapping HTTP status)
   QuizLimitError,
   NotFoundError,

@@ -1,0 +1,180 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Quiz-Zata! — pagina Licenza
+   Superficie di chi gestisce il dispositivo: segue le regole del pannello
+   admin (DESIGN.md §7) — forma Retro Street, colori del logo, un'azione
+   principale gialla, niente decorazione.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@font-face {
+  font-family: 'Quicksand';
+  font-weight: 500;
+  font-display: swap;
+  src: url('/resources/fonts/quicksand-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Quicksand';
+  font-weight: 700;
+  font-display: swap;
+  src: url('/resources/fonts/quicksand-700.woff2') format('woff2');
+}
+
+:root {
+  --ink:         #1c1c26;
+  --yellow:      #ffe500;
+  --indigo:      #443be0;
+  --indigo-deep: #2d25a8;
+  --indigo-soft: #e4e2fc;
+  --paper:       #f4f3fb;
+  --paper-dot:   #d9d6f2;
+  --surface:     #ffffff;
+  --muted:       #55546a;
+  --red:         #d32f2f;
+  --red-ink:     #a3191b;
+  --red-soft:    #fde4e2;
+  --green-ink:   #0c5a2f;
+  --green-soft:  #dcf5e6;
+  --amber-ink:   #7a4a12;
+  --amber-soft:  #fbecd6;
+
+  --line:        3px solid var(--ink);
+  --radius-sm:   10px;
+  --radius:      14px;
+  --stamp-sm:    3px 3px 0 0 var(--ink);
+  --stamp:       5px 5px 0 0 var(--ink);
+  --font:        'Quicksand', system-ui, sans-serif;
+  --pad-x:       max(16px, env(safe-area-inset-left), env(safe-area-inset-right));
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  min-height: 100dvh;
+  font-family: var(--font);
+  font-weight: 700;
+  color: var(--ink);
+  background-color: var(--paper);
+  background-image: radial-gradient(var(--paper-dot) 2px, transparent 2px);
+  background-size: 28px 28px;
+  -webkit-font-smoothing: antialiased;
+}
+
+[hidden] { display: none !important; }
+
+.appbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px var(--pad-x);
+  padding-top: max(12px, env(safe-area-inset-top));
+  background: var(--surface);
+  border-bottom: var(--line);
+}
+.appbar-logo { height: 36px; width: auto; }
+.appbar-title { font-size: 1.125rem; }
+
+.page {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 20px var(--pad-x) max(32px, env(safe-area-inset-bottom));
+  display: grid;
+  gap: 20px;
+}
+
+.card {
+  background: var(--surface);
+  border: var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--stamp);
+  padding: 20px;
+  display: grid;
+  gap: 14px;
+}
+.card-title { font-size: 1.125rem; }
+.hint { font-weight: 500; color: var(--muted); font-size: 0.9375rem; }
+
+/* ── Stato ── */
+.status-badge {
+  justify-self: start;
+  padding: 6px 14px;
+  border: var(--line);
+  border-radius: 9999px;
+  font-size: 0.9375rem;
+}
+.status-badge.is-ok    { background: var(--green-soft); color: var(--green-ink); }
+.status-badge.is-warn  { background: var(--amber-soft); color: var(--amber-ink); }
+.status-badge.is-bad   { background: var(--red-soft);   color: var(--red-ink); }
+.status-badge.is-off   { background: var(--indigo-soft); color: var(--indigo-deep); }
+.status-text { font-size: 1.25rem; line-height: 1.3; }
+
+.details { display: grid; gap: 10px; }
+.row {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr;
+  gap: 8px;
+  align-items: center;
+  padding-top: 10px;
+  border-top: 2px solid var(--indigo-soft);
+}
+.row dt { color: var(--muted); font-weight: 500; font-size: 0.9375rem; }
+.row dd { overflow-wrap: anywhere; }
+/* Il seriale è 16 caratteri a spaziatura fissa: su un telefono non sta
+   accanto all'etichetta, quindi va sotto, a tutta larghezza. */
+.row-serial { grid-template-columns: 1fr; }
+.serial-cell { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.serial {
+  flex: 1;
+  min-width: 0;
+  font: 700 1rem ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  color: var(--ink);
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+}
+
+/* ── Esito attivazione ── */
+.activation-text { font-size: 1.25rem; line-height: 1.35; }
+#activation.is-ok  { background: var(--green-soft); }
+#activation.is-bad { background: var(--red-soft); }
+
+/* ── Form ── */
+textarea {
+  width: 100%;
+  font: 500 0.9375rem ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  color: var(--ink);
+  background: var(--paper);
+  border: var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  resize: vertical;
+}
+textarea:focus-visible, .serial:focus-visible { outline: 3px solid var(--indigo); outline-offset: 2px; }
+form { display: grid; gap: 12px; }
+.form-error { color: var(--red-ink); font-size: 0.9375rem; }
+
+/* ── Bottoni ── */
+.btn {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 20px;
+  font: 700 1.0625rem var(--font);
+  color: var(--ink);
+  text-decoration: none;
+  border: var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--stamp-sm);
+  cursor: pointer;
+  transition: transform 120ms, box-shadow 120ms;
+}
+.btn:active { transform: translate(3px, 3px); box-shadow: none; }
+.btn:focus-visible { outline: 3px solid var(--indigo); outline-offset: 3px; }
+.btn-primary   { background: var(--yellow); }
+.btn-secondary { background: var(--surface); }
+.btn-sm { min-height: 40px; padding: 0 14px; font-size: 0.9375rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .btn { transition: none; }
+}

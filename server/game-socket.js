@@ -22,6 +22,7 @@ const { attachDebugHandlers } = require('./debug-tools');
 const db     = require('./quiz-manager');
 const { GameSession, STATES, InvalidStateError } = require('./game');
 const testBots = require('./test-bots');
+const licenseService = require('./license-service');
 // Il calendario della premiazione è un modulo UMD puro condiviso coi client:
 // il server ne legge la durata, così il segnale di fine non diverge dalla sala.
 const FinalSchedule = require('../client/shared/final-schedule');
@@ -59,8 +60,23 @@ const STAGE_GAP_MS = 1500;
 /**
  * Opzioni di ogni GameSession creata qui. Il sipario dei minigiochi è messa in
  * scena, non regola: la sessione pura lo tiene a 0 finché non glielo si chiede.
+ * I limiti vengono dalla licenza: i minigiochi inclusi si fissano alla
+ * creazione della partita, il massimo di giocatori si rilegge a ogni ingresso
+ * (una funzione), così un rinnovo fatto in lobby vale subito.
  */
-const SESSION_OPTIONS = { minigameIntroMs: config.minigameIntroMs };
+function sessionOptions() {
+  const { minigames } = licenseService.entitlements();
+  return {
+    minigameIntroMs: config.minigameIntroMs,
+    maxPlayers: () => licenseService.entitlements().maxPlayers,
+    allowedMinigames: minigames === 'all' ? null : minigames,
+  };
+}
+
+/** Il Pi stesso (la sala in kiosk) non è un testimone dell'ora: usa il suo orologio. */
+function isLoopback(address) {
+  return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1';
+}
 /** @type {Map<string, string>} socket.id -> playerId */
 const socketPlayers = new Map();
 /** @type {Map<string, string>} token segreto -> playerId (riconnessione Fase 7) */
@@ -339,6 +355,16 @@ function maybeCloseEarly(io) {
  */
 function attachGameHandlers(io) {
   io.on('connection', (socket) => {
+    // ── Ora del dispositivo, per la licenza ──
+    // Telefoni e tablet hanno l'ora della rete; il Pi, offline e senza batteria
+    // dell'orologio, no. Ogni client la dichiara nell'handshake e la licenza ne
+    // ricava che giorno è davvero (vedi createTrustedClock in license.js).
+    // Un dispositivo = un indirizzo: ricollegarsi dieci volte conta una volta.
+    const clientNow = Number(socket.handshake.auth?.clientNow);
+    if (Number.isFinite(clientNow) && !isLoopback(socket.handshake.address)) {
+      licenseService.observeClientTime(socket.handshake.address, clientNow);
+    }
+
     // ── Autenticazione host (JWT opzionale nell'handshake) ──
     const token = socket.handshake.auth?.token;
     if (token) {
@@ -375,7 +401,7 @@ function attachGameHandlers(io) {
         newSession(quiz) {
           endCurrentGame(io);
           currentQuiz = quiz;
-          currentSession = new GameSession(quiz, SESSION_OPTIONS);
+          currentSession = new GameSession(quiz, sessionOptions());
           return currentSession;
         },
         spawnBots,
@@ -491,7 +517,7 @@ function attachGameHandlers(io) {
       endCurrentGame(io);
       currentQuiz = quiz;
       currentQuizType = quizType === 'preloaded' ? 'preloaded' : 'personal';
-      currentSession = new GameSession(quiz, SESSION_OPTIONS);
+      currentSession = new GameSession(quiz, sessionOptions());
       ok(cb);
       broadcastLobby(io);
     });
@@ -628,7 +654,7 @@ function attachGameHandlers(io) {
         if (player) oldIdentities.set(sockId, { nickname: player.nickname, avatar: player.avatar });
       }
 
-      currentSession = new GameSession(currentQuiz, SESSION_OPTIONS);
+      currentSession = new GameSession(currentQuiz, sessionOptions());
       socketPlayers.clear();
       playerTokens.clear();
 
@@ -636,7 +662,15 @@ function attachGameHandlers(io) {
       for (const [sockId, identity] of oldIdentities) {
         const playerSocket = io.sockets.sockets.get(sockId);
         if (!playerSocket) continue; // disconnesso nel frattempo
-        const player = currentSession.addPlayer(identity.nickname, identity.avatar);
+        let player;
+        try {
+          player = currentSession.addPlayer(identity.nickname, identity.avatar);
+        } catch (err) {
+          // La licenza è cambiata fra una partita e l'altra (scaduta, pacchetto
+          // più piccolo): chi non ci sta più torna alla schermata d'ingresso.
+          playerSocket.emit('game:ended', { reason: err.message });
+          continue;
+        }
         const token = randomUUID();
         playerTokens.set(token, player.id);
         socketPlayers.set(sockId, player.id);
