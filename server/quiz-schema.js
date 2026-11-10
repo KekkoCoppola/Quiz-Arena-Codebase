@@ -172,8 +172,10 @@ function validateQuestionImage(image, num) {
     return `Domanda ${num}: "image.hash" deve essere un SHA-256 esadecimale di 64 caratteri minuscoli.`;
   }
 
-  if (typeof image.blur !== 'boolean') {
-    return `Domanda ${num}: "image.blur" deve essere true o false.`;
+  const isBool = typeof image.blur === 'boolean';
+  const isPercent = typeof image.blur === 'number' && Number.isFinite(image.blur) && image.blur >= 0 && image.blur <= 100;
+  if (!isBool && !isPercent) {
+    return `Domanda ${num}: "image.blur" deve essere una percentuale da 0 a 100 (oppure true/false).`;
   }
 
   return null;

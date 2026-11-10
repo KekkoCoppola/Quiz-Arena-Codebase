@@ -26,8 +26,25 @@
   /** Durata delle rampe di volume. Un salto secco si sente come un difetto. */
   const RAMP_MS = 400;
 
-  /** Durata fissa del crescendo finale, deve combaciare con l'asset prodotto. */
+  /**
+   * Le tracce della sala, una per momento della serata. I minigiochi portano
+   * la propria (vedi `minigameManifest`), con il loro tipo come chiave.
+   */
+  const MUSIC = Object.freeze({ lobby: 'lobby', quiz: 'quiz', final: 'final' });
+
+  /** Da quanti secondi alla fine il timer suona "urgente", e da quanti "ultimi". */
+  const TIMER_URGENT_S = 10;
+  const TIMER_LAST_S = 3;
   const TENSION_FINAL_S = 10;
+
+  /**
+   * Quanto accelera la musica negli ultimi secondi di un round. Con il tono
+   * che sale insieme al tempo: è il "fai presto!" dei videogiochi.
+   */
+  const HURRY_RATE = 1.12;
+
+  /** Quanti secondi conta il "3, 2, 1" d'apertura; prima c'è "Pronti?". */
+  const START_COUNT_S = 3;
 
   /** Pausa fra l'arrivo di game:results e il reveal, per il rullo di tamburi. */
   const SUSPENSE_MS = 1500;
@@ -60,11 +77,43 @@
   }
 
   /**
-   * Pianifica le due tracce di tensione perché il crescendo atterri sullo zero
-   * qualunque sia il limite di tempo della domanda (TIME_OPTIONS va da 5 a 120s).
-   *
-   * @returns {{useLoop: boolean, finalDelayMs: number, finalSeekS: number, skip: boolean}}
+   * La traccia che deve suonare in una fase della partita, per la sala che si
+   * riallinea da `game:snapshot`. `null` = silenzio (nessuna partita).
+   * @param {string} state stato della GameSession
    */
+  function musicForState(state) {
+    if (state === 'LOBBY') return MUSIC.lobby;
+    if (state === 'QUESTION' || state === 'RESULTS') return MUSIC.quiz;
+    if (state === 'FINAL_LEADERBOARD') return MUSIC.final;
+    return null;
+  }
+
+  /**
+   * Il suono del timer quando la cifra dei secondi cambia.
+   *
+   * Un tic-tac leggero per tutto il round, un colpo più teso negli ultimi
+   * dieci secondi, uno più alto negli ultimi tre e il gong allo zero. Il primo
+   * valore mostrato non suona (`previous` null): la domanda è appena comparsa
+   * e ha già il suo effetto d'ingresso, e una sala che si ricollega a metà
+   * round non deve annunciare un secondo qualunque.
+   *
+   * @param {{ remaining: number, previous: number | null }} p secondi interi
+   * @returns {'timer-tick' | 'timer-urgent' | 'timer-last' | 'time-up' | null}
+   */
+  function timerCue({ remaining, previous }) {
+    if (previous === null || previous === undefined) return null;
+    if (remaining === previous) return null;
+    if (remaining <= 0) return previous > 0 ? 'time-up' : null;
+    if (remaining <= TIMER_LAST_S) return 'timer-last';
+    if (remaining <= TIMER_URGENT_S) return 'timer-urgent';
+    return 'timer-tick';
+  }
+
+  /** True negli ultimi secondi del round: la musica accelera. */
+  function isHurry(remaining) {
+    return remaining > 0 && remaining <= TIMER_URGENT_S;
+  }
+
   function tensionPlan({ endsAt, now, finalDurationS }) {
     const remainingMs = endsAt - now;
     if (remainingMs <= 0) {
@@ -72,7 +121,6 @@
     }
     const remainingS = remainingMs / 1000;
     if (remainingS > finalDurationS) {
-      // C'è spazio per il loop neutro prima del crescendo.
       return {
         useLoop: true,
         finalDelayMs: Math.round((remainingS - finalDurationS) * 1000),
@@ -80,7 +128,6 @@
         skip: false,
       };
     }
-    // Countdown più corto del crescendo: si entra a metà traccia.
     return {
       useLoop: false,
       finalDelayMs: 0,
@@ -88,6 +135,19 @@
       skip: false,
     };
   }
+
+  /**
+   * Cosa mostra e cosa suona il conto alla rovescia d'apertura quando mancano
+   * `leftMs` alla prima domanda: "Pronti?" finché c'è più tempo dei tre
+   * secondi da contare, poi 3, 2, 1. Il "VIA!" è `START_GO`, a tempo scaduto.
+   * @returns {{ label: string, sfx: string, word: boolean }}
+   */
+  function startCountdownStep(leftMs) {
+    if (leftMs <= 0) return START_GO;
+    if (leftMs > START_COUNT_S * 1000) return { label: 'Pronti?', sfx: 'countdown-ready', word: true };
+    return { label: String(Math.ceil(leftMs / 1000)), sfx: 'countdown-beep', word: false };
+  }
+  const START_GO = Object.freeze({ label: 'VIA!', sfx: 'countdown-go', word: true });
 
   /**
    * Volume effettivo di un asset. Il duck si applica solo alla musica.
@@ -178,11 +238,21 @@
     CHANNEL_VOLUME,
     MUSIC_DUCK_FACTOR,
     RAMP_MS,
-    TENSION_FINAL_S,
+    MUSIC,
+    TIMER_URGENT_S,
+    TIMER_LAST_S,
+    HURRY_RATE,
+    START_COUNT_S,
+    START_GO,
     SUSPENSE_MS,
+    TENSION_FINAL_S,
     pickVariant,
     isStale,
     tensionPlan,
+    musicForState,
+    timerCue,
+    isHurry,
+    startCountdownStep,
     resolveGain,
     validateManifest,
     minigameSfxKey,

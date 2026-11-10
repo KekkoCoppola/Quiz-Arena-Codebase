@@ -230,6 +230,13 @@
 
             <div id="game-question-box" class="game-question" hidden>
               <h2 id="game-question-text" class="game-live-question"></h2>
+              <div id="game-live-blur" class="game-live-blur" hidden>
+                <div class="game-live-blur-header">
+                  <span class="material-symbols-outlined" aria-hidden="true">blur_on</span>
+                  <label for="game-blur-slider">Sfocatura sala: <strong id="game-blur-val">0%</strong></label>
+                </div>
+                <input type="range" id="game-blur-slider" min="0" max="100" step="5" value="0">
+              </div>
               <ul id="game-options-list" class="game-option-cards"></ul>
             </div>
 
@@ -272,6 +279,16 @@
             <button id="game-next-btn" class="btn btn-primary btn-lg btn-block btn-game" disabled>
               <span class="material-symbols-outlined" aria-hidden="true">skip_next</span>
               <span id="game-next-label">Prossima domanda</span>
+            </button>
+            <button id="game-pause-btn" class="btn btn-secondary btn-block btn-game" hidden disabled
+              title="Mette in pausa o riprende il countdown del round corrente">
+              <span class="material-symbols-outlined" id="game-pause-icon" aria-hidden="true">pause</span>
+              <span id="game-pause-label">Pausa tempo</span>
+            </button>
+            <button id="game-repeat-btn" class="btn btn-accent btn-block btn-game" hidden disabled
+              title="Ripete la domanda corrente annullando i punteggi assegnati">
+              <span class="material-symbols-outlined" aria-hidden="true">replay</span>
+              <span>Ripeti domanda</span>
             </button>
             <button id="game-skip-btn" class="btn btn-accent btn-block btn-game" hidden disabled
               title="Chiude il round del minigioco in corso: nessun punto a nessuno">

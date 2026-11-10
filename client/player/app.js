@@ -27,6 +27,8 @@ let updateAvatarTimeout = null;
 let countdownInterval = null;
 /** Attesa della fine dell'anteprima di un minigioco, prima di aprire le risposte. */
 let previewTimer = null;
+let introTimer = null;
+let currentRoundTotalMs = 0;
 // Round corrente, per il reveal del feedback (il payload game:results non
 // ripete le opzioni): tipo di round + opzioni mostrate.
 let currentRoundKind = 'question';
@@ -123,6 +125,10 @@ function showMessage(text) {
 }
 
 function stopCountdown() {
+  if (introTimer) {
+    clearTimeout(introTimer);
+    introTimer = null;
+  }
   if (previewTimer) {
     clearTimeout(previewTimer);
     previewTimer = null;
@@ -133,9 +139,20 @@ function stopCountdown() {
   }
 }
 
+function pauseCountdown(remainingMs) {
+  if (countdownInterval) {
+    clearInterval(countdownInterval);
+    countdownInterval = null;
+  }
+  if (typeof remainingMs === 'number') {
+    questionCountdown.textContent = Math.max(0, Math.ceil(remainingMs / 1000));
+  }
+}
+
 /** Countdown: numero grande + barra terracotta che si svuota. */
 function startCountdown(endsAt, totalMs, serverNow) {
   stopCountdown();
+  currentRoundTotalMs = totalMs;
   const deadline = ServerClock.localDeadline(endsAt, serverNow);
   const tick = () => {
     const remainingMs = ServerClock.remainingMs(deadline);
@@ -317,6 +334,12 @@ function renderQuestion(q, alreadyAnswered = false) {
   currentRoundKind = q.kind;
   currentRoundIndex = q.index;
   currentRoundOptions = q.options;
+  currentRoundTotalMs = (q.time_limit_s || 20) * 1000;
+
+  if (introTimer) {
+    clearTimeout(introTimer);
+    introTimer = null;
+  }
 
   // La classe di layout del minigioco precedente va rimossa prima di applicare
   // quella nuova: due minigiochi possono chiedere disposizioni diverse.
@@ -326,18 +349,67 @@ function renderQuestion(q, alreadyAnswered = false) {
   currentMinigame = isMinigame ? Minigames.get(q.minigameType) : null;
 
   screens.question.classList.toggle('is-minigame', isMinigame);
+  questionMore.textContent = 'Leggi tutta';
+  questionImageHint.hidden = !q.image;
+
+  // Calcolo timing sipario (estrazione ruota)
+  const introEndsAt = q.introEndsAt
+    ? ServerClock.localDeadline(q.introEndsAt, q.serverNow)
+    : 0;
+  const introLeftMs = introEndsAt ? ServerClock.remainingMs(introEndsAt) : 0;
+
+  // Se siamo in un minigioco ed è ancora in corso l'estrazione della ruota in sala:
+  // NON mostriamo le scelte del minigioco per evitare spoiler!
+  if (isMinigame && introLeftMs > 0 && !alreadyAnswered) {
+    stopCountdown();
+    questionProgress.textContent = 'Minigioco';
+    questionProgress.classList.remove('badge-yellow');
+    questionProgress.classList.add('badge-ochre');
+    questionText.textContent = 'Estrazione del minigioco…';
+    questionText.classList.remove('is-open');
+    questionText.classList.add('is-clamped');
+    questionText.style.maxHeight = '';
+
+    answerButtons.innerHTML = `
+      <div class="minigame-extracting-notice">
+        <span class="extracting-icon">🎰</span>
+        <p class="extracting-text">Estrazione del minigioco…</p>
+        <p class="extracting-sub">Guarda lo schermo!</p>
+      </div>
+    `;
+    answerButtons.classList.add('answer-locked');
+    answerSent.hidden = true;
+    questionCountdown.textContent = q.time_limit_s;
+    countdownBar.style.transform = 'scaleX(1)';
+
+    const receivedAt = Date.now();
+    introTimer = setTimeout(() => {
+      introTimer = null;
+      renderMinigameChoices(q, alreadyAnswered, q.serverNow + (Date.now() - receivedAt));
+      questionMore.hidden = questionText.scrollHeight <= questionText.clientHeight;
+    }, introLeftMs);
+
+    show('question');
+    questionMore.hidden = true;
+    return;
+  }
+
+  renderMinigameChoices(q, alreadyAnswered, q.serverNow);
+  show('question');
+  // Misurabile solo a schermata visibile: nascosta, ogni altezza vale zero.
+  questionMore.hidden = questionText.scrollHeight <= questionText.clientHeight;
+}
+
+function renderMinigameChoices(q, alreadyAnswered = false, serverNow = q.serverNow) {
+  const isMinigame = q.kind === 'minigame';
   questionProgress.textContent = isMinigame ? currentMinigame.playerBadge : `${q.index + 1}/${q.total}`;
   questionProgress.classList.toggle('badge-yellow', !isMinigame);
   questionProgress.classList.toggle('badge-ochre', isMinigame);
   questionText.textContent = q.text;
-  // Ogni domanda riparte chiusa; "Leggi tutta" compare solo se il testo
-  // trabocca davvero dalle tre righe (misurato, non stimato dalla lunghezza).
   questionText.classList.remove('is-open');
   questionText.classList.add('is-clamped');
   questionText.style.maxHeight = '';
-  questionMore.textContent = 'Leggi tutta';
-  questionImageHint.hidden = !q.image;
-  answerSent.hidden = !alreadyAnswered;
+
   answerButtons.classList.toggle('answer-locked', alreadyAnswered);
   if (currentMinigame?.playerLayoutClass) {
     answerButtons.classList.add(currentMinigame.playerLayoutClass);
@@ -369,7 +441,7 @@ function renderQuestion(q, alreadyAnswered = false) {
   // schermo grande, poi si sceglie. Il server rifiuterebbe comunque una
   // risposta anticipata; qui la si rende impossibile invece che sbagliata.
   const openAt = q.answersOpenAt
-    ? ServerClock.localDeadline(q.answersOpenAt, q.serverNow)
+    ? ServerClock.localDeadline(q.answersOpenAt, serverNow)
     : 0;
   const previewLeftMs = openAt ? ServerClock.remainingMs(openAt) : 0;
   if (!alreadyAnswered && previewLeftMs > 0) {
@@ -385,18 +457,22 @@ function renderQuestion(q, alreadyAnswered = false) {
       previewTimer = null;
       answerButtons.classList.remove('answer-locked');
       answerSent.hidden = true;
-      // `localDeadline` misura lo scarto fra orologi nell'istante in cui la si
-      // chiama: qui `serverNow` va fatto avanzare di quanto è passato dalla
-      // ricezione, o la scadenza slitterebbe di tutta l'anteprima.
-      startCountdown(q.endsAt, q.time_limit_s * 1000, q.serverNow + (Date.now() - receivedAt));
+      startCountdown(q.endsAt, q.time_limit_s * 1000, serverNow + (Date.now() - receivedAt));
     }, previewLeftMs);
   } else {
-    if (alreadyAnswered) answerSent.textContent = 'Risposta inviata!';
-    startCountdown(q.endsAt, q.time_limit_s * 1000, q.serverNow);
+    if (alreadyAnswered) {
+      answerButtons.classList.add('answer-locked');
+      answerSent.textContent = 'Risposta inviata!';
+      answerSent.hidden = false;
+    } else {
+      answerButtons.classList.remove('answer-locked');
+      answerSent.hidden = true;
+    }
+    startCountdown(q.endsAt, q.time_limit_s * 1000, serverNow);
+    if (q.isPaused) {
+      pauseCountdown(q.remainingMs);
+    }
   }
-  show('question');
-  // Misurabile solo a schermata visibile: nascosta, ogni altezza vale zero.
-  questionMore.hidden = questionText.scrollHeight <= questionText.clientHeight;
 }
 
 questionMore.addEventListener('click', () => {
@@ -678,6 +754,16 @@ socket.on('game:question', (q) => {
   if (!playerId) return;
   revealToken++; // un eventuale reveal in sospeso è ormai superato
   renderQuestion(q);
+});
+
+socket.on('game:timer-paused', ({ remainingMs }) => {
+  if (!playerId) return;
+  pauseCountdown(remainingMs);
+});
+
+socket.on('game:timer-resumed', ({ endsAt, serverNow }) => {
+  if (!playerId) return;
+  startCountdown(endsAt, currentRoundTotalMs, serverNow);
 });
 
 socket.on('game:results', (results) => {

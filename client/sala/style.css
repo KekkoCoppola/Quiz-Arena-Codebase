@@ -280,6 +280,7 @@ body {
 .sala-progress:empty,
 .sala-shell:has(#sala-idle:not([hidden]))  .sala-progress,
 .sala-shell:has(#sala-lobby:not([hidden])) .sala-progress,
+.sala-shell:has(#sala-ended:not([hidden])) .sala-progress,
 .sala-shell:has(#sala-final:not([hidden])) .sala-progress { visibility: hidden; }
 
 .sala-progress .dot {
@@ -342,7 +343,8 @@ body {
 
 /* In attesa il logo è già grande al centro: in testata sarebbe un doppione.
    Con la guida a tutto schermo il logo grande non c'è, e torna quello qui. */
-.sala-shell:has(#sala-idle:not([hidden]):not(.is-guide)) .sala-logo-wrap { visibility: hidden; }
+.sala-shell:has(#sala-idle:not([hidden]):not(.is-guide)) .sala-logo-wrap,
+.sala-shell:has(#sala-ended:not([hidden])) .sala-logo-wrap { visibility: hidden; }
 
 /* In lobby la testata non ha nulla al centro né a destra (avanzamento e
    cronometro sono spenti): esce dal flusso, così il QR sale fino in cima e
@@ -399,6 +401,13 @@ body {
   --ring: var(--alert-red);
   color: var(--logo-yellow);
   animation: sala-pulse 700ms steps(2, jump-none) infinite;
+}
+
+/* Timer in pausa */
+.sala-timer-badge.is-paused {
+  --ring: var(--indigo);
+  opacity: 0.9;
+  animation: none !important;
 }
 
 @keyframes sala-pulse {
@@ -832,18 +841,19 @@ body {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  transition: filter 180ms ease-out;
   pointer-events: none;
   user-select: none;
   -webkit-user-drag: none;
 }
 
-/* Sfocatura, decisa per-domanda dall'host in fase di creazione.
+/* Sfocatura, decisa per-domanda dall'host in fase di creazione o regolata live.
    È una classe e non una seconda copia dell'immagine: un blob solo in DB, e il
    toggle resta reversibile. Il valore scala con l'altezza dello schermo perché
    lo stesso blur in px su un proiettore 1080p e su un monitor da sviluppo non
    nasconde la stessa quantità di soggetto. */
 .q-media.is-blurred img {
-  filter: blur(clamp(8px, 2.2vh, 26px));
+  filter: var(--img-blur, blur(clamp(8px, 2.2vh, 26px)));
 }
 
 .q-media .material-symbols-outlined {
@@ -2231,6 +2241,44 @@ body:has(#sala-question.has-roster:not([hidden])) .sala-shape--burst {
   .sala-options       { max-width: 108rem; }
   .sala-progress .dot { width: 1.3rem; height: 1.3rem; }
   .sala-progress .dot.is-current { width: 2rem; height: 2rem; }
+}
+
+/* ─── Partita terminata: ringraziamenti ──────────────────────────────── */
+#sala-ended {
+  justify-content: center;
+  align-items: center;
+}
+
+.sala-ended-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(1.5rem, 5vh, 3.5rem);
+  text-align: center;
+}
+
+.sala-ended-logo {
+  width: clamp(12rem, 36vh, 24rem);
+  height: auto;
+  aspect-ratio: 1;
+  filter: drop-shadow(10px 10px 0 var(--retro-dark));
+  animation: mo-stamp 600ms var(--mo-snap) both;
+}
+
+.sala-ended-title {
+  font-size: clamp(2.4rem, 6vh, 5rem);
+  line-height: 1.15;
+  font-weight: 900;
+  text-align: center;
+  color: var(--retro-dark);
+  background: var(--brand-yellow);
+  border: var(--border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--block);
+  padding: 0.4em 1.2em;
+  transform: rotate(-1.5deg);
+  letter-spacing: -0.02em;
+  animation: mo-stamp 700ms var(--mo-snap) 150ms both;
 }
 
 /* ─── Accessibilità del movimento ───────────────────────────────────────── */

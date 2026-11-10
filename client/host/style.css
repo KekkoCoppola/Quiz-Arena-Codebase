@@ -1032,6 +1032,47 @@ button { cursor: pointer; background: none; border: 0; }
   gap: 8px 14px;
 }
 
+.q-image-blur-slider-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+.q-image-blur-slider-wrap span {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--ink);
+}
+.q-image-blur-slider-wrap input[type="range"] {
+  width: 100%;
+  accent-color: var(--indigo);
+  cursor: pointer;
+}
+
+.game-live-blur {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  background: var(--surface-2);
+  border: var(--line);
+  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
+}
+.game-live-blur-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--ink);
+}
+.game-live-blur input[type="range"] {
+  width: 100%;
+  accent-color: var(--indigo);
+  cursor: pointer;
+}
+
 .q-image-toggle {
   display: inline-flex;
   align-items: center;

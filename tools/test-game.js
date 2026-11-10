@@ -524,7 +524,7 @@ function run() {
         options: ['A', 'B'],
         correct_index: 0,
         time_limit_s: 20,
-        image: { hash: HASH_IMG, blur: true },
+        image: { hash: HASH_IMG, blur: 60 },
       },
       {
         text: 'Domanda senza immagine',
@@ -543,13 +543,59 @@ function run() {
   const round0 = sessioneImg.getCurrentRound();
   assert(round0.image !== null && round0.image !== undefined, 'il round porta il campo image');
   assert(round0.image.hash === HASH_IMG, "l'hash arriva intatto");
-  assert(round0.image.blur === true, 'il flag blur arriva intatto');
+  assert(round0.image.blur === 60, 'il valore blur percentuale arriva intatto');
   assert(round0.correct_index === undefined, 'il round resta sanificato: nessun correct_index');
+
+  sessioneImg.setRoundImageBlur(85);
+  assert(sessioneImg.getCurrentRound().image.blur === 85, 'setRoundImageBlur aggiorna la sfocatura al volo');
 
   sessioneImg.endQuestion();
   sessioneImg.nextQuestion();
   const round1 = sessioneImg.getCurrentRound();
   assert(round1.image === null, 'una domanda senza immagine espone image: null, non undefined');
+
+  console.log('\n── game: pausa, ripresa e ripeti round ──\n');
+
+  const quizControl = {
+    title: 'Control Quiz',
+    questions: [
+      { text: 'Q1', options: ['A', 'B'], correct_index: 0, time_limit_s: 10 },
+      { text: 'Q2', options: ['A', 'B'], correct_index: 1, time_limit_s: 10 },
+    ],
+  };
+  const sessCtl = new GameSession(quizControl);
+  const p1 = sessCtl.addPlayer('Alice', 'sunny_yellow:happy');
+  const t0 = 100000;
+  sessCtl.startGame(t0);
+
+  // Pausa del tempo
+  assert(sessCtl.isPaused === false, 'sessione parte non in pausa');
+  sessCtl.pause(t0 + 2000);
+  assert(sessCtl.isPaused === true, 'pause() imposta isPaused = true');
+  // Risposta data durante la pausa (a t0 + 4000, ma punteggio calcolato come a t0 + 2000)
+  const ansP1 = sessCtl.submitAnswer(p1.id, 0, t0 + 4000);
+  assert(ansP1.correct === true, 'risposta consentita durante la pausa');
+  // Ripresa
+  sessCtl.resume(t0 + 5000);
+  assert(sessCtl.isPaused === false, 'resume() ripristina isPaused = false');
+
+  // Chiusura domanda e verifica punteggio
+  const res1 = sessCtl.endQuestion(t0 + 6000);
+  const aliceScore = sessCtl.players.get(p1.id).score;
+  assert(aliceScore > 0, 'Alice ha ricevuto punti per la risposta corretta');
+
+  // Ripeti round da RESULTS: punteggio annullato e torna a QUESTION
+  const repeated = sessCtl.repeatRound(t0 + 7000);
+  assert(sessCtl.state === 'QUESTION', 'repeatRound() riporta lo stato in QUESTION');
+  assert(sessCtl.players.get(p1.id).score === 0, 'repeatRound() annulla i punti guadagnati nel round');
+  assert(sessCtl.currentAnswers.size === 0, 'repeatRound() azzera le risposte del round');
+  assert(repeated.index === 0, 'il round ripetuto ha lo stesso indice');
+
+  // Ripeti round mentre si è già in QUESTION
+  sessCtl.submitAnswer(p1.id, 0, t0 + 7500);
+  assert(sessCtl.currentAnswers.size === 1, 'risposta registrata');
+  sessCtl.repeatRound(t0 + 8000);
+  assert(sessCtl.currentAnswers.size === 0, 'repeatRound() da QUESTION azzera le risposte in corso');
 
   // ─── Riepilogo ──────────────────────────────────────────────────────────────────
 

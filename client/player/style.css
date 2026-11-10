@@ -379,6 +379,43 @@ body {
 
 .answer-stack { display: flex; flex-direction: column; gap: 12px; }
 
+/* Avviso durante la ruota di estrazione del minigioco (anti-spoiler) */
+.minigame-extracting-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 36px 20px;
+  background: var(--paper-white);
+  border: 4px solid var(--ink);
+  border-radius: var(--radius);
+  box-shadow: var(--stamp);
+  text-align: center;
+}
+.minigame-extracting-notice .extracting-icon {
+  font-size: 52px;
+  line-height: 1;
+  display: inline-block;
+  animation: extracting-bounce 700ms ease-in-out infinite alternate;
+}
+.minigame-extracting-notice .extracting-text {
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--ink);
+  margin: 0;
+}
+.minigame-extracting-notice .extracting-sub {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ticket-ochre);
+  margin: 0;
+}
+@keyframes extracting-bounce {
+  from { transform: scale(0.92) rotate(-8deg); }
+  to   { transform: scale(1.08) rotate(8deg); }
+}
+
 .answer-btn {
   display: flex; align-items: center; gap: 12px; text-align: left;
   font: inherit; font-size: 18px; font-weight: 700; color: var(--ink);

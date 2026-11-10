@@ -61,6 +61,16 @@ const config = {
     : 12000,
 
   /**
+   * Conto alla rovescia che apre la partita in sala ("Pronti?", 3, 2, 1, VIA!).
+   * Il server lo riserva PRIMA della prima domanda, così nessuno risponde
+   * mentre la sala conta. `0` lo spegne (lo fanno i test di integrazione).
+   * Default: 4000 ms, un secondo di "Pronti?" e tre di conteggio.
+   */
+  startCountdownMs: Number.isFinite(parseInt(process.env.START_COUNTDOWN_MS, 10))
+    ? Math.max(0, parseInt(process.env.START_COUNTDOWN_MS, 10))
+    : 4000,
+
+  /**
    * Pagina di debug dei minigiochi (`/debug`, vedi server/debug-tools.js):
    * accesa solo con `DEBUG_TOOLS=1`. Spenta, la pagina non è servita e i suoi
    * eventi non esistono. Mai durante un evento: crea una partita nuova.

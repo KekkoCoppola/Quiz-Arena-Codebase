@@ -30,6 +30,7 @@ const els = {
     question: document.getElementById('sala-question'),
     results:  document.getElementById('sala-results'),
     final:    document.getElementById('sala-final'),
+    ended:    document.getElementById('sala-ended'),
   },
 
   idleText:     document.getElementById('sala-idle-text'),
@@ -326,13 +327,16 @@ function pulseTimer() {
   els.timer.classList.add('is-tick');
 }
 
+let currentCountdownLimitS = null;
+
 /**
  * Countdown calcolato localmente da un timestamp assoluto: la latenza di rete
  * non desincronizza la sala dall'host e dai telefoni.
  */
 function startCountdown(endsAt, serverNow, limitS) {
   stopCountdown();
-  els.timer.classList.remove('is-idle');
+  currentCountdownLimitS = limitS ?? currentCountdownLimitS;
+  els.timer.classList.remove('is-idle', 'is-paused');
   const deadline = ServerClock.localDeadline(endsAt, serverNow);
   // Il pieno dell'anello è la durata della domanda: così chi si ricollega a
   // metà round (il Pi riavviato) vede l'anello già consumato in proporzione,
@@ -369,6 +373,27 @@ function startCountdown(endsAt, serverNow, limitS) {
   };
   tick();
   countdownTimer = setInterval(tick, 250);
+}
+
+function pauseCountdown(remainingMs) {
+  if (countdownTimer) {
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+  }
+  els.timer.classList.add('is-paused');
+  els.timer.classList.remove('is-urgent');
+  document.body.classList.remove('is-urgent');
+  if (typeof remainingMs === 'number') {
+    const remaining = Math.max(0, Math.ceil(remainingMs / 1000));
+    const m = String(Math.floor(remaining / 60)).padStart(2, '0');
+    const s = String(remaining % 60).padStart(2, '0');
+    els.timer.textContent = remaining >= 60 ? `${m}:${s}` : String(remaining);
+  }
+}
+
+function resumeCountdown(endsAt, serverNow) {
+  els.timer.classList.remove('is-paused');
+  startCountdown(endsAt, serverNow, currentCountdownLimitS);
 }
 
 /**
@@ -703,6 +728,22 @@ function fitLobbyStrip() {
  *   `error` che arriva a round già cambiato — stesso idioma di `phaseToken` /
  *   `AudioLogic.isStale` usato altrove in questo file.
  */
+/** Applica la sfocatura percentuale (0-100) all'immagine della domanda corrente. */
+function setMediaBlur(blurValue) {
+  if (!els.questionMedia) return;
+  const num = typeof blurValue === 'number'
+    ? Math.max(0, Math.min(100, Math.round(blurValue)))
+    : (blurValue ? 60 : 0);
+  if (num > 0) {
+    els.questionMedia.classList.add('is-blurred');
+    const factor = (num / 100).toFixed(3);
+    els.questionMedia.style.setProperty('--img-blur', `blur(calc(${factor} * clamp(8px, 2.2vh, 26px)))`);
+  } else {
+    els.questionMedia.classList.remove('is-blurred');
+    els.questionMedia.style.removeProperty('--img-blur');
+  }
+}
+
 function renderQuestionMedia(round, token) {
   const image = round?.image ?? null;
   const hasMedia = image !== null && typeof image === 'object' && typeof image.hash === 'string';
@@ -717,7 +758,7 @@ function renderQuestionMedia(round, token) {
   // sfocatura restare addosso a un'immagine che non la vuole.
   const existing = els.questionMedia.querySelector('img');
   if (existing) existing.remove();
-  els.questionMedia.classList.remove('is-blurred');
+  setMediaBlur(0);
 
   const icon = els.questionMedia.querySelector('.material-symbols-outlined');
 
@@ -726,7 +767,7 @@ function renderQuestionMedia(round, token) {
     return;
   }
 
-  els.questionMedia.classList.toggle('is-blurred', image.blur === true);
+  setMediaBlur(image.blur);
 
   const img = document.createElement('img');
   img.src = `/api/quiz-image/${image.hash}`;
@@ -856,6 +897,9 @@ function renderQuestion(q) {
     }, previewLeftMs);
   } else {
     startCountdown(q.endsAt, q.serverNow, q.time_limit_s);
+  }
+  if (q.isPaused) {
+    pauseCountdown(q.remainingMs);
   }
   showPanel('question');
   // Dopo `showPanel`: un pannello nascosto non ha misure da prendere.
@@ -2021,13 +2065,24 @@ socket.on('game:reset', () => {
   rosterLive = false;
 });
 
+socket.on('game:blur-update', ({ blur }) => {
+  setMediaBlur(blur);
+});
+
+socket.on('game:timer-paused', ({ remainingMs }) => {
+  pauseCountdown(remainingMs);
+});
+
+socket.on('game:timer-resumed', ({ endsAt, serverNow }) => {
+  resumeCountdown(endsAt, serverNow);
+});
+
 socket.on('game:ended', () => {
   newPhase();
   stopCountdown();
   rosterLive = false;
   SalaAudio.music(null);   // in dissolvenza: la sala torna in silenzio
-  setIdle('Partita terminata.');
-  showPanel('idle');
+  showPanel('ended');
 });
 
 // ─── Avvio ───────────────────────────────────────────────────────────────────

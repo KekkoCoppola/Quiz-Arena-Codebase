@@ -136,6 +136,7 @@ function startServer() {
       env: {
         ...process.env, PORT: String(PORT), DB_PATH: dbPath, QUIZZES_DIR: quizzesDir,
         MINIGAME_INTRO_MS: '0',
+        START_COUNTDOWN_MS: '0',
         // La pagina di debug è spenta di default; qui si provano i suoi eventi.
         DEBUG_TOOLS: '1',
       },

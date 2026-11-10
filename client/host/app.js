@@ -751,17 +751,20 @@ function buildQuestionItem(q, idx) {
   // Blocco immagine: bottone se non c'è, pannello con anteprima se c'è.
   // Una domanda senza immagine non paga pixel per una funzione che non usa.
   const weight = q.image ? state.imageWeights[q.image.hash] : null;
+  const blurVal = q.image
+    ? (typeof q.image.blur === 'number' ? q.image.blur : (q.image.blur ? 60 : 0))
+    : 0;
   const imageHtml = q.image
     ? `
       <div class="q-image-panel">
-        <div class="q-image-preview ${q.image.blur ? 'is-blurred' : ''}" data-role="image-preview" data-q="${idx}">
-          <img src="/api/quiz-image/${escapeHtml(q.image.hash)}" alt="">
+        <div class="q-image-preview ${blurVal > 0 ? 'is-blurred' : ''}" data-role="image-preview" data-q="${idx}">
+          <img src="/api/quiz-image/${escapeHtml(q.image.hash)}" alt="" style="${blurVal > 0 ? `filter: blur(${blurVal * 0.16}px)` : ''}">
         </div>
         <div class="q-image-actions">
-          <label class="q-image-toggle">
-            <input type="checkbox" data-role="image-blur" data-q="${idx}" ${q.image.blur ? 'checked' : ''}>
-            <span>Sfoca immagine</span>
-          </label>
+          <div class="q-image-blur-slider-wrap">
+            <span>Sfocatura: <strong data-role="image-blur-val" data-q="${idx}">${blurVal}%</strong></span>
+            <input type="range" min="0" max="100" step="5" value="${blurVal}" data-role="image-blur-slider" data-q="${idx}">
+          </div>
           ${weight ? `<span class="q-image-weight">${weight} KB</span>` : ''}
           <button type="button" class="btn-text is-danger" data-role="image-remove" data-q="${idx}" title="Rimuovi l'immagine da questa domanda">
             ${icon('delete')} Rimuovi
@@ -1074,21 +1077,23 @@ questionsList.addEventListener('click', (e) => {
   }
 });
 
-questionsList.addEventListener('change', (e) => {
-  const target = e.target;
-
-  const blurToggle = target.closest('[data-role="image-blur"]');
-  if (blurToggle) {
-    const idx = Number(blurToggle.dataset.q);
-    if (state.questions[idx].image) {
-      state.questions[idx].image.blur = blurToggle.checked;
-      // Si aggiorna solo l'anteprima invece di ridisegnare la lista: un
-      // renderQuestionList() qui rifarebbe venti schede e farebbe perdere il
-      // testo in corso di scrittura in un'altra domanda.
-      const preview = questionsList.querySelector(`[data-role="image-preview"][data-q="${idx}"]`);
-      if (preview) preview.classList.toggle('is-blurred', blurToggle.checked);
+questionsList.addEventListener('input', (e) => {
+  const slider = e.target.closest('[data-role="image-blur-slider"]');
+  if (slider) {
+    const idx = Number(slider.dataset.q);
+    const val = Number(slider.value) || 0;
+    if (state.questions[idx]?.image) {
+      state.questions[idx].image.blur = val;
+      const card = slider.closest('.question-card');
+      const valLabel = card?.querySelector(`[data-role="image-blur-val"][data-q="${idx}"]`);
+      if (valLabel) valLabel.textContent = `${val}%`;
+      const preview = card?.querySelector(`[data-role="image-preview"][data-q="${idx}"]`);
+      if (preview) {
+        preview.classList.toggle('is-blurred', val > 0);
+        const img = preview.querySelector('img');
+        if (img) img.style.filter = val > 0 ? `blur(${val * 0.16}px)` : '';
+      }
     }
-    return;
   }
 });
 
@@ -1134,7 +1139,7 @@ imageFileInput.addEventListener('change', async () => {
       return;
     }
 
-    question.image = { hash: saved.hash, blur: false };
+    question.image = { hash: saved.hash, blur: 0 };
     state.imageWeights[saved.hash] = Math.round(blob.size / 1024);
     renderQuestionList();
     showToast('Immagine caricata.', 'success');
@@ -1280,9 +1285,19 @@ const gameFinalPodium        = document.getElementById('game-final-podium');
 
 const gameStartBtn    = document.getElementById('game-start-btn');
 const gameNextBtn     = document.getElementById('game-next-btn');
+const gamePauseBtn    = document.getElementById('game-pause-btn');
+const gamePauseIcon   = document.getElementById('game-pause-icon');
+const gamePauseLabel  = document.getElementById('game-pause-label');
+const gameRepeatBtn   = document.getElementById('game-repeat-btn');
 const gameMinigameBtn = document.getElementById('game-minigame-btn');
 const gameSkipBtn     = document.getElementById('game-skip-btn');
 const gameRestartBtn  = document.getElementById('game-restart-btn');
+
+const gameLiveBlur    = document.getElementById('game-live-blur');
+const gameBlurSlider  = document.getElementById('game-blur-slider');
+const gameBlurVal     = document.getElementById('game-blur-val');
+
+let isGameTimerPaused = false;
 
 const viewGame        = document.getElementById('view-game');
 const gameNextLabel   = document.getElementById('game-next-label');
@@ -1416,6 +1431,19 @@ function startGameCountdown(endsAt, serverNow) {
   gameCountdownInterval = setInterval(tick, 250);
 }
 
+function pauseGameCountdown(remainingMs) {
+  if (gameCountdownInterval) {
+    clearInterval(gameCountdownInterval);
+    gameCountdownInterval = null;
+  }
+  if (typeof remainingMs === 'number') {
+    const remaining = Math.max(0, Math.ceil(remainingMs / 1000));
+    const m = String(Math.floor(remaining / 60)).padStart(2, '0');
+    const s = String(remaining % 60).padStart(2, '0');
+    gameTimerBadge.textContent = `${m}:${s}`;
+  }
+}
+
 /**
  * Apre la schermata di conduzione partita e crea la sessione sul server.
  * Con `resume` non crea niente: rientra nella partita che il server ha già
@@ -1442,6 +1470,11 @@ function openGame(quiz, type, { resume = false } = {}) {
   viewGame.dataset.phase = 'lobby';
   gameStatusText.textContent = 'Connessione al server di gioco…';
   gameStartBtn.disabled = true;
+  gamePauseBtn.hidden = true;
+  gamePauseBtn.disabled = true;
+  gameRepeatBtn.hidden = true;
+  gameRepeatBtn.disabled = true;
+  gameLiveBlur.hidden = true;
   setGameProgress(0, 0);
 
   loadJoinInfo();
@@ -1617,6 +1650,30 @@ function connectGameSocket(quiz, type, { resume = false } = {}) {
     gameAnswerBar.style.width = '0%';
     setGameProgress(q.index + 1, q.total);
     startGameCountdown(q.endsAt, q.serverNow);
+
+    if (q.image) {
+      gameLiveBlur.hidden = false;
+      const blurVal = typeof q.image.blur === 'number'
+        ? q.image.blur
+        : (q.image.blur ? 60 : 0);
+      gameBlurSlider.value = blurVal;
+      gameBlurVal.textContent = `${blurVal}%`;
+    } else {
+      gameLiveBlur.hidden = true;
+    }
+
+    isGameTimerPaused = Boolean(q.isPaused);
+    gamePauseBtn.hidden = false;
+    gamePauseBtn.disabled = false;
+    gamePauseIcon.textContent = isGameTimerPaused ? 'play_arrow' : 'pause';
+    gamePauseLabel.textContent = isGameTimerPaused ? 'Riprendi tempo' : 'Pausa tempo';
+    if (isGameTimerPaused && typeof q.remainingMs === 'number') {
+      pauseGameCountdown(q.remainingMs);
+    }
+
+    gameRepeatBtn.hidden = false;
+    gameRepeatBtn.disabled = false;
+
     showGameBox(gameQuestionBox);
     gameStartBtn.disabled = true;
     gameNextBtn.disabled = true;
@@ -1636,6 +1693,11 @@ function connectGameSocket(quiz, type, { resume = false } = {}) {
     stopGameCountdown();
     stopMinigameSuspense();
     setSkipAvailable(false);
+    gamePauseBtn.hidden = true;
+    gamePauseBtn.disabled = true;
+    gameLiveBlur.hidden = true;
+    gameRepeatBtn.hidden = false;
+    gameRepeatBtn.disabled = false;
     const isMinigame = results.kind === 'minigame';
     gameStatusText.textContent = results.skipped
       ? 'Round saltato: nessun punto assegnato.'
@@ -1753,6 +1815,30 @@ function connectGameSocket(quiz, type, { resume = false } = {}) {
     gameNextBtn.disabled = true;
     gameMinigameBtn.disabled = true;
     gameRestartBtn.disabled = false;
+    gamePauseBtn.hidden = true;
+    gamePauseBtn.disabled = true;
+    gameRepeatBtn.hidden = true;
+    gameRepeatBtn.disabled = true;
+    gameLiveBlur.hidden = true;
+  });
+
+  gameSocket.on('game:timer-paused', ({ remainingMs }) => {
+    isGameTimerPaused = true;
+    gamePauseIcon.textContent = 'play_arrow';
+    gamePauseLabel.textContent = 'Riprendi tempo';
+    pauseGameCountdown(remainingMs);
+  });
+
+  gameSocket.on('game:timer-resumed', ({ endsAt, serverNow }) => {
+    isGameTimerPaused = false;
+    gamePauseIcon.textContent = 'pause';
+    gamePauseLabel.textContent = 'Pausa tempo';
+    startGameCountdown(endsAt, serverNow);
+  });
+
+  gameSocket.on('game:blur-update', ({ blur }) => {
+    gameBlurSlider.value = blur;
+    gameBlurVal.textContent = `${blur}%`;
   });
 
   gameSocket.on('connect_error', () => {
@@ -1764,6 +1850,11 @@ function connectGameSocket(quiz, type, { resume = false } = {}) {
 function disconnectGameSocket() {
   stopGameCountdown();
   stopMinigameSuspense();
+  gamePauseBtn.hidden = true;
+  gamePauseBtn.disabled = true;
+  gameRepeatBtn.hidden = true;
+  gameRepeatBtn.disabled = true;
+  gameLiveBlur.hidden = true;
   if (gameSocket) {
     gameSocket.disconnect();
     gameSocket = null;
@@ -1878,6 +1969,40 @@ gameStartBtn.addEventListener('click', () => {
 gameNextBtn.addEventListener('click', () => {
   gameSocket?.emit('host:next-question', null, (res) => {
     if (!res.ok) showToast(res.error, 'error');
+  });
+});
+
+gamePauseBtn.addEventListener('click', () => {
+  if (isGameTimerPaused) {
+    gameSocket?.emit('host:resume-timer', null, (res) => {
+      if (!res.ok) showToast(res.error, 'error');
+    });
+  } else {
+    gameSocket?.emit('host:pause-timer', null, (res) => {
+      if (!res.ok) showToast(res.error, 'error');
+    });
+  }
+});
+
+gameRepeatBtn.addEventListener('click', () => {
+  showModal({
+    title: 'Ripeti domanda',
+    message: 'Vuoi davvero ripetere questa domanda? I punteggi ottenuti in questo round verranno annullati e il round ripartirà da capo.',
+    icon: 'replay',
+    confirmLabel: 'Ripeti domanda',
+    onConfirm: () => {
+      gameSocket?.emit('host:repeat-round', null, (res) => {
+        if (!res?.ok) showToast(res?.error ?? 'Errore nella ripetizione del round.', 'error');
+      });
+    },
+  });
+});
+
+gameBlurSlider.addEventListener('input', () => {
+  const blur = Number(gameBlurSlider.value) || 0;
+  gameBlurVal.textContent = `${blur}%`;
+  gameSocket?.emit('host:set-blur', { blur }, (res) => {
+    if (res && !res.ok) showToast(res.error, 'error');
   });
 });
 

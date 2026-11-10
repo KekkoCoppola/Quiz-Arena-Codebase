@@ -229,7 +229,17 @@ function buildMinigameRounds(def) {
  * @returns {Array<object>} rounds
  */
 function buildRounds(quiz, bag, allowed = null) {
-  const rounds = quiz.questions.map((q) => ({ kind: 'question', ...q }));
+  const rounds = quiz.questions.map((q) => {
+    let img = null;
+    if (q.image) {
+      const b = q.image.blur;
+      const blurVal = typeof b === 'number'
+        ? Math.max(0, Math.min(100, Math.round(b)))
+        : (b ? 60 : 0);
+      img = { hash: q.image.hash, blur: blurVal };
+    }
+    return { kind: 'question', ...q, image: img };
+  });
 
   const slots = Array.isArray(quiz.minigames) ? quiz.minigames : [];
   const sortedSlots = slots.slice().sort((a, b) => b.afterQuestionIndex - a.afterQuestionIndex);
@@ -255,7 +265,8 @@ class GameSession {
    *   in produzione resta Math.random. `minigameIntroMs` è il sipario che apre
    *   ogni minigioco (vedi `_enterRound`); 0 di default, perché la durata è una
    *   scelta di messa in scena e la decide chi crea la sessione (game-socket.js,
-   *   da config).
+   *   da config). `startCountdownMs` è il "3, 2, 1" che apre la partita:
+   *   il primo round resta chiuso finché la sala non ha finito di contare.
    *   I limiti della licenza arrivano da chi crea la sessione, come il sipario:
    *   `maxPlayers` (numero, oppure funzione che lo restituisce, così una
    *   licenza rinnovata in lobby vale subito; null = nessun limite) e
@@ -268,6 +279,7 @@ class GameSession {
 
     this._rnd = options.rnd ?? Math.random;
     this._minigameIntroMs = Math.max(0, options.minigameIntroMs ?? 0);
+    this._startCountdownMs = Math.max(0, options.startCountdownMs ?? 0);
     this._maxPlayers = options.maxPlayers ?? null;
     this._allowedMinigames = Array.isArray(options.allowedMinigames)
       ? new Set(options.allowedMinigames)
@@ -289,6 +301,17 @@ class GameSession {
     this.state = STATES.LOBBY;
     this.currentRoundIndex = -1;
     this.roundStartedAt = null;
+
+    /** Stato pausa del round corrente. */
+    this.isPaused = false;
+    this.pausedAt = null;
+    this.totalPausedMs = 0;
+
+    /**
+     * Fine del conto alla rovescia d'apertura ("3, 2, 1"), solo sul primo
+     * round della partita. Per ogni altro round coincide con `roundStartedAt`.
+     */
+    this.startsAt = null;
 
     /**
      * Fine del sipario che apre un minigioco. Coincide con `roundStartedAt` per
@@ -468,6 +491,9 @@ class GameSession {
     this.state = STATES.QUESTION;
     this.roundStartedAt = now;
     this.currentAnswers = new Map();
+    this.isPaused = false;
+    this.pausedAt = null;
+    this.totalPausedMs = 0;
 
     // Minigioco con anteprima: l'esito si estrae ORA, non alla chiusura, perché
     // lo spettacolo che lo racconta viene prima della scelta. Le risposte
@@ -482,7 +508,10 @@ class GameSession {
     // minigioco a più round sono la stessa scena che continua.
     const stage = this.currentRound.stage;
     const opensMinigame = def !== null && (!stage || stage.index === 0);
-    this.introEndsAt = now + (opensMinigame ? this._minigameIntroMs : 0);
+    // Il "3, 2, 1" apre la partita, non ogni round: viene prima di tutto il
+    // resto, sipario compreso.
+    this.startsAt = now + (this.currentRoundIndex === 0 ? this._startCountdownMs : 0);
+    this.introEndsAt = this.startsAt + (opensMinigame ? this._minigameIntroMs : 0);
     this.answersOpenAt = this.introEndsAt + previewMs;
   }
 
@@ -523,7 +552,9 @@ class GameSession {
       // Sipario che apre il minigioco (0 per domande e livelli successivi),
       // poi l'anteprima prima che si possa rispondere (0 = si risponde subito).
       // Il countdown di `time_limit_s` parte dopo entrambi.
-      introMs: this.introEndsAt - this.roundStartedAt,
+      // Conto alla rovescia d'apertura (0 tranne che sul primo round).
+      startMs: this.startsAt - this.roundStartedAt,
+      introMs: this.introEndsAt - this.startsAt,
       previewMs: this.answersOpenAt - this.introEndsAt,
       kind: r.kind,
       minigameType: r.minigameType ?? null,
@@ -609,10 +640,86 @@ class GameSession {
    */
   _computeScore(question, now) {
     const timeLimitMs = question.time_limit_s * 1000;
-    const elapsedMs = now - this.roundStartedAt;
+    // Se siamo in pausa, il momento effettivo è congelato all'istante di pausa
+    const effectiveNow = this.isPaused && this.pausedAt ? this.pausedAt : now;
+    // Sottraiamo anche la durata complessiva trascorsa nelle pause precedenti
+    const elapsedMs = Math.max(0, effectiveNow - this.answersOpenAt - this.totalPausedMs);
     const ratio = Math.max(0, Math.min(1, 1 - elapsedMs / timeLimitMs));
     if (ratio === 0) return 0; // tempo scaduto
     return Math.round(POINTS_MIN + (POINTS_MAX - POINTS_MIN) * ratio);
+  }
+
+  /** Mette in pausa il cronometro del round in corso. */
+  pause(now = Date.now()) {
+    this._assertState(STATES.QUESTION, 'pause');
+    if (this.isPaused) return false;
+    this.isPaused = true;
+    this.pausedAt = now;
+    return true;
+  }
+
+  /** Riprende il cronometro del round in corso. */
+  resume(now = Date.now()) {
+    this._assertState(STATES.QUESTION, 'resume');
+    if (!this.isPaused) return false;
+    this.totalPausedMs += Math.max(0, now - this.pausedAt);
+    this.isPaused = false;
+    this.pausedAt = null;
+    return true;
+  }
+
+  /** Modifica al volo la sfocatura (0-100) dell'immagine del round corrente. */
+  setRoundImageBlur(blur) {
+    this._assertState(STATES.QUESTION, 'setRoundImageBlur');
+    if (!this.currentRound || !this.currentRound.image) {
+      throw new Error('Il round corrente non ha un\'immagine.');
+    }
+    const val = Math.max(0, Math.min(100, Math.round(Number(blur) || 0)));
+    this.currentRound.image.blur = val;
+    return val;
+  }
+
+  /**
+   * Ripete il round corrente. Annulla i punteggi se era già terminato in RESULTS,
+   * azzera le risposte e lo fa ripartire in QUESTION.
+   * @param {number} [now]
+   */
+  repeatRound(now = Date.now()) {
+    if (this.state !== STATES.QUESTION && this.state !== STATES.RESULTS) {
+      throw new InvalidStateError(
+        `Impossibile ripetere il round dallo stato "${this.state}": ammesso solo da QUESTION o RESULTS.`
+      );
+    }
+
+    // Se eravamo in RESULTS, annulliamo i punti guadagnati in questo round
+    if (this.state === STATES.RESULTS) {
+      for (const [playerId, answer] of this.currentAnswers.entries()) {
+        const player = this.players.get(playerId);
+        if (player && typeof answer.pointsAwarded === 'number') {
+          player.score = Math.max(0, player.score - answer.pointsAwarded);
+        }
+      }
+      this._openResolution = null;
+    }
+
+    this.currentAnswers.clear();
+    this.state = STATES.QUESTION;
+    this.roundStartedAt = now;
+    this.startsAt = now;
+
+    const r = this.currentRound;
+    const def = r.kind === 'minigame' ? minigames.get(r.minigameType) : null;
+    const previewMs = def?.previewMs ?? 0;
+    const stage = r.stage;
+    const opensMinigame = def !== null && (!stage || stage.index === 0);
+    this.introEndsAt = now + (opensMinigame ? this._minigameIntroMs : 0);
+    this.answersOpenAt = this.introEndsAt + previewMs;
+
+    this.isPaused = false;
+    this.pausedAt = null;
+    this.totalPausedMs = 0;
+
+    return this.getCurrentRound();
   }
 
   // ─── Results ────────────────────────────────────────────────────────────────────
@@ -629,6 +736,12 @@ class GameSession {
    */
   endQuestion(now = Date.now()) {
     this._assertState(STATES.QUESTION, 'endQuestion');
+
+    if (this.isPaused && this.pausedAt) {
+      this.totalPausedMs += Math.max(0, now - this.pausedAt);
+      this.isPaused = false;
+      this.pausedAt = null;
+    }
 
     const round = this.currentRound;
     const distribution = new Array(round.options.length).fill(0);

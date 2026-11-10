@@ -68,6 +68,7 @@ function sessionOptions() {
   const { minigames } = licenseService.entitlements();
   return {
     minigameIntroMs: config.minigameIntroMs,
+    startCountdownMs: config.startCountdownMs,
     maxPlayers: () => licenseService.entitlements().maxPlayers,
     allowedMinigames: minigames === 'all' ? null : minigames,
   };
@@ -85,6 +86,10 @@ const playerTokens = new Map();
 let currentQuestionEndsAt = null;
 /** Istante assoluto da cui la domanda corrente accetta risposte, per il rejoin. */
 let currentAnswersOpenAt = null;
+/** Fine del conto alla rovescia d'apertura del round corrente, per rejoin e resync. */
+let currentStartsAt = null;
+/** Tempo rimasto (in ms) congelato durante la pausa del timer. */
+let pausedRemainingMs = null;
 /**
  * Ultimo `game:results` trasmesso, per il pannello host che si riconnette in
  * `RESULTS` (vedi `host:resync`): la classifica e la distribuzione del round
@@ -155,6 +160,8 @@ function destroySession() {
   botPlayers.clear();
   currentQuestionEndsAt = null;
   currentAnswersOpenAt = null;
+  currentStartsAt = null;
+  pausedRemainingMs = null;
   lastResults = null;
 }
 
@@ -217,15 +224,18 @@ function emitQuestion(io) {
   // un'anteprima (es. i bicchieri da seguire), mostra poi lo spettacolo: solo
   // dopo si risponde. Il tempo per rispondere parte da `answersOpenAt`, non
   // dall'apertura del round.
-  const introEndsAt = now + q.introMs;
+  // Il primo round della partita aspetta anche il "3, 2, 1" (`startsAt`).
+  const startsAt = now + q.startMs;
+  const introEndsAt = startsAt + q.introMs;
   const answersOpenAt = introEndsAt + q.previewMs;
   const endsAt = answersOpenAt + q.time_limit_s * 1000;
   currentQuestionEndsAt = endsAt;
   currentAnswersOpenAt = answersOpenAt;
+  currentStartsAt = startsAt;
   // `serverNow` viaggia insieme a `endsAt`: da soli, due orologi distanti
   // fanno scadere il tempo in sala e sul telefono in momenti diversi.
   // Vedi client/shared/server-clock.js.
-  const payload = { ...q, introEndsAt, answersOpenAt, endsAt, serverNow: now };
+  const payload = { ...q, startsAt, introEndsAt, answersOpenAt, endsAt, serverNow: now };
 
   // L'anteprima porta l'esito (dove finisce la pallina): la sala e l'host ne
   // hanno bisogno per metterla in scena, i telefoni no — leggerla dal payload
@@ -240,6 +250,7 @@ function emitQuestion(io) {
   }
 
   clearQuestionTimer();
+  pausedRemainingMs = null;
   questionTimer = setTimeout(() => closeQuestion(io), endsAt - now);
   scheduleBotAnswers(io, q);
 }
@@ -258,7 +269,7 @@ function scheduleBotAnswers(io, round) {
 
   for (const playerId of botPlayers) {
     // Come un umano, un bot non può rispondere durante sipario e anteprima.
-    const delay = round.introMs + round.previewMs + testBots.answerDelayMs(round.time_limit_s);
+    const delay = round.startMs + round.introMs + round.previewMs + testBots.answerDelayMs(round.time_limit_s);
     botTimers.push(setTimeout(() => {
       if (!currentSession || currentSession.state !== STATES.QUESTION) return;
       try {
@@ -276,6 +287,7 @@ function scheduleBotAnswers(io, round) {
 /** Chiude la domanda corrente (timeout o anticipata) e trasmette i risultati. */
 function closeQuestion(io) {
   clearQuestionTimer();
+  pausedRemainingMs = null;
   if (!currentSession || currentSession.state !== STATES.QUESTION) return;
   const results = currentSession.endQuestion();
   // Sospensione post-chiusura (es. la ruota della Morra Cinese): come per `endsAt`,
@@ -472,9 +484,12 @@ function attachGameHandlers(io) {
       if (currentSession.state === STATES.QUESTION) {
         data.question = {
           ...currentSession.getCurrentRound(),
+          startsAt: currentStartsAt,
           answersOpenAt: currentAnswersOpenAt,
           endsAt: currentQuestionEndsAt,
           serverNow: Date.now(),
+          isPaused: currentSession.isPaused,
+          remainingMs: pausedRemainingMs,
           alreadyAnswered: currentSession.currentAnswers.has(playerId),
         };
       } else if (
@@ -593,10 +608,13 @@ function attachGameHandlers(io) {
         const preview = currentSession.getRoundPreview();
         data.question = {
           ...currentSession.getCurrentRound(),
+          startsAt: currentStartsAt,
           introEndsAt: currentSession.introEndsAt,
           answersOpenAt: currentAnswersOpenAt,
           endsAt: currentQuestionEndsAt,
           serverNow: Date.now(),
+          isPaused: currentSession.isPaused,
+          remainingMs: pausedRemainingMs,
           ...(preview ? { preview } : {}),
         };
         data.answered = currentSession.currentAnswers.size;
@@ -722,6 +740,81 @@ function attachGameHandlers(io) {
       const added = spawnBots(count);
       broadcastLobby(io);
       ok(cb, { added, total: currentSession.getPlayers().length });
+    });
+
+    socket.on('host:pause-timer', (_payload, cb) => {
+      if (!requireHost(cb)) return;
+      if (!currentSession || currentSession.state !== STATES.QUESTION) {
+        return fail(cb, 'Nessun round in corso da mettere in pausa.');
+      }
+      if (currentSession.isPaused) return ok(cb, { isPaused: true });
+
+      const now = Date.now();
+      currentSession.pause(now);
+      clearTimeout(questionTimer);
+      questionTimer = null;
+      pausedRemainingMs = Math.max(0, currentQuestionEndsAt - now);
+
+      io.emit('game:timer-paused', {
+        remainingMs: pausedRemainingMs,
+        serverNow: now,
+      });
+      ok(cb, { isPaused: true, remainingMs: pausedRemainingMs });
+    });
+
+    socket.on('host:resume-timer', (_payload, cb) => {
+      if (!requireHost(cb)) return;
+      if (!currentSession || currentSession.state !== STATES.QUESTION) {
+        return fail(cb, 'Nessun round in corso da riprendere.');
+      }
+      if (!currentSession.isPaused) return ok(cb, { isPaused: false });
+
+      const now = Date.now();
+      currentSession.resume(now);
+      const rem = pausedRemainingMs ?? Math.max(0, currentQuestionEndsAt - now);
+      currentQuestionEndsAt = now + rem;
+      pausedRemainingMs = null;
+
+      clearQuestionTimer();
+      questionTimer = setTimeout(() => closeQuestion(io), rem);
+
+      io.emit('game:timer-resumed', {
+        endsAt: currentQuestionEndsAt,
+        serverNow: now,
+      });
+      ok(cb, { isPaused: false, endsAt: currentQuestionEndsAt });
+    });
+
+    socket.on('host:repeat-round', (_payload, cb) => {
+      if (!requireHost(cb)) return;
+      if (!currentSession) return fail(cb, 'Nessuna partita attiva.');
+      try {
+        currentSession.repeatRound();
+        pausedRemainingMs = null;
+        clearQuestionTimer();
+        emitQuestion(io);
+        io.emit('game:lobby-update', {
+          players: currentSession.getPlayers(),
+          state: currentSession.state,
+        });
+        ok(cb);
+      } catch (err) {
+        fail(cb, err.message);
+      }
+    });
+
+    socket.on('host:set-blur', (payload, cb) => {
+      if (!requireHost(cb)) return;
+      if (!currentSession || currentSession.state !== STATES.QUESTION) {
+        return fail(cb, 'Nessun round attivo.');
+      }
+      try {
+        const blur = currentSession.setRoundImageBlur(payload?.blur);
+        io.emit('game:blur-update', { blur });
+        ok(cb, { blur });
+      } catch (err) {
+        fail(cb, err.message);
+      }
     });
 
     socket.on('host:end-game', (_payload, cb) => {

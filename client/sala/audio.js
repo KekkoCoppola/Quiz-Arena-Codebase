@@ -45,6 +45,8 @@
       current: null,
       /** Chiave da riprovare quando l'autoplay si sblocca. */
       pending: null,
+      /** Ultimi secondi del round: la traccia in corso gira più svelta. */
+      hurry: false,
     },
   };
 
@@ -323,6 +325,7 @@
       el.loop = true;
       el.volume = 0;
       el.preload = 'auto';
+      applyRate(el);
 
       const previous = state.music.current;
       el.play().then(() => {
@@ -339,6 +342,25 @@
     } catch (err) {
       warn(`musica "${key}" non riproducibile`, err);
     }
+  }
+
+  /**
+   * Velocità di riproduzione di una traccia. Il tono sale insieme al tempo
+   * (`preservesPitch` spento): tenerlo fermo costa un time-stretch in tempo
+   * reale, che sul Raspberry gracchia, e l'effetto voluto è proprio quello
+   * del nastro che corre.
+   */
+  function applyRate(el) {
+    try {
+      el.preservesPitch = false;
+      el.playbackRate = state.music.hurry ? (logic()?.HURRY_RATE ?? 1) : 1;
+    } catch { /* velocità non regolabile: la traccia resta al suo passo */ }
+  }
+
+  /** Accelera (o riporta al passo) la musica in corso. Vale anche per la prossima. */
+  function hurryNow(on) {
+    state.music.hurry = Boolean(on);
+    if (state.music.current) applyRate(state.music.current.el);
   }
 
   /** Ferma tutto — musica compresa — e libera il contesto. */
@@ -389,6 +411,7 @@
       musicVolume: m ? Number(m.el.volume.toFixed(3)) : null,
       musicPaused: m ? m.el.paused : null,
       musicPending: state.music.pending,
+      musicHurry: state.music.hurry,
       sfxCaricati: state.buffers.size,
       muted: state.muted,
     };
@@ -398,6 +421,7 @@
     arm:   ()    => whenReady(armNow),
     sfx:   (key) => whenReady(() => sfxNow(key)),
     music: (key) => whenReady(() => musicNow(key)),
+    hurry: (on)  => whenReady(() => hurryNow(on)),
     register: (type, audio) => whenReady(() => registerNow(type, audio)),
     stop,
     info,
