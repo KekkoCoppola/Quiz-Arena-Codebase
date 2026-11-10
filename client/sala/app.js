@@ -69,6 +69,8 @@ const els = {
   podium:       document.getElementById('sala-podium'),
   finalList:    document.getElementById('sala-final-list'),
 
+  startLayer:   document.getElementById('sala-start-layer'),
+  startNum:     document.getElementById('sala-start-num'),
   introLayer:   document.getElementById('sala-intro-layer'),
   podiumLayer:  document.getElementById('sala-podium-layer'),
 };
@@ -90,6 +92,10 @@ const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 let currentOptions  = [];
 let currentMinigame = null;
 let countdownTimer  = null;
+// Conto alla rovescia d'apertura ("3, 2, 1"): il giro che lo aggiorna e
+// l'attesa che toglie il "VIA!" dallo schermo.
+let startTimer      = null;
+let startGoTimer    = null;
 let lastPlayerCount = 0;
 // I giocatori della partita come li manda il server (lobby e snapshot): la
 // colonna dei minigiochi con `salaPlayers` ne fa i posti.
@@ -179,6 +185,7 @@ function newPhase() {
     clearTimeout(introTimer);
     introTimer = null;
   }
+  stopStartCountdown();
   MinigameStageIntro.stopAll();
   stopPodium3D();
   currentMinigame?.sala.stopSuspense();
@@ -224,7 +231,78 @@ const minigameSfx = (type) => (name) => SalaAudio.sfx(AudioLogic.minigameSfxKey(
  * traccia è già in corso e la chiamata non la fa ripartire.
  */
 function playMinigameMusic(q) {
-  SalaAudio.music(currentMinigame.audio?.music ? q.minigameType : 'bed');
+  SalaAudio.music(currentMinigame.audio?.music ? q.minigameType : AudioLogic.MUSIC.quiz);
+}
+
+// ─── Conto alla rovescia d'apertura ──────────────────────────────────────────
+//
+// "Pronti?", 3, 2, 1, VIA! a tutto schermo, fra la lobby e la prima domanda.
+// Il tempo lo riserva il server (`startsAt` nel primo round): le risposte
+// aprono solo dopo, quindi contare non toglie un secondo a nessuno. Cosa
+// mostrare e cosa suonare a ogni istante lo decide `AudioLogic`; qui c'è il
+// disegno.
+
+/** Quanto resta a schermo il "VIA!" sopra la domanda appena comparsa. */
+const START_GO_MS = 850;
+
+function stopStartCountdown() {
+  if (startTimer) {
+    clearInterval(startTimer);
+    startTimer = null;
+  }
+  if (startGoTimer) {
+    clearTimeout(startGoTimer);
+    startGoTimer = null;
+  }
+  els.startLayer.hidden = true;
+  els.startLayer.classList.remove('is-go');
+}
+
+/** Scrive un passo del conteggio e lo fa "saltare" in scena col suo suono. */
+function showStartStep(step) {
+  els.startNum.textContent = step.label;
+  els.startNum.classList.toggle('is-word', step.word);
+  els.startNum.classList.remove('is-pop');
+  void els.startNum.offsetWidth;   // fa ripartire l'animazione (vedi enterPanel)
+  els.startNum.classList.add('is-pop');
+  SalaAudio.sfx(step.sfx);
+}
+
+/**
+ * Conta fino a `startsAt` (ora locale), poi mostra la domanda con il "VIA!"
+ * sopra. La musica della lobby sfuma subito: il conteggio suona nel silenzio,
+ * e il tema del quiz parte insieme alla prima domanda.
+ */
+function playStartCountdown(q, startsAt) {
+  stopCountdown();
+  SalaAudio.music(null);
+  els.startLayer.hidden = false;
+  const receivedAt = Date.now();
+  let lastLabel = null;
+  const tick = () => {
+    const leftMs = ServerClock.remainingMs(startsAt);
+    if (leftMs <= 0) {
+      // `localDeadline` misura lo scarto fra orologi quando la si chiama: il
+      // `serverNow` va fatto avanzare di quanto si è aspettato qui.
+      renderQuestion(
+        { ...q, startsAt: null, serverNow: q.serverNow + (Date.now() - receivedAt) },
+        { fromStart: true },
+      );
+      // Dopo `renderQuestion`, che col suo cambio di fase ha spento lo strato.
+      els.startLayer.hidden = false;
+      els.startLayer.classList.add('is-go');
+      showStartStep(AudioLogic.START_GO);
+      startGoTimer = setTimeout(stopStartCountdown, START_GO_MS);
+      return;
+    }
+    const step = AudioLogic.startCountdownStep(leftMs);
+    if (step.label !== lastLabel) {
+      lastLabel = step.label;
+      showStartStep(step);
+    }
+  };
+  startTimer = setInterval(tick, 50);
+  tick();
 }
 
 /**
@@ -310,6 +388,7 @@ function stopCountdown(reset = true) {
   }
   els.timer.classList.remove('is-urgent');
   document.body.classList.remove('is-urgent');
+  SalaAudio.hurry(false);
   if (reset) els.timer.textContent = '--:--';
   // Fuori dalla domanda il cronometro esce di scena invece di mostrare
   // "--:--": un quadrante spento in un angolo del proiettore è rumore.
@@ -345,13 +424,19 @@ function startCountdown(endsAt, serverNow, limitS) {
   const totalMs = Math.max(1, Number.isFinite(limitS) && limitS > 0
     ? limitS * 1000
     : ServerClock.remainingMs(deadline));
+  // L'ultima cifra dei secondi che ha suonato: il timer si SENTE scorrere,
+  // un tic a ogni secondo, più teso verso la fine (vedi AudioLogic.timerCue).
+  let lastSecond = null;
   const tick = () => {
     const leftMs = ServerClock.remainingMs(deadline);
     // Mai più del tempo del round: al via mancano 6,00x s e il ceil darebbe 7.
     const remaining = Math.min(Math.ceil(leftMs / 1000), Math.ceil(totalMs / 1000));
     const m = String(Math.floor(remaining / 60)).padStart(2, '0');
     const s = String(remaining % 60).padStart(2, '0');
-    const urgent = remaining > 0 && remaining <= 10;
+    const urgent = AudioLogic.isHurry(remaining);
+    const cue = AudioLogic.timerCue({ remaining, previous: lastSecond });
+    if (cue) SalaAudio.sfx(cue);
+    lastSecond = remaining;
     // Sotto il minuto bastano i secondi: "21" si legge da in fondo alla sala,
     // "00:21" costringe a cercare la cifra che conta.
     const text = remaining >= 60 ? `${m}:${s}` : String(remaining);
@@ -369,6 +454,8 @@ function startCountdown(endsAt, serverNow, limitS) {
     // Anche i bordi dello schermo si accendono: in sala il badge da solo è
     // un dettaglio in un angolo, e chi guarda la domanda non lo vede.
     document.body.classList.toggle('is-urgent', urgent);
+    // Negli ultimi secondi anche la musica corre.
+    SalaAudio.hurry(urgent);
     if (remaining === 0) stopCountdown(false);
   };
   tick();
@@ -383,6 +470,8 @@ function pauseCountdown(remainingMs) {
   els.timer.classList.add('is-paused');
   els.timer.classList.remove('is-urgent');
   document.body.classList.remove('is-urgent');
+  // Tempo fermo: niente tic (il giro è spento) e la musica torna al suo passo.
+  SalaAudio.hurry(false);
   if (typeof remainingMs === 'number') {
     const remaining = Math.max(0, Math.ceil(remainingMs / 1000));
     const m = String(Math.floor(remaining / 60)).padStart(2, '0');
@@ -788,7 +877,16 @@ function renderQuestionMedia(round, token) {
   els.questionMedia.appendChild(img);
 }
 
-function renderQuestion(q) {
+function renderQuestion(q, { fromStart = false } = {}) {
+  // Primo round della partita: prima si conta, la domanda arriva al "VIA!".
+  if (!fromStart && q.startsAt) {
+    const startsAt = ServerClock.localDeadline(q.startsAt, q.serverNow);
+    if (ServerClock.remainingMs(startsAt) > 0) {
+      newPhase();
+      playStartCountdown(q, startsAt);
+      return;
+    }
+  }
   const token = newPhase();
   currentOptions  = q.options ?? [];
   const isMinigame = q.kind === 'minigame';
@@ -850,9 +948,9 @@ function renderQuestion(q) {
     }
   } else {
     els.questionText.textContent = q.text;
-    // Dopo un minigioco si torna alla musica della partita; altrimenti è
-    // già in corso e la chiamata non la tocca.
-    SalaAudio.music('bed');
+    // Il tema del quiz: parte con la prima domanda e torna dopo un
+    // minigioco; se è già in corso la chiamata non lo tocca.
+    SalaAudio.music(AudioLogic.MUSIC.quiz);
   }
 
   // Un minigioco non ha immagine: la sua scena la disegna la presentazione.
@@ -904,7 +1002,8 @@ function renderQuestion(q) {
   showPanel('question');
   // Dopo `showPanel`: un pannello nascosto non ha misure da prendere.
   fitQuestionLayout();
-  SalaAudio.sfx('round-start');
+  // Al "VIA!" suona già il conto alla rovescia.
+  if (!fromStart) SalaAudio.sfx('round-start');
 }
 
 // ─── Colonna dei giocatori (minigiochi con `salaPlayers`) ────────────────────
@@ -1690,8 +1789,8 @@ function renderResults(results, token) {
     && (currentMinigame?.salaOptions === false || Boolean(results.skipped));
   els.reveal.hidden = stageOnly;
   // La classifica è della partita: se suonava la colonna sonora di un
-  // minigioco, qui finisce.
-  SalaAudio.music('bed');
+  // minigioco, qui finisce e torna il tema del quiz.
+  SalaAudio.music(AudioLogic.MUSIC.quiz);
 
   if (stageOnly) {
     els.reveal.textContent = '';
@@ -1839,11 +1938,10 @@ function podiumPlayer(p) {
 function renderFinal(entries, { animate = true } = {}) {
   const token = newPhase();
   stopCountdown();
-  // Di solito ci si arriva dalla classifica, che ha già rimesso la musica
-  // della partita. Ma un minigioco saltato dall'host come ultimo round porta
-  // qui direttamente: senza questa riga la sua colonna sonora (o il silenzio
-  // del sipario) resterebbe sotto la premiazione. Se suona già, non cambia nulla.
-  SalaAudio.music('bed');
+  // La premiazione ha il suo tema, che prende il posto di qualunque cosa
+  // stesse suonando: il quiz, o la colonna sonora di un minigioco saltato
+  // dall'host come ultimo round.
+  SalaAudio.music(AudioLogic.MUSIC.final);
 
   const leaderboard = entries
     .slice()
@@ -1933,8 +2031,9 @@ socket.on('game:snapshot', (snap) => {
   rosterLive = false;
   renderProgress(snap.currentQuestionIndex, snap.totalQuestions);
   // Lo snapshot arriva solo se una partita esiste: se il Pi si è riavviato a
-  // metà evento, la musica riprende insieme alla schermata.
-  SalaAudio.music('bed');
+  // metà evento, la musica riprende insieme alla schermata, col tema della
+  // fase in cui si è (lobby, quiz o premiazione).
+  SalaAudio.music(AudioLogic.musicForState(snap.state));
 
   if (snap.state === 'LOBBY') {
     renderLobby(snap.players ?? []);
@@ -1970,10 +2069,10 @@ socket.on('game:lobby-update', ({ players, state }) => {
   }
   newPhase();
   stopCountdown();
-  // Il letto musicale parte con la partita e non si ferma più fino alla fine:
+  // La musica della lobby accompagna l'attesa finché la partita non parte:
   // `music()` sulla traccia già in riproduzione è un no-op, quindi ricevere
   // venti lobby-update di fila non la fa ripartire da capo.
-  SalaAudio.music('bed');
+  SalaAudio.music(AudioLogic.MUSIC.lobby);
   // L'effetto è legato alla crescita della lista, non all'evento: lo stesso
   // broadcast arriva anche quando qualcuno esce.
   if (players.length > lastPlayerCount) SalaAudio.sfx('player-joined');
@@ -1982,7 +2081,7 @@ socket.on('game:lobby-update', ({ players, state }) => {
   showPanel('lobby');
 });
 
-socket.on('game:question', renderQuestion);
+socket.on('game:question', (q) => renderQuestion(q));
 
 /**
  * Qualcuno ha scelto. Arriva per ogni risposta, umana o dei bot, con gli id di

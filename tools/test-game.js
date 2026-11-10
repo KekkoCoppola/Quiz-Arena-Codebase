@@ -597,6 +597,37 @@ function run() {
   sessCtl.repeatRound(t0 + 8000);
   assert(sessCtl.currentAnswers.size === 0, 'repeatRound() da QUESTION azzera le risposte in corso');
 
+  // ─── Conto alla rovescia d'apertura ──────────────────────────────────────────
+  // "Pronti?, 3, 2, 1" in sala prima della prima domanda: il server riserva il
+  // tempo, quindi le risposte aprono dopo e i punti si contano da lì.
+  {
+    console.log('\n── Conto alla rovescia d\'apertura ──');
+    const gStart = new GameSession(QUIZ, { rnd: () => 0, startCountdownMs: 4000 });
+    const ada = gStart.addPlayer('Ada');
+    const bob = gStart.addPlayer('Bob');
+    gStart.startGame(1000);
+    const first = gStart.getCurrentRound();
+    assert(first.startMs === 4000 && gStart.startsAt === 5000,
+      'startCountdownMs: il primo round aspetta la fine del conteggio');
+    assert(gStart.answersOpenAt === 5000, 'startCountdownMs: le risposte aprono al "VIA!"');
+    assertThrows(() => gStart.submitAnswer(ada.id, QUIZ.questions[0].correct_index, 4999), AnswersNotOpenError,
+      'startCountdownMs: nessuna risposta durante il conteggio');
+    const instant = gStart.submitAnswer(ada.id, QUIZ.questions[0].correct_index, 5000);
+    assert(instant.pointsAwarded === 1000,
+      'startCountdownMs: chi risponde al "VIA!" prende il massimo, il conteggio non costa punti');
+    void bob;
+    gStart.endQuestion(6000);
+    gStart.nextQuestion(7000);
+    assert(gStart.getCurrentRound().startMs === 0 && gStart.answersOpenAt === 7000,
+      'startCountdownMs: dal secondo round non si conta più');
+
+    const gPlain = new GameSession(QUIZ, { rnd: () => 0 });
+    gPlain.addPlayer('Cleo');
+    gPlain.startGame(1000);
+    assert(gPlain.getCurrentRound().startMs === 0 && gPlain.answersOpenAt === 1000,
+      'senza startCountdownMs la prima domanda apre subito');
+  }
+
   // ─── Riepilogo ──────────────────────────────────────────────────────────────────
 
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');

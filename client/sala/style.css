@@ -1530,6 +1530,94 @@ body:has(#sala-question.has-roster:not([hidden])) .sala-shape--burst {
 .sala-intro-layer .mg-stage-intro-overlay { inset: 0; border-radius: 0; }
 .sala-intro-layer .mg-stage-intro-canvas  { border: 0; border-radius: 0; }
 
+/* ─── Conto alla rovescia d'apertura ─────────────────────────────────────────
+   "Pronti?", 3, 2, 1 su fondo indaco a pois, poi "VIA!" che scoppia sopra la
+   prima domanda (`.is-go`: il fondo sparisce e resta solo il timbro). */
+
+.sala-start-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 180;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 5vh;
+  pointer-events: none;
+  background-color: var(--indigo);
+  background-image: radial-gradient(var(--indigo-deep) 22%, transparent 23%);
+  background-size: 2.5rem 2.5rem;
+}
+
+.sala-start-layer[hidden] { display: none; }
+
+.sala-start-kicker {
+  padding: 0.45em 1.2em;
+  font-size: clamp(1.5rem, 4.5vh, 3.5rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--retro-dark);
+  background: var(--paper-white);
+  border: var(--border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--block-sm);
+  transform: rotate(-3deg);
+}
+
+.sala-start-num {
+  display: grid;
+  place-items: center;
+  width: 1.55em;
+  height: 1.55em;
+  font-size: clamp(8rem, 40vh, 28rem);
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--retro-dark);
+  background: var(--logo-yellow);
+  border: 8px solid var(--retro-dark);
+  border-radius: var(--radius-full);
+  box-shadow: 14px 14px 0 0 var(--retro-dark);
+  transform: rotate(-3deg);
+}
+
+/* Le parole ("Pronti?", "VIA!") stanno su un cartello, non nel disco. */
+.sala-start-num.is-word {
+  width: auto;
+  height: auto;
+  padding: 0.3em 0.7em;
+  font-size: clamp(4rem, 20vh, 14rem);
+  border-radius: var(--radius-lg);
+}
+
+.sala-start-num.is-pop { animation: sala-start-pop 480ms cubic-bezier(0.2, 1.5, 0.4, 1) both; }
+
+.sala-start-layer.is-go { background: none; }
+.sala-start-layer.is-go .sala-start-kicker { display: none; }
+.sala-start-layer.is-go .sala-start-num {
+  color: var(--white);
+  background: var(--alert-red);
+  animation: sala-start-go 850ms ease-out both;
+}
+
+@keyframes sala-start-pop {
+  from { transform: scale(1.7) rotate(7deg); opacity: 0; }
+  to   { transform: scale(1) rotate(-3deg); opacity: 1; }
+}
+
+@keyframes sala-start-go {
+  0%   { transform: scale(0.5) rotate(-9deg); opacity: 0; }
+  22%  { transform: scale(1.12) rotate(-4deg); opacity: 1; }
+  70%  { transform: scale(1) rotate(-4deg); opacity: 1; }
+  100% { transform: scale(1.5) rotate(-4deg); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sala-start-num.is-pop,
+  .sala-start-layer.is-go .sala-start-num { animation: none; }
+}
+
 /* ─── Premiazione 3D ────────────────────────────────────────────────────────
    Sopra la testata e il palco, sotto il sipario (che a fine partita non c'è).
    La scena riempie lo strato; lo sfondo lo porta podium-ceremony.js. */

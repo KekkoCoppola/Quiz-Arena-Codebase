@@ -27,6 +27,8 @@ let updateAvatarTimeout = null;
 let countdownInterval = null;
 /** Attesa della fine dell'anteprima di un minigioco, prima di aprire le risposte. */
 let previewTimer = null;
+// Conto alla rovescia d'apertura ("3, 2, 1") prima della prima domanda.
+let startTimer = null;
 let introTimer = null;
 let currentRoundTotalMs = 0;
 // Round corrente, per il reveal del feedback (il payload game:results non
@@ -119,12 +121,18 @@ function show(name) {
   }
 }
 
-function showMessage(text) {
+function showMessage(text, { big = false } = {}) {
   messageText.textContent = text;
+  // `big`: le cifre del conto alla rovescia, leggibili a braccio teso.
+  messageText.classList.toggle('is-countdown', big);
   show('message');
 }
 
 function stopCountdown() {
+  if (startTimer) {
+    clearInterval(startTimer);
+    startTimer = null;
+  }
   if (introTimer) {
     clearTimeout(introTimer);
     introTimer = null;
@@ -330,6 +338,32 @@ nicknameInput.addEventListener('keydown', (e) => {
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
 function renderQuestion(q, alreadyAnswered = false) {
+  // Primo round della partita: la sala conta "3, 2, 1" e il telefono con lei.
+  // La domanda compare al via, quando il server comincia ad accettare risposte.
+  const startsAt = q.startsAt ? ServerClock.localDeadline(q.startsAt, q.serverNow) : 0;
+  if (startsAt && ServerClock.remainingMs(startsAt) > 0) {
+    stopCountdown();
+    const receivedAt = Date.now();
+    const tick = () => {
+      const leftMs = ServerClock.remainingMs(startsAt);
+      if (leftMs <= 0) {
+        clearInterval(startTimer);
+        startTimer = null;
+        // `serverNow` avanza di quanto si è aspettato qui: la stessa
+        // accortezza dell'anteprima dei minigiochi, più sotto.
+        renderQuestion(
+          { ...q, startsAt: null, serverNow: q.serverNow + (Date.now() - receivedAt) },
+          alreadyAnswered,
+        );
+        return;
+      }
+      if (leftMs > 3000) showMessage('Pronti?');
+      else showMessage(String(Math.ceil(leftMs / 1000)), { big: true });
+    };
+    startTimer = setInterval(tick, 100);
+    tick();
+    return;
+  }
   const isMinigame = q.kind === 'minigame';
   currentRoundKind = q.kind;
   currentRoundIndex = q.index;

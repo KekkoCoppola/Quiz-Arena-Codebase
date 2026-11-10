@@ -20,7 +20,15 @@ const {
   validateManifest,
   minigameSfxKey,
   minigameManifest,
+  MUSIC,
+  musicForState,
+  timerCue,
+  isHurry,
+  startCountdownStep,
+  START_GO,
 } = require('../client/sala/audio-logic');
+const fs = require('node:fs');
+const path = require('node:path');
 
 // ─── Setup ───────────────────────────────────────────────────────────────────────
 
@@ -186,11 +194,11 @@ section('validateManifest — tollera qualunque input');
 
 {
   const m = validateManifest({
-    music: { bed: { file: 'music/bed.ogg', gain: 1 } },
+    music: { lobby: { file: 'music/lobby.ogg', gain: 1 } },
     vo:    { 'lobby-qr': [{ file: 'vo/a.mp3' }] },
     sfx:   { 'player-joined': [{ file: 'sfx/j.mp3', gain: 0.5 }] },
   });
-  assert(m.music.bed.file === 'music/bed.ogg', 'musica normalizzata');
+  assert(m.music.lobby.file === 'music/lobby.ogg', 'musica normalizzata');
   assert(m.vo['lobby-qr'].length === 1,        'voce normalizzata in array');
   assert(m.vo['lobby-qr'][0].gain === 1,       'gain assente → default 1');
   assert(m.sfx['player-joined'][0].gain === 0.5, 'gain esplicito preservato');
@@ -235,6 +243,85 @@ section('minigameManifest — l\'audio di un minigioco nel suo spazio dei nomi')
   const broken = validateManifest(minigameManifest('x', { sfx: { rotto: [{ gain: 1 }] } }));
   assert(broken.sfx['x/rotto'] === undefined && broken.errors.length > 0,
     'una voce rotta di un minigioco si scarta e si segnala, come nel manifest');
+}
+
+// ─── I temi della serata ─────────────────────────────────────────────────────────
+
+section('musicForState — un tema per ogni momento');
+
+assert(musicForState('LOBBY') === MUSIC.lobby,             'lobby → musica della lobby');
+assert(musicForState('QUESTION') === MUSIC.quiz,           'domanda → tema del quiz');
+assert(musicForState('RESULTS') === MUSIC.quiz,            'classifica → tema del quiz');
+assert(musicForState('FINAL_LEADERBOARD') === MUSIC.final, 'premiazione → tema della premiazione');
+assert(musicForState(undefined) === null,                  'nessuna partita → silenzio');
+assert(new Set(Object.values(MUSIC)).size === 3,           'i tre temi sono tre tracce diverse');
+
+// ─── Il timer che scorre ─────────────────────────────────────────────────────────
+
+section('timerCue — il suono del tempo che passa');
+
+assert(timerCue({ remaining: 20, previous: null }) === null, 'la prima cifra non suona');
+assert(timerCue({ remaining: 19, previous: 19 }) === null,   'la stessa cifra non suona due volte');
+assert(timerCue({ remaining: 19, previous: 20 }) === 'timer-tick',  'un secondo che passa → tic');
+assert(timerCue({ remaining: 11, previous: 12 }) === 'timer-tick',  '11 secondi: ancora tic');
+assert(timerCue({ remaining: 10, previous: 11 }) === 'timer-urgent', 'da 10 secondi il colpo si fa teso');
+assert(timerCue({ remaining: 4, previous: 5 }) === 'timer-urgent',  '4 secondi: ancora teso');
+assert(timerCue({ remaining: 3, previous: 4 }) === 'timer-last',    'ultimi tre secondi');
+assert(timerCue({ remaining: 1, previous: 2 }) === 'timer-last',    'ultimo secondo');
+assert(timerCue({ remaining: 0, previous: 1 }) === 'time-up',       'allo zero → tempo scaduto');
+assert(timerCue({ remaining: 0, previous: 0 }) === null,            'lo zero suona una volta sola');
+assert(isHurry(10) && isHurry(1) && !isHurry(11) && !isHurry(0),
+  'la musica accelera solo negli ultimi dieci secondi, non a tempo scaduto');
+
+// ─── Il conto alla rovescia d'apertura ───────────────────────────────────────────
+
+section('startCountdownStep — Pronti?, 3, 2, 1, VIA!');
+
+assert(startCountdownStep(4000).label === 'Pronti?', 'più di tre secondi → "Pronti?"');
+assert(startCountdownStep(3000).label === '3',       'tre secondi esatti → 3');
+assert(startCountdownStep(2001).label === '3',       '2,001 s → ancora 3');
+assert(startCountdownStep(2000).label === '2',       'due secondi → 2');
+assert(startCountdownStep(1).label === '1',          'un millisecondo → 1');
+assert(startCountdownStep(0) === START_GO && START_GO.label === 'VIA!', 'tempo scaduto → VIA!');
+assert(startCountdownStep(2500).sfx === 'countdown-beep' && !startCountdownStep(2500).word,
+  'le cifre suonano il colpo del semaforo');
+assert(new Set([startCountdownStep(4000).sfx, startCountdownStep(2000).sfx, START_GO.sfx]).size === 3,
+  '"Pronti?", cifre e "VIA!" hanno tre suoni diversi');
+
+// ─── Il manifest vero ────────────────────────────────────────────────────────────
+// Un file dichiarato e assente in sala non dà errori: quel suono è solo muto.
+
+section('manifest.json — ogni suono dichiarato esiste, ogni suono usato è dichiarato');
+
+{
+  const AUDIO_DIR = path.join(__dirname, '..', 'resources', 'audio');
+  const manifest = validateManifest(JSON.parse(fs.readFileSync(path.join(AUDIO_DIR, 'manifest.json'), 'utf8')));
+  assert(manifest.errors.length === 0, 'il manifest è valido');
+
+  const files = [
+    ...Object.values(manifest.music).map((e) => e.file),
+    ...Object.values(manifest.sfx).flat().map((e) => e.file),
+  ];
+  const missing = files.filter((f) => !fs.existsSync(path.join(AUDIO_DIR, f)));
+  assert(missing.length === 0, `tutti i file esistono${missing.length ? ' (mancano: ' + missing.join(', ') + ')' : ''}`);
+
+  for (const key of Object.values(MUSIC)) assert(Boolean(manifest.music[key]), `tema "${key}" dichiarato`);
+
+  // Gli effetti che decide la logica pura…
+  const logicSfx = [
+    'timer-tick', 'timer-urgent', 'timer-last', 'time-up',
+    startCountdownStep(4000).sfx, startCountdownStep(2000).sfx, START_GO.sfx,
+  ];
+  // …e quelli che la sala chiama per nome (`SalaAudio.sfx('…')` e i momenti del podio).
+  const appJs = fs.readFileSync(path.join(__dirname, '..', 'client', 'sala', 'app.js'), 'utf8');
+  const appSfx = [...appJs.matchAll(/SalaAudio\.sfx\('([a-z-]+)'\)/g)].map((m) => m[1]);
+  const cueBlock = /PODIUM_CUE_SFX = Object\.freeze\(\{([^}]*)\}/.exec(appJs)?.[1] ?? '';
+  const cueSfx = [...cueBlock.matchAll(/: '([a-z-]+)'/g)].map((m) => m[1]);
+  const undeclared = [...new Set([...logicSfx, ...appSfx, ...cueSfx])].filter((k) => !manifest.sfx[k]);
+  assert(appSfx.length > 5, 'gli effetti chiamati dalla sala sono stati trovati');
+  assert(undeclared.length === 0,
+    `ogni effetto usato è nel manifest${undeclared.length ? ' (mancano: ' + undeclared.join(', ') + ')' : ''}`);
+  assert(manifest.sfx['timer-tick'].length === 2, 'il tic-tac ha due varianti, che si alternano');
 }
 
 // ─── Esito ───────────────────────────────────────────────────────────────────────

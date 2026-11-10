@@ -1,11 +1,38 @@
 {
   "music": {
-    "bed": { "file": "music/bed.ogg", "gain": 1.0 }
+    "lobby": { "file": "music/lobby.ogg", "gain": 1.0 },
+    "quiz":  { "file": "music/quiz.ogg",  "gain": 0.85 },
+    "final": { "file": "music/final.ogg", "gain": 1.0 }
   },
   "vo": {},
   "sfx": {
     "player-joined": [
       { "file": "sfx/player-joined-01.wav", "gain": 1.0 }
+    ],
+    "countdown-ready": [
+      { "file": "sfx/countdown-ready-01.wav", "gain": 0.9 }
+    ],
+    "countdown-beep": [
+      { "file": "sfx/countdown-beep-01.wav", "gain": 1.0 }
+    ],
+    "countdown-go": [
+      { "file": "sfx/countdown-go-01.wav", "gain": 1.0 }
+    ],
+    "round-start": [
+      { "file": "sfx/round-start-01.wav", "gain": 0.7 }
+    ],
+    "timer-tick": [
+      { "file": "sfx/timer-tick-01.wav", "gain": 0.4 },
+      { "file": "sfx/timer-tick-02.wav", "gain": 0.4 }
+    ],
+    "timer-urgent": [
+      { "file": "sfx/timer-urgent-01.wav", "gain": 0.65 }
+    ],
+    "timer-last": [
+      { "file": "sfx/timer-last-01.wav", "gain": 0.8 }
+    ],
+    "time-up": [
+      { "file": "sfx/time-up-01.wav", "gain": 0.9 }
     ],
     "suspense": [
       { "file": "sfx/suspense-01.wav", "gain": 0.7 }
@@ -31,6 +58,9 @@
     ],
     "overtake": [
       { "file": "sfx/overtake-01.wav", "gain": 0.85 }
+    ],
+    "winner": [
+      { "file": "sfx/winner-01.wav", "gain": 1.0 }
     ]
   }
 }

@@ -16,7 +16,7 @@
  *
  * Le colonne sonore escono in OGG (serve `ffmpeg` nel PATH, solo qui: il
  * server non lo usa), gli effetti in WAV come quelli della sala. Livelli:
- * musica a -18 dBFS medi, come resources/audio/music/bed.ogg; effetti col
+ * musica a -18 dBFS medi, come i temi in resources/audio/music/; effetti col
  * picco a circa -6 dBFS, come resources/audio/sfx/.
  *
  * Il file è uno strumento da riga di comando, non fa parte del server.
@@ -30,7 +30,7 @@ const { spawnSync } = require('node:child_process');
 const RATE = 44100;
 const AUDIO_DIR = path.join(__dirname, '..', 'resources', 'audio');
 
-/** Volume medio delle colonne sonore: lo stesso di bed.ogg (-18 dBFS). */
+/** Volume medio delle colonne sonore: lo stesso per tutti i temi (-18 dBFS). */
 const MUSIC_RMS = 10 ** (-18 / 20);
 /** Picco degli effetti, come quelli già in resources/audio/sfx/. */
 const SFX_PEAK = 10 ** (-6 / 20);
@@ -628,16 +628,37 @@ const OUTPUT = {
   },
 };
 
-for (const [game, files] of Object.entries(OUTPUT)) {
-  const dir = path.join(AUDIO_DIR, game);
-  fs.mkdirSync(dir, { recursive: true });
-  for (const [name, make] of Object.entries(files)) {
-    const file = path.join(dir, name);
-    const samples = make();
-    if (name.endsWith('.ogg')) writeOgg(file, samples);
-    else fs.writeFileSync(file, encodeWav(samples));
-    const kb = fs.statSync(file).size / 1024;
-    console.log(`  ✅  ${game}/${name.padEnd(16)} ${(samples.length / RATE).toFixed(1).padStart(5)} s  ${kb.toFixed(1)} KB`);
+/**
+ * Scrive un gruppo di file `{ cartella: { nome: () => campioni } }` sotto
+ * resources/audio/: `.ogg` passando da ffmpeg, il resto in WAV.
+ */
+function writeAll(output) {
+  for (const [folder, files] of Object.entries(output)) {
+    const dir = path.join(AUDIO_DIR, folder);
+    fs.mkdirSync(dir, { recursive: true });
+    for (const [name, make] of Object.entries(files)) {
+      const file = path.join(dir, name);
+      const samples = make();
+      if (name.endsWith('.ogg')) writeOgg(file, samples);
+      else fs.writeFileSync(file, encodeWav(samples));
+      const kb = fs.statSync(file).size / 1024;
+      console.log(`  ✅  ${`${folder}/${name}`.padEnd(30)} ${(samples.length / RATE).toFixed(1).padStart(5)} s  ${kb.toFixed(1)} KB`);
+    }
   }
 }
-console.log('\n  I file vanno dichiarati nel campo `audio` del minigioco (client/shared/minigames/).');
+
+// Strumenti e montaggio servono anche a tools/make-sala-audio.js (i temi e gli
+// effetti della sala): si esportano, e i file dei minigiochi si scrivono solo
+// quando questo script è quello lanciato.
+module.exports = {
+  RATE, midiOf, hz, seconds, makeNoise, envelope,
+  pulseNote, triangleNote, whistleNote, pluckNote,
+  kick, snare, hat, woodblock, tom, anvil,
+  mixInto, renderLoop, masterMusic, masterSfx, build, pulseLike, flattenMelody,
+  writeAll,
+};
+
+if (require.main === module) {
+  writeAll(OUTPUT);
+  console.log('\n  I file vanno dichiarati nel campo `audio` del minigioco (client/shared/minigames/).');
+}

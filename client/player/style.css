@@ -300,6 +300,14 @@ body {
   transform: rotate(-2deg);
   box-shadow: var(--stamp-sm);
 }
+/* Le cifre del "3, 2, 1" d'apertura: un disco grande, leggibile a braccio teso. */
+.sticker.is-countdown {
+  display: grid; place-items: center;
+  width: 1.6em; height: 1.6em; padding: 0;
+  font-size: 112px; line-height: 1;
+  font-variant-numeric: tabular-nums;
+  box-shadow: var(--stamp);
+}
 .sticker-teal { background: var(--arcade-teal); color: var(--arcade-teal-deep); }
 .sticker-red  { background: var(--game-over-red); color: #ffffff; }
 
