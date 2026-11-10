@@ -37,25 +37,29 @@
     <!-- Il personaggio: frecce ai lati della faccia per l'espressione, ai lati
          del corpo per l'outfit, pallini sotto per il colore. Niente riquadri:
          sta sullo sfondo. Il ritratto è a due strati, corpo e faccia. -->
-    <div class="avatar-picker">
-      <button id="avatar-prev" class="avatar-arrow avatar-arrow--prev" type="button" aria-label="Espressione precedente">
-        <svg viewBox="0 0 26 44" aria-hidden="true"><path d="M20 5 L6 22 L20 39"/></svg>
-      </button>
-      <div id="avatar-portrait" class="avatar-portrait" role="img" aria-label="Il tuo personaggio">
-        <img id="avatar-body" src="/resources/img/avatars/body/neutral.png" alt="" draggable="false">
-        <img id="avatar-face" src="/resources/img/avatars/expr/happy.png" alt="" draggable="false">
+    <div id="join-avatar-slot">
+      <div id="avatar-container">
+        <div class="avatar-picker">
+          <button id="avatar-prev" class="avatar-arrow avatar-arrow--prev" type="button" aria-label="Espressione precedente">
+            <svg viewBox="0 0 26 44" aria-hidden="true"><path d="M20 5 L6 22 L20 39"/></svg>
+          </button>
+          <div id="avatar-portrait" class="avatar-portrait" role="img" aria-label="Il tuo personaggio">
+            <img id="avatar-body" src="/resources/img/avatars/body/neutral.png" alt="" draggable="false">
+            <img id="avatar-face" src="/resources/img/avatars/expr/happy.png" alt="" draggable="false">
+          </div>
+          <button id="avatar-next" class="avatar-arrow avatar-arrow--next" type="button" aria-label="Espressione successiva">
+            <svg viewBox="0 0 26 44" aria-hidden="true"><path d="M6 5 L20 22 L6 39"/></svg>
+          </button>
+          <button id="outfit-prev" class="avatar-arrow avatar-arrow--prev avatar-arrow--outfit" type="button" aria-label="Outfit precedente">
+            <svg viewBox="0 0 26 44" aria-hidden="true"><path d="M20 5 L6 22 L20 39"/></svg>
+          </button>
+          <button id="outfit-next" class="avatar-arrow avatar-arrow--next avatar-arrow--outfit" type="button" aria-label="Outfit successivo">
+            <svg viewBox="0 0 26 44" aria-hidden="true"><path d="M6 5 L20 22 L6 39"/></svg>
+          </button>
+        </div>
+        <div id="avatar-colors" class="avatar-colors" role="radiogroup" aria-label="Colore del personaggio"></div>
       </div>
-      <button id="avatar-next" class="avatar-arrow avatar-arrow--next" type="button" aria-label="Espressione successiva">
-        <svg viewBox="0 0 26 44" aria-hidden="true"><path d="M6 5 L20 22 L6 39"/></svg>
-      </button>
-      <button id="outfit-prev" class="avatar-arrow avatar-arrow--prev avatar-arrow--outfit" type="button" aria-label="Outfit precedente">
-        <svg viewBox="0 0 26 44" aria-hidden="true"><path d="M20 5 L6 22 L20 39"/></svg>
-      </button>
-      <button id="outfit-next" class="avatar-arrow avatar-arrow--next avatar-arrow--outfit" type="button" aria-label="Outfit successivo">
-        <svg viewBox="0 0 26 44" aria-hidden="true"><path d="M6 5 L20 22 L6 39"/></svg>
-      </button>
     </div>
-    <div id="avatar-colors" class="avatar-colors" role="radiogroup" aria-label="Colore del personaggio"></div>
     <button id="join-btn" class="btn btn-primary btn-block">Entra</button>
     <p id="join-error" class="form-error" role="alert" hidden></p>
   </section>
@@ -64,6 +68,8 @@
   <section id="screen-lobby" class="screen" hidden>
     <div class="sticker sticker-teal">Sei dentro!</div>
     <div id="lobby-me" class="me-badge"></div>
+    <div id="lobby-avatar-slot"></div>
+    <button id="lobby-btn" class="btn btn-primary btn-block" disabled>Sei dentro</button>
     <p class="waiting-text">In attesa che l'host avvii la partita…</p>
     <h2 class="section-label">In lobby</h2>
     <ul id="lobby-players" class="player-badges"></ul>

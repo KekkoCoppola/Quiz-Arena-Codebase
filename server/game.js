@@ -408,6 +408,22 @@ class GameSession {
   }
 
   /**
+   * Aggiorna l'avatar di un giocatore. Consentito solo in stato LOBBY.
+   * @param {string} playerId
+   * @param {string} avatarId
+   * @returns {{ id: string, nickname: string, avatar: string, score: number, connected: boolean }}
+   */
+  updatePlayerAvatar(playerId, avatarId) {
+    this._assertState(STATES.LOBBY, 'updatePlayerAvatar');
+    const player = this._getPlayerOrThrow(playerId);
+    if (!AvatarCatalog.isValid(avatarId)) {
+      throw new InvalidAvatarError();
+    }
+    player.avatar = avatarId;
+    return player;
+  }
+
+  /**
    * Rimuove un giocatore dalla partita (in qualsiasi stato: gestisce le disconnessioni).
    * @param {string} playerId
    */

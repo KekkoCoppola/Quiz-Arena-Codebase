@@ -197,7 +197,17 @@ function run() {
   assertThrows(() => g8.setPlayerConnected('id-inesistente', true), PlayerNotFoundError,
     'setPlayerConnected: player inesistente lancia PlayerNotFoundError');
 
+  const updatedA = g8.updatePlayerAvatar(pA.id, 'hot_pink:cool:sport');
+  assert(updatedA.avatar === 'hot_pink:cool:sport', 'updatePlayerAvatar: avatar aggiornato in LOBBY');
+  assert(g8.players.get(pA.id).avatar === 'hot_pink:cool:sport', 'updatePlayerAvatar: memorizzato sul player');
+  assertThrows(() => g8.updatePlayerAvatar(pA.id, 'avatar_invalido'), InvalidAvatarError,
+    'updatePlayerAvatar: lancia InvalidAvatarError per avatar non valido');
+  assertThrows(() => g8.updatePlayerAvatar('id-inesistente', 'sunny_yellow:happy'), PlayerNotFoundError,
+    'updatePlayerAvatar: lancia PlayerNotFoundError per player inesistente');
+
   g8.startGame(0);
+  assertThrows(() => g8.updatePlayerAvatar(pA.id, 'sunny_yellow:happy'), InvalidStateError,
+    'updatePlayerAvatar: bloccato fuori da LOBBY');
   const lb8 = g8.getLeaderboard();
   assert(lb8.every((p) => typeof p.avatar === 'string'), 'getLeaderboard: include avatar');
   assert(g8.getSnapshot().players.every((p) => 'connected' in p), 'getSnapshot: include connected');

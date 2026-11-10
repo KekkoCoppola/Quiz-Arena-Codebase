@@ -219,11 +219,24 @@ async function run() {
     assert(lobby.players.length === 2, 'lobby-update: 2 giocatori');
     assert(lobby.state === 'LOBBY', 'lobby-update: porta lo stato della partita (LOBBY)');
 
+    const updateLobbyPromise = once(host, 'game:lobby-update');
+    const updateAvatarAck = await emitAck(p1, 'player:update-avatar', { avatarId: 'sunny_yellow:happy:sport' });
+    assert(updateAvatarAck.ok === true && updateAvatarAck.avatar === 'sunny_yellow:happy:sport',
+      'player:update-avatar accettato in LOBBY');
+    const lobbyAfterUpdate = await updateLobbyPromise;
+    const aliceInLobby = lobbyAfterUpdate.players.find((p) => p.nickname === 'Alice');
+    assert(aliceInLobby.avatar === 'sunny_yellow:happy:sport', 'lobby-update riflette il nuovo avatar');
+
+    const badAvatarAck = await emitAck(p1, 'player:update-avatar', { avatarId: 'avatar_non_valido' });
+    assert(badAvatarAck.ok === false, 'player:update-avatar con avatar invalido rifiutato');
+
     // 3. Domanda 1: chiusura anticipata (tutti rispondono)
     console.log('\n  ⏱️  Fase 3: Domanda 1 — chiusura anticipata');
     const q1Promise = once(p1, 'game:question');
     const startAck = await emitAck(host, 'host:start-game', null);
     assert(startAck.ok === true, 'host:start-game accettato');
+    const outsideLobbyAck = await emitAck(p1, 'player:update-avatar', { avatarId: 'electric_teal:wink' });
+    assert(outsideLobbyAck.ok === false, 'player:update-avatar fuori da LOBBY rifiutato');
     const q1 = await q1Promise;
     assert(q1.text === QUIZ_QUESTIONS[0].text, 'game:question: testo domanda 1');
     assert(q1.correct_index === undefined, 'game:question: correct_index MAI inviato');

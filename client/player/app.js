@@ -21,7 +21,9 @@ const SESSION_KEY = 'quizzata-player';
 const socket = io({ auth: (cb) => cb({ clientNow: Date.now() }) });
 
 let playerId = null;
+let currentNickname = null;
 let selectedAvatar = null;
+let updateAvatarTimeout = null;
 let countdownInterval = null;
 /** Attesa della fine dell'anteprima di un minigioco, prima di aprire le risposte. */
 let previewTimer = null;
@@ -51,6 +53,9 @@ const screens = {
 };
 
 const nicknameInput     = document.getElementById('nickname-input');
+const avatarContainer   = document.getElementById('avatar-container');
+const joinAvatarSlot    = document.getElementById('join-avatar-slot');
+const lobbyAvatarSlot   = document.getElementById('lobby-avatar-slot');
 const avatarPortrait    = document.getElementById('avatar-portrait');
 const avatarBody        = document.getElementById('avatar-body');
 const avatarFace        = document.getElementById('avatar-face');
@@ -104,6 +109,11 @@ function clearSession() {
 function show(name) {
   for (const [key, el] of Object.entries(screens)) {
     el.hidden = key !== name;
+  }
+  if (name === 'lobby' && lobbyAvatarSlot && avatarContainer) {
+    lobbyAvatarSlot.appendChild(avatarContainer);
+  } else if (name === 'join' && joinAvatarSlot && avatarContainer) {
+    joinAvatarSlot.appendChild(avatarContainer);
   }
 }
 
@@ -232,6 +242,32 @@ function renderAvatarPick() {
     el.classList.toggle('selected', selected);
     el.setAttribute('aria-checked', String(selected));
   });
+
+  saveAvatarChoice(selectedAvatar);
+  if (playerId) {
+    const nickname = currentNickname || loadSession()?.nickname;
+    if (nickname) {
+      currentNickname = nickname;
+      renderMeBadge(nickname, selectedAvatar);
+    }
+    const session = loadSession();
+    if (session) saveSession({ ...session, avatar: selectedAvatar });
+    emitAvatarUpdate(selectedAvatar);
+  }
+}
+
+function emitAvatarUpdate(avatarId) {
+  if (!playerId) return;
+  clearTimeout(updateAvatarTimeout);
+  updateAvatarTimeout = setTimeout(() => {
+    if (!playerId) return;
+    socket.emit('player:update-avatar', { avatarId }, (res) => {
+      if (res?.ok) {
+        const session = loadSession();
+        if (session) saveSession({ ...session, avatar: res.avatar });
+      }
+    });
+  }, 100);
 }
 
 // ─── Join ────────────────────────────────────────────────────────────────────
@@ -242,12 +278,15 @@ joinBtn.addEventListener('click', () => {
     showJoinError('Inserisci un nickname.');
     return;
   }
+  joinBtn.disabled = true;
   socket.emit('player:join', { nickname, avatarId: selectedAvatar }, (res) => {
     if (!res.ok) {
+      joinBtn.disabled = false;
       showJoinError(res.error);
       return;
     }
     playerId = res.playerId;
+    currentNickname = nickname;
     saveSession({ token: res.token, playerId, nickname, avatar: res.avatar });
     saveAvatarChoice(res.avatar);
     joinError.hidden = true;
@@ -709,7 +748,11 @@ socket.on('game:reset', ({ playerId: newId, token }) => {
   clearFinal();
   const session = loadSession() ?? {};
   playerId = newId;
+  currentNickname = session.nickname ?? currentNickname;
   saveSession({ ...session, playerId: newId, token });
+  if (currentNickname && selectedAvatar) {
+    renderMeBadge(currentNickname, selectedAvatar);
+  }
   show('lobby');
 });
 
@@ -717,6 +760,8 @@ socket.on('game:ended', () => {
   revealToken++; // ferma un eventuale trattieni in corso
   clearFinal();
   playerId = null;
+  currentNickname = null;
+  joinBtn.disabled = false;
   clearSession();
   stopCountdown();
   showMessage('L\'host ha terminato la partita. Ricarica la pagina per giocare di nuovo.');
@@ -730,15 +775,29 @@ function tryRejoin(session) {
     reconnectOverlay.hidden = true;
     if (!res.ok) {
       playerId = null;
+      currentNickname = null;
+      joinBtn.disabled = false;
       clearSession();
       show('join');
       return;
     }
     playerId = res.playerId;
+    currentNickname = res.nickname;
     saveSession({ token: res.token, playerId, nickname: res.nickname, avatar: res.avatar });
     renderMeBadge(res.nickname, res.avatar);
 
     if (res.state === 'LOBBY') {
+      if (res.avatar && AvatarCatalog.isValid(res.avatar)) {
+        const parsed = AvatarCatalog.parse(res.avatar);
+        const { COLORS, FACES, OUTFITS } = AvatarCatalog;
+        const cIdx = COLORS.findIndex((c) => c.id === parsed.color);
+        const fIdx = FACES.findIndex((f) => f.id === parsed.face);
+        const oIdx = OUTFITS.findIndex((o) => o.id === parsed.outfit);
+        if (cIdx !== -1) avatarPick.color = cIdx;
+        if (fIdx !== -1) avatarPick.face = fIdx;
+        if (oIdx !== -1) avatarPick.outfit = oIdx;
+        renderAvatarPick();
+      }
       show('lobby');
     } else if (res.state === 'QUESTION' && res.question) {
       renderQuestion(res.question, res.question.alreadyAnswered);

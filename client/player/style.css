@@ -146,7 +146,23 @@ body {
   font-size: 32px; font-weight: 900; line-height: 40px; letter-spacing: -0.02em;
   text-align: center;
 }
-.section-label { font-size: 16px; font-weight: 900; letter-spacing: 0.03em; text-transform: uppercase; }
+.section-label {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--primary-ink);
+  background: var(--insert-coin-yellow);
+  padding: 6px 18px;
+  border: 3px solid var(--ink);
+  border-radius: 9999px;
+  box-shadow: var(--stamp-sm);
+  transform: rotate(-1.5deg);
+}
 .waiting-text  { color: var(--ink-muted); text-align: center; }
 
 /* ─── Form ─────────────────────────────────────────────────────────────── */
@@ -164,6 +180,11 @@ body {
   outline: none;
   border-color: var(--arcade-teal-deep);
   box-shadow: var(--stamp-sm), 0 0 0 2px var(--arcade-teal);
+}
+.field-input:disabled {
+  opacity: 0.7;
+  background: var(--paper-base);
+  cursor: not-allowed;
 }
 
 .form-error {
@@ -254,6 +275,13 @@ body {
 .btn-primary { background: var(--insert-coin-yellow); color: var(--primary-ink); box-shadow: var(--stamp-sm); }
 .btn-block   { width: 100%; }
 .btn:focus-visible { outline: 3px solid var(--arcade-teal-deep); outline-offset: 2px; }
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+  pointer-events: none;
+}
 
 /* ─── Badge / sticker ──────────────────────────────────────────────────── */
 
@@ -284,7 +312,7 @@ body {
 }
 .me-badge .avatar { font-size: 32px; }
 
-.player-badges { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; }
+.player-badges { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .player-badges li {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 3px 12px; border: 2px solid var(--ink); border-radius: 9999px;

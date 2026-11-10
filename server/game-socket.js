@@ -427,6 +427,21 @@ function attachGameHandlers(io) {
       }
     });
 
+    socket.on('player:update-avatar', (payload, cb) => {
+      if (!currentSession) return fail(cb, 'Nessuna partita attiva.');
+      const playerId = socketPlayers.get(socket.id);
+      if (!playerId || !currentSession.players.has(playerId)) {
+        return fail(cb, 'Sessione non valida.');
+      }
+      try {
+        const player = currentSession.updatePlayerAvatar(playerId, payload?.avatarId);
+        ok(cb, { avatar: player.avatar });
+        broadcastLobby(io);
+      } catch (err) {
+        fail(cb, err.message);
+      }
+    });
+
     // Riconnessione: il client presenta il token ricevuto al join/reset e
     // riottiene identità, punteggio e stato corrente della partita.
     socket.on('player:rejoin', (payload, cb) => {
