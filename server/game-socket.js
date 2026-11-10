@@ -167,8 +167,8 @@ function destroySession() {
 
 /** Notifica e disconnette i giocatori della sessione corrente, poi la distrugge. */
 function endCurrentGame(io) {
-  if (currentSession && socketPlayers.size > 0) {
-    io.to(ROOM_PLAYERS).emit('game:ended');
+  if (currentSession) {
+    io.emit('game:ended');
     for (const sockId of socketPlayers.keys()) {
       io.sockets.sockets.get(sockId)?.disconnect(true);
     }

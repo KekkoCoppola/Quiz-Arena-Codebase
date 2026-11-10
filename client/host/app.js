@@ -709,7 +709,6 @@ function minigameOptionsHtml(selected) {
 function buildQuestionItem(q, idx) {
   const item = document.createElement('div');
   item.className = 'question-item';
-  item.setAttribute('draggable', 'true');
   item.dataset.index = idx;
   item.setAttribute('role', 'listitem');
 
@@ -763,7 +762,7 @@ function buildQuestionItem(q, idx) {
         <div class="q-image-actions">
           <div class="q-image-blur-slider-wrap">
             <span>Sfocatura: <strong data-role="image-blur-val" data-q="${idx}">${blurVal}%</strong></span>
-            <input type="range" min="0" max="100" step="5" value="${blurVal}" data-role="image-blur-slider" data-q="${idx}">
+            <input type="range" min="0" max="100" step="5" value="${blurVal}" data-role="image-blur-slider" data-q="${idx}" draggable="false">
           </div>
           ${weight ? `<span class="q-image-weight">${weight} KB</span>` : ''}
           <button type="button" class="btn-text is-danger" data-role="image-remove" data-q="${idx}" title="Rimuovi l'immagine da questa domanda">
@@ -891,7 +890,29 @@ function attachQuestionEvents(item, idx) {
 
 /* ── Drag & Drop ── */
 function attachDragEvents(item, idx) {
+  const dragHandle = item.querySelector('.drag-handle') || item.querySelector('[data-role="drag-handle"]');
+  if (dragHandle) {
+    dragHandle.addEventListener('mouseenter', () => {
+      item.setAttribute('draggable', 'true');
+    });
+    dragHandle.addEventListener('mouseleave', () => {
+      if (!item.classList.contains('dragging')) {
+        item.removeAttribute('draggable');
+      }
+    });
+    dragHandle.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('button, input, select, textarea')) return;
+      item.setAttribute('draggable', 'true');
+    });
+  }
+
   item.addEventListener('dragstart', (e) => {
+    // Non avviare mai il drag se l'interazione parte da un input, textarea, select, button o slider
+    if (e.target.closest('input, textarea, select, button, .q-image-blur-slider-wrap, [data-role="image-blur-slider"]')) {
+      e.preventDefault();
+      item.removeAttribute('draggable');
+      return;
+    }
     state.dragSrcIndex = idx;
     item.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
@@ -900,6 +921,7 @@ function attachDragEvents(item, idx) {
 
   item.addEventListener('dragend', () => {
     item.classList.remove('dragging');
+    item.removeAttribute('draggable');
     document.querySelectorAll('.question-item').forEach((el) => el.classList.remove('drag-over'));
   });
 
@@ -919,6 +941,7 @@ function attachDragEvents(item, idx) {
   item.addEventListener('drop', (e) => {
     e.preventDefault();
     item.classList.remove('drag-over');
+    item.removeAttribute('draggable');
     const srcIdx = state.dragSrcIndex;
     const dstIdx = idx;
     if (srcIdx === null || srcIdx === dstIdx) return;
@@ -1077,6 +1100,19 @@ questionsList.addEventListener('click', (e) => {
   }
 });
 
+// Impedisci che il trascinamento dello slider avvii il drag & drop della domanda
+questionsList.addEventListener('pointerdown', (e) => {
+  if (e.target.closest('[data-role="image-blur-slider"]')) {
+    e.stopPropagation();
+  }
+});
+
+questionsList.addEventListener('mousedown', (e) => {
+  if (e.target.closest('[data-role="image-blur-slider"]')) {
+    e.stopPropagation();
+  }
+});
+
 questionsList.addEventListener('input', (e) => {
   const slider = e.target.closest('[data-role="image-blur-slider"]');
   if (slider) {
@@ -1084,7 +1120,7 @@ questionsList.addEventListener('input', (e) => {
     const val = Number(slider.value) || 0;
     if (state.questions[idx]?.image) {
       state.questions[idx].image.blur = val;
-      const card = slider.closest('.question-card');
+      const card = slider.closest('.question-item');
       const valLabel = card?.querySelector(`[data-role="image-blur-val"][data-q="${idx}"]`);
       if (valLabel) valLabel.textContent = `${val}%`;
       const preview = card?.querySelector(`[data-role="image-preview"][data-q="${idx}"]`);
@@ -1292,6 +1328,7 @@ const gameRepeatBtn   = document.getElementById('game-repeat-btn');
 const gameMinigameBtn = document.getElementById('game-minigame-btn');
 const gameSkipBtn     = document.getElementById('game-skip-btn');
 const gameRestartBtn  = document.getElementById('game-restart-btn');
+const gameEndFinalBtn = document.getElementById('game-end-final-btn');
 
 const gameLiveBlur    = document.getElementById('game-live-blur');
 const gameBlurSlider  = document.getElementById('game-blur-slider');
@@ -1475,6 +1512,7 @@ function openGame(quiz, type, { resume = false } = {}) {
   gameRepeatBtn.hidden = true;
   gameRepeatBtn.disabled = true;
   gameLiveBlur.hidden = true;
+  if (gameEndFinalBtn) gameEndFinalBtn.disabled = true;
   setGameProgress(0, 0);
 
   loadJoinInfo();
@@ -1815,6 +1853,7 @@ function connectGameSocket(quiz, type, { resume = false } = {}) {
     gameNextBtn.disabled = true;
     gameMinigameBtn.disabled = true;
     gameRestartBtn.disabled = false;
+    if (gameEndFinalBtn) gameEndFinalBtn.disabled = false;
     gamePauseBtn.hidden = true;
     gamePauseBtn.disabled = true;
     gameRepeatBtn.hidden = true;
@@ -1855,6 +1894,7 @@ function disconnectGameSocket() {
   gameRepeatBtn.hidden = true;
   gameRepeatBtn.disabled = true;
   gameLiveBlur.hidden = true;
+  if (gameEndFinalBtn) gameEndFinalBtn.disabled = true;
   if (gameSocket) {
     gameSocket.disconnect();
     gameSocket = null;
@@ -2036,10 +2076,11 @@ gameRestartBtn.addEventListener('click', () => {
     showGameBox(gameLobbyBox);
     gameStartBtn.disabled = false;
     gameRestartBtn.disabled = true;
+    if (gameEndFinalBtn) gameEndFinalBtn.disabled = true;
   });
 });
 
-document.getElementById('game-back-btn-2').addEventListener('click', () => {
+const onEndGameClick = () => {
   showModal({
     title: 'Termina partita',
     message: 'Vuoi davvero terminare la partita e tornare ai quiz? I giocatori collegati verranno disconnessi.',
@@ -2051,7 +2092,10 @@ document.getElementById('game-back-btn-2').addEventListener('click', () => {
       showView('dashboard');
     },
   });
-});
+};
+
+document.getElementById('game-back-btn-2').addEventListener('click', onEndGameClick);
+gameEndFinalBtn?.addEventListener('click', onEndGameClick);
 
 /* ═══════════════════════════════════════════════════════════════════════════
    UTILITY

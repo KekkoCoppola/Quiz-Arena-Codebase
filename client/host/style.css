@@ -1047,6 +1047,8 @@ button { cursor: pointer; background: none; border: 0; }
   width: 100%;
   accent-color: var(--indigo);
   cursor: pointer;
+  touch-action: pan-x;
+  user-select: none;
 }
 
 .game-live-blur {
@@ -1309,12 +1311,18 @@ button { cursor: pointer; background: none; border: 0; }
 .game-controls:not(:has(.btn-game:not([hidden]))) { display: none; }
 
 .btn-game { display: none; }
-.view-game[data-phase="lobby"]   #game-start-btn,
-.view-game[data-phase="results"] #game-next-btn,
-.view-game[data-phase="results"] #game-minigame-btn,
-.view-game[data-phase="final"]   #game-restart-btn { display: flex; }
+.view-game[data-phase="lobby"]    #game-start-btn,
+.view-game[data-phase="results"]  #game-next-btn,
+.view-game[data-phase="results"]  #game-minigame-btn,
+.view-game[data-phase="final"]    #game-restart-btn,
+.view-game[data-phase="final"]    #game-end-final-btn { display: flex; }
 /* Durante un round, solo se è un minigioco: `app.js` lo toglie dal `hidden`. */
 .view-game[data-phase="question"] #game-skip-btn:not([hidden]) { display: flex; }
+/* Pausa tempo durante la domanda */
+.view-game[data-phase="question"] #game-pause-btn:not([hidden]) { display: flex; }
+/* Ripeti domanda durante la domanda o dalla schermata dei risultati */
+.view-game[data-phase="question"] #game-repeat-btn:not([hidden]),
+.view-game[data-phase="results"]  #game-repeat-btn:not([hidden]) { display: flex; }
 
 /* Il bottone principale scende in fondo, sotto il pollice. */
 #game-minigame-btn { order: -1; }
