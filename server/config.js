@@ -89,13 +89,13 @@ const config = {
   },
 
   /**
-   * Il nome della sala da scrivere sotto il QR (es. "quizzata.gioca"), più
-   * facile da dettare e da digitare dell'IP. Lo risolve il DNS dell'access
-   * point, che configura deploy/setup-pi.sh: fuori da quella rete non esiste,
-   * quindi senza questa variabile la sala scrive l'indirizzo IP. Il QR resta
-   * sempre sull'IP, che non dipende dal DNS del telefono.
+   * Il nome della sala per il QR e l'indirizzo di collegamento dei giocatori.
+   * Lo risolve il DNS dell'access point (deploy/setup-pi.sh: address=/quizzata.gioca/...).
+   * Default: "quizzata.gioca".
    */
-  joinHost: (process.env.JOIN_HOST || '').trim(),
+  joinHost: process.env.JOIN_HOST !== undefined
+    ? process.env.JOIN_HOST.trim()
+    : 'quizzata.gioca',
 
   /**
    * Licenza annuale (vedi server/license.js): accesa solo con

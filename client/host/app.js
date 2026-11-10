@@ -1407,7 +1407,7 @@ async function loadJoinInfo() {
   try {
     const res = await apiFetch('/game/join-info');
     const url = res.data.url;
-    gameJoinUrl.textContent = url;
+    gameJoinUrl.textContent = res.data.label || url;
     const qr = qrcode(0, 'M');
     qr.addData(url);
     qr.make();

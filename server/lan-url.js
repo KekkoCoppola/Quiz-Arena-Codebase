@@ -14,12 +14,16 @@ const os = require('node:os');
 const config = require('./config');
 
 /**
- * Primo indirizzo IPv4 non di loopback fra le interfacce di rete.
- * `localhost` come ripiego: inutile per un telefono, ma è meglio mostrare un
- * URL sbagliato che non mostrare nulla davanti a una sala che aspetta.
- * @returns {string} URL completo, es. "http://192.168.4.1:3000"
+ * Primo indirizzo a cui i giocatori si collegano: se `config.joinHost` è impostato
+ * (default "quizzata.gioca"), usa il nome di dominio risolto dal DNS locale.
+ * Altrimenti ripiega sul primo IPv4 non di loopback.
+ * @returns {string} URL completo, es. "http://quizzata.gioca" o "http://192.168.4.1:3000"
  */
 function lanJoinUrl() {
+  if (config.joinHost) {
+    const port = config.port === 80 ? '' : `:${config.port}`;
+    return `http://${config.joinHost}${port}`;
+  }
   let ip = null;
   for (const addresses of Object.values(os.networkInterfaces())) {
     for (const net of addresses ?? []) {
@@ -38,9 +42,7 @@ function lanJoinUrl() {
  * @returns {string} es. "http://quizzata.gioca" o "http://192.168.4.1:3000"
  */
 function displayJoinUrl() {
-  if (!config.joinHost) return lanJoinUrl();
-  const port = config.port === 80 ? '' : `:${config.port}`;
-  return `http://${config.joinHost}${port}`;
+  return lanJoinUrl();
 }
 
 module.exports = { lanJoinUrl, displayJoinUrl };

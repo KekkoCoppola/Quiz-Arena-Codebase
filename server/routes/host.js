@@ -456,7 +456,7 @@ router.get('/preloaded-quizzes/:id', verifyToken, (req, res) => {
  * la versione pubblica usata dalla vista sala, che non ha un token.
  */
 router.get('/game/join-info', verifyToken, (_req, res) => {
-  res.json({ success: true, data: { url: lanJoinUrl() } });
+  res.json({ success: true, data: { url: lanJoinUrl(), label: displayJoinUrl() } });
 });
 
 module.exports = router;
