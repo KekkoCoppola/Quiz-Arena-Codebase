@@ -388,6 +388,13 @@ body {
 .answer-stack { display: flex; flex-direction: column; gap: 12px; }
 
 /* Avviso durante la ruota di estrazione del minigioco (anti-spoiler) */
+/* Minigiochi a carte private: il posto della carta prende tutta la riga. */
+.hand-slot {
+  grid-column: 1 / -1;
+  display: flex; justify-content: center;
+  font-weight: 700; text-align: center;
+}
+
 .minigame-extracting-notice {
   display: flex;
   flex-direction: column;

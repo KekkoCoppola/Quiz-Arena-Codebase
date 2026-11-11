@@ -661,6 +661,63 @@ async function run() {
 
     await emitAck(host, 'host:end-game', null);
 
+    // 12. Minigiochi a carte private (La Coppia Scoppiata)
+    console.log(`
+  🃏  Fase 12: Carte private`);
+
+    await emitAck(host, 'host:create-game', { quizId, quizType: 'preloaded' });
+    const pa = ioc(URL); const pb = ioc(URL); const sala12 = ioc(URL);
+    sockets.push(pa, pb, sala12);
+    await Promise.all([once(pa, 'connect'), once(pb, 'connect'), once(sala12, 'connect')]);
+    const ja = await emitAck(pa, 'player:join', { nickname: 'Cuori' });
+    const jb = await emitAck(pb, 'player:join', { nickname: 'Picche' });
+    const q12Promise = once(pa, 'game:question');
+    await emitAck(host, 'host:start-game', null);
+    const q12 = await q12Promise;
+    const r12Promise = once(host, 'game:results');
+    await emitAck(pa, 'player:answer', { optionIndex: 0, roundIndex: q12.index });
+    await emitAck(pb, 'player:answer', { optionIndex: 0, roundIndex: q12.index });
+    await r12Promise;
+
+    const handA = once(pa, 'game:hand');
+    const handB = once(pb, 'game:hand');
+    const salaHand = onceOrNull(sala12, 'game:hand', 800);
+    const coppiaQPromise = once(sala12, 'game:question');
+    const ins12 = await emitAck(host, 'host:insert-minigame', { type: 'coppia_scoppiata' });
+    const coppiaQ = await coppiaQPromise;
+    const [ha, hb, hs] = await Promise.all([handA, handB, salaHand]);
+    assert(ins12.ok === true && coppiaQ.privateHand === true && !('hands' in coppiaQ) && !('hand' in coppiaQ),
+      'game:question della Coppia: privateHand, nessuna carta nel payload pubblico');
+    assert(ha.card && hb.card && ha.roundIndex === coppiaQ.index && ha.card.figure === hb.card.figure
+      && ha.card.color !== hb.card.color, 'game:hand: ogni telefono riceve la sua carta, stessa figura e colori diversi');
+    assert(hs === null, 'game:hand: la sala (socket senza giocatore) non riceve nessuna carta');
+
+    pb.disconnect();
+    await sleep(200);
+    const pb2 = ioc(URL); sockets.push(pb2);
+    await once(pb2, 'connect');
+    const rejoin12 = await emitAck(pb2, 'player:rejoin', { token: jb.token });
+    assert(rejoin12.ok === true && JSON.stringify(rejoin12.question?.hand) === JSON.stringify(hb.card)
+      && rejoin12.question.alreadyAnswered === false,
+      'player:rejoin a metà round: stessa carta, risposta non ancora data');
+
+    const noGroup = onceOrNull(sala12, 'game:groups-completed', 600);
+    await emitAck(pa, 'player:answer', { optionIndex: hb.card.color, roundIndex: coppiaQ.index });
+    assert(await noGroup === null, 'una sola risposta giusta: nessun gruppo completato');
+
+
+    const groupsPromise = once(sala12, 'game:groups-completed');
+    const results12Promise = once(sala12, 'game:results');
+    await emitAck(pb2, 'player:answer', { optionIndex: ha.card.color, roundIndex: coppiaQ.index });
+    const groups12 = await groupsPromise;
+    assert(JSON.stringify(groups12.groups) === JSON.stringify([[ja.playerId, jb.playerId].sort()])
+      && groups12.roundIndex === coppiaQ.index, 'game:groups-completed: la coppia arriva anche alla sala');
+    const results12 = await results12Promise;
+    assert(results12.answers.every((x) => x.outcome === 'complete' && x.pointsAwarded === 1000)
+      && results12.reveal?.groups?.length === 1, 'game:results: coppia completa a 1000 e reveal delle carte');
+
+    await emitAck(host, 'host:end-game', null);
+
   } finally {
     for (const s of sockets) s.disconnect();
     server.kill();

@@ -720,6 +720,193 @@
   }
 }
 
+/* ═══ La Coppia Scoppiata ═══════════════════════════════════════════════════
+   Telefono: la carta segreta (coperta, si gira), il bottone di solo testo e i
+   pallini dei colori. Sala: timer gigante, striscia dei salvati, rivelazione.
+   ------------------------------------------------------------------------- */
+
+.mg-coppia-scoppiata-hand {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  width: 100%;
+}
+
+/* La carta: due facce e una rotazione 3D. 432×578 è la misura dei disegni. */
+.mg-coppia-scoppiata-card {
+  width: min(56vw, 34vh, 240px);
+  aspect-ratio: 432 / 578;
+  perspective: 900px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mg-coppia-scoppiata-card-inner {
+  position: relative; width: 100%; height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 450ms cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+.mg-coppia-scoppiata-card.is-up .mg-coppia-scoppiata-card-inner { transform: rotateY(180deg); }
+.mg-coppia-scoppiata-face {
+  position: absolute; inset: 0;
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+}
+.mg-coppia-scoppiata-face img { display: block; width: 100%; height: 100%; user-select: none; }
+/* Ombra piena dietro la carta (segue la sagoma: i bordi del disegno sono trasparenti),
+   così la carta bianca si stacca dallo sfondo chiaro. */
+.mg-coppia-scoppiata-face img { filter: drop-shadow(4px 4px 0 #1c1c26); }
+.mg-coppia-scoppiata-card.is-small .mg-coppia-scoppiata-face img { filter: drop-shadow(3px 3px 0 #1c1c26); }
+.mg-coppia-scoppiata-face.is-front { transform: rotateY(180deg); }
+.mg-coppia-scoppiata-figure {
+  position: absolute; inset: 22% 14%;
+  display: grid; place-items: center;
+}
+.mg-coppia-scoppiata-figure svg { width: 100%; height: 100%; }
+
+/* Arriva "sul tavolo": scivola dall'alto a destra, ruotata, e si posa. */
+.mg-coppia-scoppiata-card.is-dealt { animation: mg-coppia-scoppiata-deal 650ms cubic-bezier(0.2, 0.8, 0.3, 1.1) both; }
+@keyframes mg-coppia-scoppiata-deal {
+  from { transform: translate(45vw, -55vh) rotate(28deg) scale(0.8); opacity: 0; }
+  50%  { opacity: 1; }
+  to   { transform: none; }
+}
+
+/* "Mostra la carta": solo testo, niente sfondo né contenitore. */
+.mg-coppia-scoppiata-toggle {
+  background: none; border: 0; box-shadow: none; border-radius: 0;
+  padding: 6px 10px;
+  font: inherit; font-size: 18px; font-weight: 900;
+  color: var(--ink, #201b0d);
+  text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 6px;
+  cursor: pointer;
+}
+
+/* I pallini dei colori: il bottone c'è (answer-btn, per il blocco dopo la
+   risposta), ma senza il suo aspetto da carta. */
+.mg-coppia-scoppiata-dots {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;
+  width: 100%;
+}
+.mg-coppia-scoppiata-dots .answer-btn.mg-coppia-scoppiata-dot {
+  flex-direction: column; align-items: center; justify-content: flex-start; gap: 6px;
+  padding: 4px 0; min-height: 0;
+  background: none; border: 0; box-shadow: none;
+  font-size: 13px; font-weight: 800; text-align: center; color: var(--ink, #201b0d);
+}
+.mg-coppia-scoppiata-swatch {
+  width: 48px; height: 48px; border-radius: 9999px;
+  border: 4px solid var(--ink, #201b0d);
+  box-shadow: 3px 3px 0 var(--ink, #201b0d);
+}
+.mg-coppia-scoppiata-dot:active .mg-coppia-scoppiata-swatch { transform: translate(2px, 2px); box-shadow: none; }
+.answer-locked .mg-coppia-scoppiata-dot.answer-chosen .mg-coppia-scoppiata-swatch {
+  outline: 4px solid var(--ink, #201b0d); outline-offset: 3px;
+}
+
+/* ── Sala: la bomba, la striscia dei salvati ─────────────────────────────── */
+
+.mg-coppia-scoppiata-stage {
+  display: grid; grid-template-rows: auto 1fr auto;
+  align-items: center; justify-items: center; gap: 12px;
+  width: 100%; height: 100%;
+}
+.mg-coppia-scoppiata-phrase { margin: 0; font-weight: 900; text-align: center; line-height: 1.15; }
+
+.mg-coppia-scoppiata-bomb { position: relative; aspect-ratio: 220 / 180; height: 160px; }
+.mg-coppia-scoppiata-bomb svg { width: 100%; height: 100%; overflow: visible; }
+.mg-coppia-scoppiata-body { fill: #443be0; stroke: #1c1c26; stroke-width: 7; transition: fill 300ms; }
+.mg-coppia-scoppiata-cap { fill: #1c1c26; }
+.mg-coppia-scoppiata-shine { fill: #fff; opacity: 0.35; }
+.mg-coppia-scoppiata-fuse-bg,
+.mg-coppia-scoppiata-fuse { fill: none; stroke: #1c1c26; stroke-width: 7; stroke-linecap: round; }
+.mg-coppia-scoppiata-fuse-bg { opacity: 0.12; stroke-dasharray: 3 7; }
+.mg-coppia-scoppiata-spark circle { fill: #ffe500; stroke: #1c1c26; stroke-width: 3; }
+.mg-coppia-scoppiata-spark path { stroke: #f28c28; stroke-width: 4; stroke-linecap: round; animation: mg-coppia-scoppiata-flicker 180ms steps(2) infinite; }
+.mg-coppia-scoppiata-time {
+  position: absolute; left: 45.45%; top: 60%; transform: translate(-50%, -50%);
+  color: #fff; font-weight: 900; font-size: 34px; line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.mg-coppia-scoppiata-bomb.is-danger { animation: mg-coppia-scoppiata-shake 420ms ease-in-out infinite; }
+.mg-coppia-scoppiata-bomb.is-danger .mg-coppia-scoppiata-body,
+.mg-coppia-scoppiata-bomb.is-out .mg-coppia-scoppiata-body { fill: #e5383b; }
+.mg-coppia-scoppiata-bomb.is-out .mg-coppia-scoppiata-spark { display: none; }
+
+@keyframes mg-coppia-scoppiata-flicker { 50% { opacity: 0.2; } }
+@keyframes mg-coppia-scoppiata-shake {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-3deg) translateX(-2px); }
+  75% { transform: rotate(3deg) translateX(2px); }
+}
+@keyframes mg-coppia-scoppiata-pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  70% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+.mg-coppia-scoppiata-strip { display: flex; align-items: center; gap: 0.6em; width: 94%; font-size: 15px; }
+.mg-coppia-scoppiata-strip-label {
+  flex: none; color: #2d25a8; font-weight: 900;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.mg-coppia-scoppiata-chips {
+  display: flex; align-items: center; gap: 0.5em;
+  flex: 1; min-width: 0; min-height: 2.6em; overflow: hidden; padding: 4px 6px 6px 2px;
+  /* Riferimento di offsetLeft per fitStrip: i chip si misurano dalla striscia. */
+  position: relative;
+}
+.mg-coppia-scoppiata-chip,
+.mg-coppia-scoppiata-more {
+  flex: none; display: inline-flex; align-items: center; gap: 0.4em;
+  background: #fff; border: 3px solid #1c1c26; border-radius: 9999px;
+  box-shadow: 3px 3px 0 #1c1c26;
+  padding: 0.15em 0.8em 0.15em 0.35em; white-space: nowrap; font-weight: 800;
+}
+.mg-coppia-scoppiata-more { padding: 0.15em 0.7em; }
+.mg-coppia-scoppiata-chip.is-new { background: #e9f6ea; animation: mg-coppia-scoppiata-pop 450ms cubic-bezier(0.3, 1.6, 0.5, 1) both; }
+.mg-coppia-scoppiata-chip[hidden], .mg-coppia-scoppiata-more[hidden] { display: none; }
+.mg-coppia-scoppiata-faces { display: inline-flex; font-size: 1.2em; }
+.mg-coppia-scoppiata-face-mini { display: inline-block; }
+
+/* ── Sala: la rivelazione, carte girate gruppo per gruppo ──────────────────── */
+
+.mg-coppia-scoppiata-board {
+  display: grid; grid-template-columns: repeat(var(--cols, 3), 1fr);
+  align-content: center; gap: 14px 18px; width: 100%; height: 100%;
+  box-sizing: border-box; padding: 8px;
+}
+.mg-coppia-scoppiata-tile {
+  display: flex; flex-direction: column; align-items: center; gap: 0.3em;
+  font-size: 14px; font-weight: 800; text-align: center;
+}
+.mg-coppia-scoppiata-tile-cards { display: flex; gap: 0.4em; }
+.mg-coppia-scoppiata-card.is-small { width: auto; height: 90px; cursor: default; }
+.mg-coppia-scoppiata-tile-names { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mg-coppia-scoppiata-verdict { font-weight: 900; opacity: 0; }
+.mg-coppia-scoppiata-tile.is-shown .mg-coppia-scoppiata-verdict { opacity: 1; animation: mg-coppia-scoppiata-pop 400ms cubic-bezier(0.3, 1.6, 0.5, 1) both; }
+.mg-coppia-scoppiata-tile.is-complete .mg-coppia-scoppiata-verdict { color: #2e7d32; }
+.mg-coppia-scoppiata-tile.is-half .mg-coppia-scoppiata-verdict { color: #c6853a; }
+.mg-coppia-scoppiata-tile.is-burst .mg-coppia-scoppiata-verdict { color: #e5383b; }
+.mg-coppia-scoppiata-tile.is-burst.is-shown .mg-coppia-scoppiata-tile-cards { animation: mg-coppia-scoppiata-shake 380ms ease-in-out 2; }
+
+/* Sul palco della sala tutto si misura sul palco, non sulla finestra. */
+@container mg-stage (min-width: 0px) {
+  .mg-coppia-scoppiata-stage { width: 100cqw; height: 100cqh; gap: 2cqh; }
+  .mg-coppia-scoppiata-phrase { font-size: clamp(18px, 6cqh, 72px); }
+  .mg-coppia-scoppiata-bomb { height: 58cqh; }
+  .mg-coppia-scoppiata-time { font-size: 13cqh; }
+  .mg-coppia-scoppiata-strip { font-size: clamp(13px, 3.4cqh, 34px); }
+  .mg-coppia-scoppiata-board { width: 100cqw; height: 100cqh; gap: 2.5cqh 2cqw; padding: 2cqh 2cqw; }
+  .mg-coppia-scoppiata-tile { font-size: clamp(12px, calc(5cqh / var(--rows, 1) + 1cqh), 30px); }
+  .mg-coppia-scoppiata-card.is-small { height: calc(62cqh / var(--rows, 1)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mg-coppia-scoppiata-card-inner { transition: none; }
+  .mg-coppia-scoppiata-card.is-dealt { animation: none; }
+  .mg-coppia-scoppiata-bomb.is-danger,
+  .mg-coppia-scoppiata-chip.is-new,
+  .mg-coppia-scoppiata-tile.is-burst.is-shown .mg-coppia-scoppiata-tile-cards { animation: none; }
+  .mg-coppia-scoppiata-spark path { animation: none; }
+}
+
 /* ─── prossimo minigioco ────────────────────────────────────────────────────
    Aggiungi qui sotto la sua sezione, con lo stesso schema di intestazione.
    ------------------------------------------------------------------------- */

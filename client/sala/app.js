@@ -91,6 +91,9 @@ const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
 let currentOptions  = [];
 let currentMinigame = null;
+// Il round in onda: gli eventi che arrivano a round già cambiato (es. un
+// gruppo completato un attimo prima di un salto dell'host) si scartano.
+let currentRoundIndex = null;
 let countdownTimer  = null;
 // Conto alla rovescia d'apertura ("3, 2, 1"): il giro che lo aggiorna e
 // l'attesa che toglie il "VIA!" dallo schermo.
@@ -1217,6 +1220,7 @@ function renderQuestion(q, { fromStart = false } = {}) {
   }
   const token = newPhase();
   currentOptions  = q.options ?? [];
+  currentRoundIndex = q.index;
   const isMinigame = q.kind === 'minigame';
   currentMinigame  = isMinigame ? Minigames.get(q.minigameType) : null;
 
@@ -2416,6 +2420,19 @@ socket.on('game:question', (q) => renderQuestion(q));
  * tutti quelli che hanno già scelto: mai cosa. Conta solo se il round in corso
  * ha la colonna dei giocatori.
  */
+/**
+ * Minigiochi a carte private: un gruppo si è appena completato. Lo racconta il
+ * minigioco (es. la striscia dei "salvati"), se sa come; la sala non sa chi
+ * fosse in coppia con chi, e non le serve.
+ */
+socket.on('game:groups-completed', ({ roundIndex, groups } = {}) => {
+  if (roundIndex !== currentRoundIndex || !Array.isArray(groups)) return;
+  currentMinigame?.sala.onGroupsCompleted?.(minigameEls(), groups, {
+    players: currentPlayers,
+    sfx: minigameSfx(currentMinigame.type),
+  });
+});
+
 socket.on('game:answer-count', ({ playerIds } = {}) => {
   if (!rosterLive || !Array.isArray(playerIds)) return;
   const before = new Set(rosterAnswered);
@@ -2498,10 +2515,12 @@ socket.on('game:blur-update', ({ blur }) => {
 
 socket.on('game:timer-paused', ({ remainingMs }) => {
   pauseCountdown(remainingMs);
+  currentMinigame?.sala.onTimerPaused?.(remainingMs);
 });
 
 socket.on('game:timer-resumed', ({ endsAt, serverNow }) => {
   resumeCountdown(endsAt, serverNow);
+  currentMinigame?.sala.onTimerResumed?.(ServerClock.localDeadline(endsAt, serverNow));
 });
 
 socket.on('game:ended', () => {

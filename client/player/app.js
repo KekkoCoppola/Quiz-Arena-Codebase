@@ -41,6 +41,11 @@ let currentRoundOptions = [];
 // (/shared/minigames/). Null durante una domanda normale. Questo file non sa
 // quali minigiochi esistano: chiede al registry e delega.
 let currentMinigame = null;
+// Minigiochi a carte private: la carta del round (`game:hand` o rientro) e il
+// posto dove disegnarla. La carta può arrivare prima che il posto esista (durante
+// il sipario): si tiene da parte e si disegna appena il posto c'è.
+let pendingHand = null;
+let handSlot = null;
 // Cresce a ogni nuova fase (domanda, risultati, reset, fine): un "trattieni" del
 // reveal minigioco ancora in corso si accorge di essere superato e si ferma.
 let revealToken = 0;
@@ -449,8 +454,17 @@ function renderMinigameChoices(q, alreadyAnswered = false, serverNow = q.serverN
     answerButtons.classList.add(currentMinigame.playerLayoutClass);
   }
   answerButtons.innerHTML = '';
+  handSlot = null;
 
-  q.options.forEach((option, i) => {
+  // Carte private: al posto dei bottoni, la carta segreta del giocatore. Il
+  // minigioco la disegna con i propri comandi per rispondere.
+  if (isMinigame && q.privateHand && currentMinigame?.player.renderHand) {
+    handSlot = document.createElement('div');
+    handSlot.className = 'hand-slot';
+    handSlot.textContent = 'La tua carta sta arrivando…';
+    answerButtons.appendChild(handSlot);
+    mountHand(alreadyAnswered);
+  } else q.options.forEach((option, i) => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.addEventListener('click', () => submitAnswer(i, btn));
@@ -519,6 +533,16 @@ questionMore.addEventListener('click', () => {
   if (!open) questionText.scrollTop = 0;
   questionMore.textContent = open ? 'Chiudi' : 'Leggi tutta';
 });
+
+/** Disegna la carta del round corrente, se è già arrivata e c'è dove metterla. */
+function mountHand(answered = false) {
+  if (!handSlot || !pendingHand || pendingHand.roundIndex !== currentRoundIndex) return;
+  currentMinigame.player.renderHand(handSlot, pendingHand.card, {
+    options: currentRoundOptions,
+    answered,
+    submit: (i, el) => submitAnswer(i, el),
+  });
+}
 
 function submitAnswer(optionIndex, btn) {
   // La risposta porta il round a cui appartiene: se l'host salta il round
@@ -790,6 +814,15 @@ socket.on('game:question', (q) => {
   renderQuestion(q);
 });
 
+// La mia carta segreta (minigiochi a carte private). Arriva subito dopo la
+// domanda, di solito a sipario ancora chiuso; una carta di un round già
+// passato (l'host ha saltato) non si disegna.
+socket.on('game:hand', ({ roundIndex, card }) => {
+  if (!playerId) return;
+  pendingHand = { roundIndex, card };
+  if (roundIndex === currentRoundIndex) mountHand(false);
+});
+
 socket.on('game:timer-paused', ({ remainingMs }) => {
   if (!playerId) return;
   pauseCountdown(remainingMs);
@@ -920,6 +953,8 @@ function tryRejoin(session) {
       }
       show('lobby');
     } else if (res.state === 'QUESTION' && res.question) {
+      // Rientro a metà round: la stessa carta di prima, mai ridistribuita.
+      if (res.question.hand) pendingHand = { roundIndex: res.question.index, card: res.question.hand };
       renderQuestion(res.question, res.question.alreadyAnswered);
     } else if (res.state === 'FINAL_LEADERBOARD') {
       // Il server sa se la sala ha già finito: chi rientra a metà cerimonia

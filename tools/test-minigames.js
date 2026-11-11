@@ -210,6 +210,195 @@ assertThrows(
   'rifiuta un machineChoice fuori dal range delle opzioni'
 );
 
+// ─── Contratto: carte private ────────────────────────────────────────────────────
+
+section('Contratto: carte private (deal, progress, botChoice, minPlayers)');
+
+/** Una carta per giocatore, il tavolo ricorda solo gli id. */
+function fakeDeal(players) {
+  const hands = {};
+  players.forEach((p, i) => { hands[p.id] = { n: i }; });
+  return { hands, table: { ids: players.map((p) => p.id) } };
+}
+
+/** Modulo a carte private minimo e valido. */
+function handDef(overrides = {}) {
+  return validDef({
+    deal: fakeDeal,
+    progress: () => [],
+    resolve(_rnd, _ctx) {
+      return { machineChoice: null, outcomeFor: () => 'win', reveal: {} };
+    },
+    ...overrides,
+  });
+}
+
+const tryValidate = (def) => () => validateDefinition(def, 'finto-gioco.js', 'finto_gioco');
+
+assertThrows(tryValidate(handDef({ deal: 'x' })), MinigameContractError,
+  'deal deve essere una funzione');
+assertThrows(tryValidate(handDef({ progress: undefined })), MinigameContractError,
+  'un modulo con deal deve avere anche progress');
+assertThrows(tryValidate(validDef({ minPlayers: 0 })), MinigameContractError,
+  'minPlayers deve essere un intero >= 1');
+{
+  let threw = false;
+  try { validateDefinition(validDef({ minPlayers: 2 }), 'finto-gioco.js', 'finto_gioco'); } catch { threw = true; }
+  assert(!threw, 'minPlayers: 2 è accettato');
+}
+{
+  let threw = null;
+  try { validateDefinition(handDef(), 'finto-gioco.js', 'finto_gioco'); } catch (err) { threw = err; }
+  assert(threw === null, `un modulo a carte private valido (machineChoice: null) passa${threw ? ` — ${threw.message}` : ''}`);
+}
+assertThrows(
+  tryValidate(handDef({
+    deal(players) {
+      const { hands, table } = fakeDeal(players);
+      delete hands[players[0].id];
+      return { hands, table };
+    },
+  })),
+  MinigameContractError,
+  'deal che dimentica un giocatore viene rifiutato'
+);
+assertThrows(tryValidate(handDef({ botChoice: () => 99 })), MinigameContractError,
+  'botChoice fuori dal range delle opzioni viene rifiutato');
+assertThrows(tryValidate(handDef({ progress: () => 'nope' })), MinigameContractError,
+  'progress deve restituire un array');
+
+// ─── Coppia Scoppiata: regole ────────────────────────────────────────────────────
+
+section('Coppia Scoppiata: regole');
+
+/** Generatore pseudo-casuale deterministico (LCG), per le prove statistiche. */
+function lcg(seed = 42) {
+  let s = seed >>> 0;
+  return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 2 ** 32; };
+}
+
+let coppia = null;
+try {
+  coppia = require('../server/minigames/coppia-scoppiata');
+} catch (err) {
+  assert(false, `server/minigames/coppia-scoppiata.js si carica (${err.message.split('\n')[0]})`);
+}
+
+if (coppia) {
+  const roster = (nConn, nDisc = 0) => [
+    ...Array.from({ length: nConn }, (_, i) => ({ id: `c${i}`, connected: true })),
+    ...Array.from({ length: nDisc }, (_, i) => ({ id: `d${i}`, connected: false })),
+  ];
+  const sizes = (table) => table.groups.map((g) => g.members.length).sort((a, b) => a - b);
+  const colorsDistinct = (table) => table.groups.every((g) => {
+    const cs = g.members.map((id) => table.hands[id].color);
+    return new Set(cs).size === cs.length;
+  });
+  const sameFigure = (table) => table.groups.every((g) =>
+    g.members.every((id) => table.hands[id].figure === g.figure));
+
+  assert(coppia.type === 'coppia_scoppiata' && coppia.defaultTimeLimitS === 90 && coppia.minPlayers === 2,
+    'tipo, durata 90 s e minPlayers 2');
+  assert(JSON.stringify(coppia.points) === JSON.stringify({ complete: 1000, half: 300, miss: 0 }),
+    'punti: complete 1000, half 300, miss 0');
+  assert(coppia.FIGURES.length === 16 && coppia.options.length === 6, '16 figure, 6 colori');
+
+  {
+    const { hands, table } = coppia.deal(roster(2), lcg(1));
+    assert(table.groups.length === 1 && hands.c0.figure === hands.c1.figure && hands.c0.color !== hands.c1.color,
+      '2 giocatori: una coppia, stessa figura, colori diversi');
+  }
+  {
+    const { table } = coppia.deal(roster(7), lcg(2));
+    assert(JSON.stringify(sizes(table)) === '[2,2,3]' && sameFigure(table) && colorsDistinct(table),
+      '7 giocatori: due coppie e un trio');
+  }
+  {
+    const { table } = coppia.deal(roster(33), lcg(3));
+    const figs = new Set(table.groups.map((g) => g.figure));
+    assert(table.groups.length === 16 && figs.size === 16, '33 giocatori: 16 gruppi, figure tutte diverse');
+  }
+  {
+    const { table } = coppia.deal(roster(40), lcg(4));
+    const s = sizes(table);
+    assert(table.groups.length === 16 && s[0] >= 2 && s[s.length - 1] <= 3 && colorsDistinct(table),
+      '40 giocatori: 16 gruppi da 2-3, colori distinti nel gruppo');
+  }
+  {
+    const players = roster(100);
+    const { hands, table } = coppia.deal(players, lcg(5));
+    assert(players.every((p) => hands[p.id]) && sizes(table).every((n) => n <= 6) && colorsDistinct(table),
+      '100 giocatori: tutti hanno una carta, gruppi <= 6, colori distinti');
+  }
+  {
+    const { table } = coppia.deal(roster(6, 2), lcg(6));
+    const isDisc = (id) => id.startsWith('d');
+    const discGroup = table.groups.find((g) => g.members.every(isDisc));
+    const strandedConnected = table.groups.some((g) => {
+      const conn = g.members.filter((id) => !isDisc(id));
+      return conn.length === 1 && g.members.length > 1;
+    });
+    assert(discGroup && discGroup.members.length === 2 && !strandedConnected,
+      '6 connessi + 2 scollegati: gli scollegati in coppia fra loro, nessun connesso solo con assenti');
+  }
+  {
+    const { table } = coppia.deal(roster(6, 1), lcg(7));
+    const g = table.groups.find((x) => x.members.includes('d0'));
+    assert(g.members.filter((id) => id.startsWith('c')).length >= 2,
+      '6 connessi + 1 scollegato: lo scollegato sta con almeno 2 connessi');
+  }
+  {
+    const a = JSON.stringify(coppia.deal(roster(9, 3), lcg(8)));
+    const b = JSON.stringify(coppia.deal(roster(9, 3), lcg(8)));
+    assert(a === b, 'stesso rnd, stessa distribuzione');
+  }
+
+  // Correttezza, progress e resolve su un tavolo costruito a mano:
+  // coppia a/b (gatto rosso, gatto blu), trio x/y/z (mela verde, gialla, viola).
+  const hands = {
+    a: { figure: 'gatto', color: 0 }, b: { figure: 'gatto', color: 1 },
+    x: { figure: 'mela', color: 2 }, y: { figure: 'mela', color: 3 }, z: { figure: 'mela', color: 4 },
+  };
+  const table = { hands, groups: [
+    { figure: 'gatto', members: ['a', 'b'] },
+    { figure: 'mela', members: ['x', 'y', 'z'] },
+  ] };
+  const all = new Set(Object.keys(hands));
+
+  assert(JSON.stringify(coppia.progress(table, new Map([['a', 1], ['b', 0]]), all)) === '[["a","b"]]',
+    'progress: coppia con risposte incrociate giuste è completa');
+  assert(coppia.progress(table, new Map([['a', 1], ['b', 2]]), all).length === 0,
+    'progress: una sola giusta non completa la coppia');
+  assert(JSON.stringify(coppia.progress(table, new Map([['x', 4], ['y', 2]]), new Set(['a', 'b', 'x', 'y'])))
+    === '[["x","y"]]', 'progress: trio con un assente, gli altri due giusti → completo');
+  assert(coppia.progress(table, new Map([['a', 1]]), new Set(['a'])).length === 0,
+    'progress: un gruppo con un solo presente non è mai completo');
+
+  {
+    const answers = new Map([['a', 1], ['b', 0], ['x', 3], ['y', 2], ['z', 4]]);
+    const res = coppia.resolve(lcg(9), { table, answers, completed: new Set(['a', 'b']) });
+    assert(res.machineChoice === null, 'resolve: machineChoice null');
+    assert(res.outcomeFor(1, 'a') === 'complete' && res.outcomeFor(0, 'b') === 'complete',
+      'resolve: membri di un gruppo completato → complete');
+    assert(res.outcomeFor(3, 'x') === 'half', 'resolve: giusta ma gruppo non completo → half');
+    assert(res.outcomeFor(4, 'z') === 'miss', 'resolve: il proprio colore → miss');
+    assert(res.outcomeFor(0, 'x') === 'miss', 'resolve: colore di un\'altra figura → miss');
+    const zRow = res.reveal.groups.find((g) => g.figure === 'mela').members.find((m) => m.playerId === 'z');
+    assert(zRow && zRow.color === 4, 'reveal: ogni membro col suo colore');
+  }
+  {
+    const rnd = lcg(10);
+    let partner = 0; let own = 0;
+    for (let i = 0; i < 1000; i++) {
+      const c = coppia.botChoice(table, 'x', rnd);
+      if (c === 3 || c === 4) partner++;
+      if (c === 2) own++;
+    }
+    assert(partner >= 600 && partner <= 860 && own === 0,
+      `botChoice: ~70% colori di un compagno (${partner}/1000), mai il proprio`);
+  }
+}
+
 // ─── Shuffle bag ─────────────────────────────────────────────────────────────────
 
 section('Shuffle bag — estrazione casuale con varietà garantita');
@@ -369,6 +558,36 @@ section('Registry di presentazione lato client, caricato senza DOM');
     Error,
     'register() rifiuta una presentazione senza "type"'
   );
+}
+
+section('Presentazione della Coppia Scoppiata');
+{
+  const Minigames = require('../client/shared/minigames');
+  require('../client/shared/minigames/morra-cinese');
+  let loaded = true;
+  try { require('../client/shared/minigames/coppia-scoppiata'); } catch (err) {
+    loaded = false;
+    assert(false, `client/shared/minigames/coppia-scoppiata.js si carica (${err.message.split('\n')[0]})`);
+  }
+  if (loaded) {
+    const pres = Minigames.get('coppia_scoppiata');
+    assert(Minigames.has('coppia_scoppiata'), 'registrata nel registry di presentazione');
+    assert(typeof pres.player.renderHand === 'function', 'player.renderHand è una funzione');
+    assert(Minigames.get('morra_cinese').player.renderHand === null, 'la Morra non ha renderHand (default null)');
+    assert(Minigames.get('morra_cinese').sala.onGroupsCompleted === null, 'la Morra non ha sala.onGroupsCompleted (default null)');
+    assert(Array.isArray(pres.COLORS) && pres.COLORS.length === get('coppia_scoppiata').options.length,
+      'un colore esadecimale per ogni opzione del modulo server');
+    assert(pres.salaOptions === false, 'in sala niente carte delle opzioni');
+    assert(typeof pres.sala.onTimerPaused === 'function' && typeof pres.sala.onTimerResumed === 'function',
+      'la bomba ascolta pausa e ripresa del timer');
+    assert(Minigames.get('morra_cinese').sala.onTimerPaused === null, 'la Morra non ha onTimerPaused (default null)');
+    const t = { endsAt: 10000, pausedLeft: null };
+    assert(pres._remaining(t, 4000) === 6000, 'tempo che resta: scadenza meno adesso');
+    t.pausedLeft = 6000;
+    assert(pres._remaining(t, 9000) === 6000, 'in pausa il tempo resta fermo');
+    t.pausedLeft = null; t.endsAt = 15000;
+    assert(pres._remaining(t, 9000) === 6000, 'alla ripresa riparte dalla nuova scadenza');
+  }
 }
 
 section('Audio dei minigiochi: ogni file dichiarato esiste');

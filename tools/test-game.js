@@ -628,6 +628,160 @@ function run() {
       'senza startCountdownMs la prima domanda apre subito');
   }
 
+  // ─── Carte private (La Coppia Scoppiata) ───────────────────────────────────────
+
+  console.log('\n  🃏  Fase 12: Minigiochi a carte private');
+  {
+    const lcg = (seed) => { let s = seed >>> 0; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 2 ** 32; }; };
+    const QUIZ_COPPIA = {
+      title: 'Quiz con Coppia Scoppiata',
+      questions: [
+        { text: 'Q1', options: ['A', 'B'], correct_index: 0, time_limit_s: 10 },
+        { text: 'Q2', options: ['A', 'B'], correct_index: 1, time_limit_s: 10 },
+      ],
+      minigames: [{ afterQuestionIndex: 0, type: 'coppia_scoppiata' }],
+    };
+    /** Partita con `names` giocatori portata fino al round della Coppia. `away` scollegati prima dell'apertura. */
+    function toCoppia(names, away = [], seed = 1) {
+      const g = new GameSession(QUIZ_COPPIA, { rnd: lcg(seed) });
+      const ps = names.map((n) => g.addPlayer(n));
+      g.startGame(0);
+      g.endQuestion(1000);
+      for (const p of ps) if (away.includes(p.nickname)) g.setPlayerConnected(p.id, false);
+      g.nextQuestion(2000);
+      return { g, ps };
+    }
+    /** Il colore di un compagno di gruppo (stessa figura), o null. */
+    function partnerColor(g, ps, me) {
+      const mine = g.getHand(me.id);
+      const other = ps.find((p) => p.id !== me.id && g.getHand(p.id)?.figure === mine.figure);
+      return other ? g.getHand(other.id).color : null;
+    }
+
+    {
+      const { g, ps } = toCoppia(['Ada', 'Bea', 'Cid', 'Dov'], ['Dov']);
+      assert(g.getCurrentRound().privateHand === true, 'getCurrentRound: privateHand true per la Coppia');
+      assert(ps.every((p) => g.getHand(p.id)), 'deal: ogni giocatore ha una carta, anche lo scollegato');
+      const before = JSON.stringify(g.getHand(ps[0].id));
+      g.setPlayerConnected(ps[0].id, false);
+      g.setPlayerConnected(ps[0].id, true);
+      assert(JSON.stringify(g.getHand(ps[0].id)) === before, 'getHand: la carta non cambia dopo un rientro');
+    }
+    {
+      const { g, ps } = toCoppia(['Ada', 'Bea']);
+      const [a, b] = ps;
+      const r1 = g.submitAnswer(a.id, partnerColor(g, ps, a), 3000);
+      assert(r1.recorded === true && r1.newlyCompleted.length === 0, 'submitAnswer: primo della coppia → nessun gruppo completo');
+      const r2 = g.submitAnswer(b.id, partnerColor(g, ps, b), 3100);
+      assert(JSON.stringify(r2.newlyCompleted) === JSON.stringify([[a.id, b.id].sort()]),
+        'submitAnswer: il secondo completa la coppia (newlyCompleted)');
+      assert(g.getCompletedGroups().length === 1, 'getCompletedGroups: contiene la coppia');
+      const res = g.endQuestion(4000);
+      assert(res.answers.every((x) => x.outcome === 'complete' && x.pointsAwarded === 1000),
+        'endQuestion: coppia completa → 1000 a entrambi');
+      assert(res.machineChoice === null && res.reveal && res.reveal.groups.length === 1,
+        'endQuestion: machineChoice null, reveal con i gruppi');
+    }
+    {
+      const { g, ps } = toCoppia(['Ada', 'Bea']);
+      const [a, b] = ps;
+      const wrong = [0, 1, 2, 3, 4, 5].find((c) => c !== partnerColor(g, ps, b) && c !== g.getHand(b.id).color);
+      g.submitAnswer(a.id, partnerColor(g, ps, a), 3000);
+      g.submitAnswer(b.id, wrong, 3100);
+      const res = g.endQuestion(4000);
+      const ra = res.answers.find((x) => x.playerId === a.id);
+      const rb = res.answers.find((x) => x.playerId === b.id);
+      assert(ra.outcome === 'half' && ra.pointsAwarded === 300 && rb.outcome === 'miss' && rb.pointsAwarded === 0,
+        'endQuestion: coppia a metà → 300 a chi indovina, 0 all\'altro');
+    }
+    {
+      // Due collegati e uno scollegato: lo scollegato diventa il terzo del loro gruppo.
+      const { g, ps } = toCoppia(['Ada', 'Bea', 'Cid'], ['Cid']);
+      const [a, b, c] = ps;
+      g.submitAnswer(a.id, g.getHand(b.id).color, 3000);
+      const r = g.submitAnswer(b.id, g.getHand(a.id).color, 3100);
+      assert(JSON.stringify(r.newlyCompleted) === JSON.stringify([[a.id, b.id].sort()]),
+        'trio con un assente: i due presenti si salvano da soli');
+      g.setPlayerConnected(c.id, true);
+      g.submitAnswer(c.id, g.getHand(c.id).color, 3200); // il proprio colore: sbagliato
+      const res = g.endQuestion(4000);
+      const out = Object.fromEntries(res.answers.map((x) => [x.playerId, x.outcome]));
+      assert(out[a.id] === 'complete' && out[b.id] === 'complete' && out[c.id] === 'miss',
+        'ritardatario che sbaglia: il gruppo già salvato resta salvato, lui prende miss');
+    }
+    {
+      // Ritardatario che INDOVINA dopo che il suo gruppo era già salvato: il
+      // gruppo non si riannuncia, e lui prende la metà.
+      const { g, ps } = toCoppia(['Ada', 'Bea', 'Cid'], ['Cid']);
+      const [a, b, c] = ps;
+      g.submitAnswer(a.id, g.getHand(b.id).color, 3000);
+      g.submitAnswer(b.id, g.getHand(a.id).color, 3100);
+      g.setPlayerConnected(c.id, true);
+      const late = g.submitAnswer(c.id, g.getHand(a.id).color, 3200);
+      assert(late.newlyCompleted.length === 0 && g.getCompletedGroups().length === 1,
+        'ritardatario che indovina: nessun secondo annuncio dello stesso gruppo');
+      const res = g.endQuestion(4000);
+      const out = Object.fromEntries(res.answers.map((x) => [x.playerId, x.outcome]));
+      assert(out[a.id] === 'complete' && out[b.id] === 'complete' && out[c.id] === 'half',
+        'ritardatario che indovina: lui prende half, gli altri restano complete');
+    }
+    {
+      // Lo scollegato si sveglia PRIMA che gli altri finiscano: ora conta anche lui.
+      const { g, ps } = toCoppia(['Ada', 'Bea', 'Cid'], ['Cid']);
+      const [a, b, c] = ps;
+      g.setPlayerConnected(c.id, true);
+      g.submitAnswer(a.id, g.getHand(b.id).color, 3000);
+      const r = g.submitAnswer(b.id, g.getHand(a.id).color, 3100);
+      assert(r.newlyCompleted.length === 0, 'svegliato prima: il gruppo aspetta anche lui');
+      const r3 = g.submitAnswer(c.id, g.getHand(a.id).color, 3200);
+      assert(r3.newlyCompleted.length === 1 && r3.newlyCompleted[0].length === 3,
+        'svegliato prima: la sua risposta giusta completa il trio');
+    }
+    {
+      const { g, ps } = toCoppia(['Ada', 'Bea']);
+      const choice = g.getBotChoice(ps[0].id);
+      assert(Number.isInteger(choice) && choice !== g.getHand(ps[0].id).color,
+        'getBotChoice: un colore valido, mai il proprio');
+      g.skipRound(3000);
+      assert(g.getCurrentRound().kind === 'question' && g.getHand(ps[0].id) === null
+        && g.getCompletedGroups().length === 0, 'skipRound: carte e gruppi azzerati nel round dopo');
+      assert(g.getBotChoice(ps[0].id) === null, 'getBotChoice: null su una domanda');
+    }
+    {
+      const g = new GameSession(QUIZ_COPPIA, { rnd: lcg(3) });
+      const solo = g.addPlayer('Solo');
+      g.startGame(0);
+      g.submitAnswer(solo.id, 0, 500);
+      g.endQuestion(1000);
+      assertThrows(() => g.insertMinigame('coppia_scoppiata', 1000), NotEnoughPlayersError,
+        'insertMinigame: la Coppia con 1 giocatore viene rifiutata');
+      g.nextQuestion(1000);
+      assert(g.getCurrentRound().text === 'Q2', 'minPlayers: con 1 giocatore la Coppia pianificata si salta');
+    }
+    {
+      // Estrazione casuale con un giocatore solo: mai un minigioco che ne chiede di più.
+      let threw = null; const drawn = new Set();
+      for (const v of [0, 0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9, 0.999]) {
+        const g = new GameSession(QUIZ_COPPIA, { rnd: () => v });
+        const solo = g.addPlayer('Solo');
+        g.startGame(0);
+        g.submitAnswer(solo.id, 0, 500);
+        g.endQuestion(1000);
+        try { g.insertMinigame('random', 1000); drawn.add(g.getCurrentRound().minigameType); } catch (err) { threw = err; }
+      }
+      assert(threw === null && !drawn.has('coppia_scoppiata'),
+        `insertMinigame("random") con 1 giocatore pesca solo minigiochi giocabili${threw ? ` (lanciato: ${threw.message})` : ''}`);
+    }
+    {
+      const g = new GameSession({ ...QUIZ_COPPIA, minigames: [{ afterQuestionIndex: 0, type: 'morra_cinese' }] });
+      g.addPlayer('Ada');
+      g.startGame(0);
+      g.endQuestion(1000);
+      g.nextQuestion(1000);
+      assert(g.getCurrentRound().privateHand === false, 'Morra: privateHand false');
+    }
+  }
+
   // ─── Riepilogo ──────────────────────────────────────────────────────────────────
 
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');

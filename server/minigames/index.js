@@ -106,6 +106,9 @@ function assertBuildContract(file, def, stageIndex) {
  * ("pareggio") assente dalla tabella punti ("draw").
  */
 function assertResolveContract(file, def) {
+  // Un minigioco a carte private non ha una "mossa della macchina": la sua
+  // risoluzione dipende dalla distribuzione, ed è verificata da assertDealContract.
+  if ('deal' in def) return;
   for (const value of [0, 0.5, 0.999999]) {
     const resolution = def.resolve(() => value);
     if (!resolution || typeof resolution.outcomeFor !== 'function') {
@@ -125,6 +128,72 @@ function assertResolveContract(file, def) {
           file,
           `outcomeFor(${i}) ha restituito l'esito "${outcome}", assente da "points".`
         );
+      }
+    }
+  }
+}
+
+/** Giocatori finti per provare `deal` a vuoto: 2, 3 e 7, l'ultimo con uno scollegato. */
+function fakePlayers(n) {
+  return Array.from({ length: n }, (_, i) => ({ id: `p${i}`, connected: !(n === 7 && i === 6) }));
+}
+
+/**
+ * Minigiochi a carte private: `deal` dà una carta segreta a ogni giocatore,
+ * `progress` dice quali gruppi si sono già completati, `resolve(rnd, ctx)`
+ * giudica ogni risposta conoscendo chi l'ha data. Si eseguono tutte a vuoto,
+ * come `resolve` per gli altri minigiochi: devono essere pure.
+ */
+function assertDealContract(file, def) {
+  if (typeof def.deal !== 'function') {
+    throw new MinigameContractError(file, '"deal" deve essere una funzione.');
+  }
+  if (typeof def.progress !== 'function') {
+    throw new MinigameContractError(file, 'un minigioco con "deal" deve avere anche "progress".');
+  }
+  if ('botChoice' in def && typeof def.botChoice !== 'function') {
+    throw new MinigameContractError(file, '"botChoice" deve essere una funzione.');
+  }
+  for (const n of [2, 3, 7]) {
+    for (const value of [0, 0.5, 0.999999]) {
+      const rnd = () => value;
+      const players = fakePlayers(n);
+      const ids = players.map((p) => p.id);
+      const dealt = def.deal(players, rnd);
+      if (!dealt || typeof dealt.hands !== 'object' || !dealt.hands || !('table' in dealt)) {
+        throw new MinigameContractError(file, 'deal() deve restituire { hands, table }.');
+      }
+      const missing = ids.filter((id) => dealt.hands[id] == null);
+      if (missing.length) {
+        throw new MinigameContractError(file, `deal() non ha dato una carta a ${missing.join(', ')}.`);
+      }
+      const completed = def.progress(dealt.table, new Map(), new Set(ids));
+      if (!Array.isArray(completed)) {
+        throw new MinigameContractError(file, 'progress() deve restituire un array di gruppi.');
+      }
+      const resolution = def.resolve(rnd, {
+        table: dealt.table,
+        answers: new Map([[ids[0], 0]]),
+        completed: new Set(),
+      });
+      if (!resolution || typeof resolution.outcomeFor !== 'function') {
+        throw new MinigameContractError(file, 'resolve() deve restituire { machineChoice, outcomeFor, reveal }.');
+      }
+      if (resolution.machineChoice !== null) {
+        throw new MinigameContractError(file, 'con "deal", resolve() deve restituire machineChoice: null.');
+      }
+      if (!resolution.reveal || typeof resolution.reveal !== 'object') {
+        throw new MinigameContractError(file, 'con "deal", resolve() deve restituire un oggetto "reveal".');
+      }
+      const outcome = resolution.outcomeFor(0, ids[0]);
+      if (!(outcome in def.points)) {
+        throw new MinigameContractError(file, `outcomeFor(0, id) ha restituito "${outcome}", assente da "points".`);
+      }
+      if (def.botChoice) {
+        const choice = def.botChoice(dealt.table, ids[0], rnd);
+        if (!Number.isInteger(choice) || choice < 0 || choice >= def.options.length) {
+          throw new MinigameContractError(file, `botChoice() ha restituito ${choice}, fuori dal range delle opzioni.`);
+        }
       }
     }
   }
@@ -185,6 +254,10 @@ function validateDefinition(def, file, expectedType) {
       throw new MinigameContractError(file, `"${key}" deve essere un numero di millisecondi >= 0.`);
     }
   }
+  // `minPlayers`: sotto questa soglia il round non si gioca (si salta).
+  if ('minPlayers' in def && (!Number.isInteger(def.minPlayers) || def.minPlayers < 1)) {
+    throw new MinigameContractError(file, '"minPlayers" deve essere un intero >= 1.');
+  }
   if (typeof def.build !== 'function' || typeof def.resolve !== 'function') {
     throw new MinigameContractError(file, 'servono entrambe le funzioni build() e resolve().');
   }
@@ -192,6 +265,7 @@ function validateDefinition(def, file, expectedType) {
   assertPointsTable(file, def.points);
   assertBuildContract(file, def);
   assertResolveContract(file, def);
+  if ('deal' in def) assertDealContract(file, def);
 }
 
 // ─── Autoload ────────────────────────────────────────────────────────────────────
