@@ -335,6 +335,12 @@ class GameSession {
      */
     this._openResolution = null;
 
+    /**
+     * Carte private del round (minigiochi con `deal`): la distribuzione, chi si
+     * è collegato almeno una volta, i gruppi già completati. Vuoti altrove.
+     */
+    this._resetPrivateHands();
+
     /** @type {Map<string, { id: string, nickname: string, avatar: string, score: number, connected: boolean }>} */
     this.players = new Map();
 
@@ -465,6 +471,11 @@ class GameSession {
   setPlayerConnected(playerId, connected) {
     const player = this._getPlayerOrThrow(playerId);
     player.connected = Boolean(connected);
+    // Carte private: chi si collega anche solo un momento durante il round
+    // conta per il completamento del suo gruppo.
+    if (player.connected && this._deal && this.state === STATES.QUESTION) {
+      this._present.add(playerId);
+    }
   }
 
   getPlayers() {
@@ -504,6 +515,15 @@ class GameSession {
     const previewMs = def ? (this.currentRound.previewMs ?? def.previewMs ?? 0) : 0;
     this._openResolution = previewMs > 0 ? def.resolve(this._rnd) : null;
 
+    // Carte private: una carta a TUTTI i giocatori in partita, anche ai
+    // telefoni addormentati, che la trovano se si svegliano entro il round.
+    this._resetPrivateHands();
+    if (def?.deal) {
+      const players = this.getPlayers().map((p) => ({ id: p.id, connected: p.connected !== false }));
+      this._deal = def.deal(players, this._rnd);
+      this._present = new Set(players.filter((p) => p.connected).map((p) => p.id));
+    }
+
     // Il sipario apre il minigioco una volta sola: i livelli successivi di un
     // minigioco a più round sono la stessa scena che continua.
     const stage = this.currentRound.stage;
@@ -513,6 +533,71 @@ class GameSession {
     this.startsAt = now + (this.currentRoundIndex === 0 ? this._startCountdownMs : 0);
     this.introEndsAt = this.startsAt + (opensMinigame ? this._minigameIntroMs : 0);
     this.answersOpenAt = this.introEndsAt + previewMs;
+  }
+
+  /** Azzera lo stato delle carte private: nessuna carta, nessun gruppo. */
+  _resetPrivateHands() {
+    this._deal = null;
+    this._present = new Set();
+    this._completed = [];
+    this._completedIds = new Set();
+  }
+
+  /**
+   * La carta privata di un giocatore nel round corrente, `null` se il round
+   * non ne ha. game-socket.js la manda SOLO al telefono di quel giocatore.
+   * @param {string} playerId
+   * @returns {object | null}
+   */
+  getHand(playerId) {
+    return this._deal?.hands[playerId] ?? null;
+  }
+
+  /** I gruppi completati finora nel round (array di array di id). */
+  getCompletedGroups() {
+    return this._completed.map((g) => g.slice());
+  }
+
+  /**
+   * Come risponderebbe un giocatore di prova, se il minigioco lo sa dire
+   * (`botChoice`); `null` altrimenti, e il bot tira a caso.
+   * @param {string} playerId
+   * @returns {number | null}
+   */
+  getBotChoice(playerId) {
+    const def = this._currentMinigameDef();
+    if (!this._deal || !def?.botChoice) return null;
+    return def.botChoice(this._deal.table, playerId, this._rnd);
+  }
+
+  /** Le risposte del round come Map id → optionIndex, la forma che vuole il contratto. */
+  _answerChoices() {
+    return new Map([...this.currentAnswers].map(([id, a]) => [id, a.optionIndex]));
+  }
+
+  /**
+   * Ricalcola i gruppi completi e restituisce solo quelli nuovi. Un gruppo
+   * annunciato resta annunciato: chi ne fa parte vale "completo" alla chiusura.
+   * @returns {string[][]}
+   */
+  _updateCompletedGroups() {
+    const def = this._currentMinigameDef();
+    const now = def.progress(this._deal.table, this._answerChoices(), this._present);
+    const fresh = [];
+    for (const group of now) {
+      if (group.every((id) => this._completedIds.has(id))) continue;
+      group.forEach((id) => this._completedIds.add(id));
+      this._completed.push(group);
+      fresh.push(group);
+    }
+    return fresh;
+  }
+
+  /** Un minigioco che chiede più giocatori di quanti ce ne sono in partita. */
+  _tooFewPlayersFor(round) {
+    if (round?.kind !== 'minigame') return false;
+    const def = minigames.get(round.minigameType);
+    return (def?.minPlayers ?? 1) > this.players.size;
   }
 
   /** Definizione del minigioco del round corrente, `null` per una domanda. */
@@ -558,6 +643,8 @@ class GameSession {
       previewMs: this.answersOpenAt - this.introEndsAt,
       kind: r.kind,
       minigameType: r.minigameType ?? null,
+      // Round a carte private: ogni telefono riceve la sua con `game:hand`.
+      privateHand: this._deal !== null,
       // Round di un minigioco a più livelli: `{ index, count, ... }`, con i
       // parametri di difficoltà che il modulo ha messo in `build(stageIndex)`.
       stage: r.stage ?? null,
@@ -617,6 +704,11 @@ class GameSession {
         pointsAwarded: 0,
         answeredAt: now,
       });
+      if (this._deal) {
+        // Chi risponde c'è; e la sua risposta può aver completato un gruppo.
+        this._present.add(playerId);
+        return { recorded: true, newlyCompleted: this._updateCompletedGroups() };
+      }
       return { recorded: true };
     }
 
@@ -753,16 +845,31 @@ class GameSession {
     // timing dichiarato dal modulo del minigioco; game-socket.js lo converte nel
     // timestamp assoluto `revealAt` per sincronizzare sala e telefoni.
     let revealMs = 0;
+    // Carte private: le carte di tutti, svelate alla chiusura (`reveal` del modulo).
+    let reveal = null;
     if (round.kind === 'minigame') {
       const def = minigames.get(round.minigameType);
       revealMs = def.revealMs ?? 0;
       // Con anteprima l'esito esiste già ed è quello che la sala ha mostrato:
       // estrarne un altro qui smentirebbe lo spettacolo.
-      const resolution = this._openResolution ?? def.resolve(this._rnd);
+      let resolution;
+      if (this._deal) {
+        // Carte private: l'ultimo controllo dei gruppi, poi il giudizio per
+        // giocatore (la risposta giusta cambia da persona a persona).
+        this._updateCompletedGroups();
+        resolution = def.resolve(this._rnd, {
+          table: this._deal.table,
+          answers: this._answerChoices(),
+          completed: new Set(this._completedIds),
+        });
+        reveal = resolution.reveal ?? null;
+      } else {
+        resolution = this._openResolution ?? def.resolve(this._rnd);
+      }
       this._openResolution = null;
       machineChoice = resolution.machineChoice;
-      for (const answer of this.currentAnswers.values()) {
-        answer.outcome = resolution.outcomeFor(answer.optionIndex);
+      for (const [playerId, answer] of this.currentAnswers) {
+        answer.outcome = resolution.outcomeFor(answer.optionIndex, playerId);
         answer.pointsAwarded = def.points[answer.outcome];
       }
     }
@@ -778,7 +885,8 @@ class GameSession {
 
     this.state = STATES.RESULTS;
 
-    return this._resultsSummary(round, { machineChoice, revealMs, distribution });
+    this._resetPrivateHands();
+    return this._resultsSummary(round, { machineChoice, revealMs, distribution, reveal });
   }
 
   /**
@@ -788,7 +896,7 @@ class GameSession {
    * @param {object} round il round appena chiuso
    * @param {{ machineChoice: number|null, revealMs: number, distribution: number[] }} esito
    */
-  _resultsSummary(round, { machineChoice, revealMs, distribution }) {
+  _resultsSummary(round, { machineChoice, revealMs, distribution, reveal = null }) {
     return {
       questionIndex: this.currentRoundIndex,
       kind: round.kind,
@@ -796,6 +904,7 @@ class GameSession {
       stage: round.stage ?? null,
       correctIndex: round.kind === 'minigame' ? null : round.correct_index,
       machineChoice,
+      reveal,
       revealMs,
       // Dopo questi risultati viene la premiazione: i client sigillano la
       // classifica invece di mostrarla (vedi il getter `isLastRound`).
@@ -833,13 +942,17 @@ class GameSession {
    * @returns {{ finished: true, leaderboard: Array } | { finished: false }}
    */
   _advance(now) {
-    if (this.isLastRound) {
+    // Un minigioco che chiede più giocatori di quanti ce ne sono (`minPlayers`)
+    // si salta, insieme a tutti i suoi livelli.
+    let next = this.currentRoundIndex + 1;
+    while (next < this.rounds.length && this._tooFewPlayersFor(this.rounds[next])) next++;
+    if (next >= this.rounds.length) {
       this.state = STATES.FINAL_LEADERBOARD;
       this.roundStartedAt = null;
       return { finished: true, leaderboard: this.getLeaderboard() };
     }
 
-    this.currentRoundIndex++;
+    this.currentRoundIndex = next;
     this._enterRound(now);
     return { finished: false };
   }
@@ -868,6 +981,7 @@ class GameSession {
 
     this.currentAnswers = new Map();
     this._openResolution = null;
+    this._resetPrivateHands();
 
     // Ultimo livello di un minigioco a più livelli: si chiude sulla classifica,
     // che porta i punti dei livelli giocati. Le risposte sono già state
@@ -911,6 +1025,9 @@ class GameSession {
     const def = resolveMinigameDef(type, this._minigameBag, this._allowedMinigames);
     if (!def) {
       throw new InvalidMinigameTypeError();
+    }
+    if ((def.minPlayers ?? 1) > this.players.size) {
+      throw new NotEnoughPlayersError(`Servono almeno ${def.minPlayers} giocatori per questo minigioco.`);
     }
     this.rounds.splice(this.currentRoundIndex + 1, 0, ...buildMinigameRounds(def));
     return this.nextQuestion(now);
