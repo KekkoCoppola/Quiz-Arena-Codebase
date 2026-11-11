@@ -221,14 +221,11 @@ body.is-urgent::after {
   100% { opacity: 1; transform: translateX(0)    rotate(0deg); }
 }
 
-/* La guida (in attesa e in lobby) arriva un passo alla volta, dall'alto in
-   basso: è un percorso, e lo scaglionamento lo fa leggere come tale. Il
-   contenitore non si anima da sé, o i passi arriverebbero insieme. */
+/* La guida (in attesa e in lobby) arriva un passo alla volta, al ritmo del
+   sentiero che li unisce: lo dirige startGuideShow in app.js, perché i tempi
+   dipendono da dove passa il sentiero. Qui il contenitore non si anima da sé,
+   o i passi arriverebbero insieme. */
 .sala-panel.is-entering > .sala-guide-slot { animation: none; }
-.sala-panel.is-entering .sala-guide-step {
-  animation: mo-rise-in var(--mo-base) var(--mo-snap) both;
-  animation-delay: calc(var(--i, 0) * var(--mo-stagger) * 1.5);
-}
 /* Il cartello sotto la guida arriva dopo l'ultimo passo. */
 #sala-idle.is-guide.is-entering > .sala-idle-text {
   animation-delay: calc(var(--mo-stagger) * 6);
@@ -261,18 +258,9 @@ body.is-urgent::after {
    piano, sotto il logo che galleggia. */
 .sala-idle-text { animation: mo-idle-breathe 4.5s ease-in-out infinite; }
 
-/* I dischi della guida danno un colpo a turno, dal primo al quarto, poi
-   stanno fermi qualche secondo: l'occhio di chi guarda segue il percorso.
-   Solo transform (il disco si centra con `translate`, che si compone). */
-.sala-guide-disc {
-  animation: mo-guide-beat 7s var(--mo-stamp) infinite;
-  animation-delay: calc(1.4s + var(--i, 0) * 0.45s);
-}
-
-@keyframes mo-guide-beat {
-  0%, 9%, 100% { transform: scale(1)    rotate(0deg);  }
-  4%           { transform: scale(1.16) rotate(-8deg); }
-}
+/* La guida: il sentiero da mappa del tesoro e i colpi dei bollini li anima
+   app.js (startGuideShow / startTrailLoop), legati alla posizione delle
+   schede. Con movimento ridotto restano fermi lì. */
 
 @keyframes mo-idle-breathe {
   0%, 100% { transform: scale(1);     }
@@ -519,7 +507,6 @@ body.is-urgent::after {
   .sala-logo-wrap,
   .sala-idle-logo,
   .sala-idle-text,
-  .sala-guide-disc,
   .sala-mascot-head,
   .sala-lobby-empty,
   .q-media img,
@@ -537,7 +524,6 @@ body.is-urgent::after {
   #sala-lobby.is-entering .sala-join,
   #sala-lobby.is-entering .sala-mascot-peek,
   #sala-lobby.is-entering .sala-lobby-strip,
-  .sala-panel.is-entering .sala-guide-step,
   .sala-option-card,
   .sala-player-chip.is-new,
   .sala-count-bubble.is-bumped,
