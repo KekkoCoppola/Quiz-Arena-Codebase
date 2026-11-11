@@ -710,6 +710,22 @@ function run() {
         'ritardatario che sbaglia: il gruppo già salvato resta salvato, lui prende miss');
     }
     {
+      // Ritardatario che INDOVINA dopo che il suo gruppo era già salvato: il
+      // gruppo non si riannuncia, e lui prende la metà.
+      const { g, ps } = toCoppia(['Ada', 'Bea', 'Cid'], ['Cid']);
+      const [a, b, c] = ps;
+      g.submitAnswer(a.id, g.getHand(b.id).color, 3000);
+      g.submitAnswer(b.id, g.getHand(a.id).color, 3100);
+      g.setPlayerConnected(c.id, true);
+      const late = g.submitAnswer(c.id, g.getHand(a.id).color, 3200);
+      assert(late.newlyCompleted.length === 0 && g.getCompletedGroups().length === 1,
+        'ritardatario che indovina: nessun secondo annuncio dello stesso gruppo');
+      const res = g.endQuestion(4000);
+      const out = Object.fromEntries(res.answers.map((x) => [x.playerId, x.outcome]));
+      assert(out[a.id] === 'complete' && out[b.id] === 'complete' && out[c.id] === 'half',
+        'ritardatario che indovina: lui prende half, gli altri restano complete');
+    }
+    {
       // Lo scollegato si sveglia PRIMA che gli altri finiscano: ora conta anche lui.
       const { g, ps } = toCoppia(['Ada', 'Bea', 'Cid'], ['Cid']);
       const [a, b, c] = ps;

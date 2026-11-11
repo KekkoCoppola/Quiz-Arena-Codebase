@@ -585,7 +585,9 @@ class GameSession {
     const now = def.progress(this._deal.table, this._answerChoices(), this._present);
     const fresh = [];
     for (const group of now) {
-      if (group.every((id) => this._completedIds.has(id))) continue;
+      // Un gruppo già annunciato non si riannuncia, nemmeno allargato da un
+      // ritardatario: chi arriva dopo conta per sé (giusto → mezzo punteggio).
+      if (group.some((id) => this._completedIds.has(id))) continue;
       group.forEach((id) => this._completedIds.add(id));
       this._completed.push(group);
       fresh.push(group);

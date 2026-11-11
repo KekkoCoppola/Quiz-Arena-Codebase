@@ -2515,10 +2515,12 @@ socket.on('game:blur-update', ({ blur }) => {
 
 socket.on('game:timer-paused', ({ remainingMs }) => {
   pauseCountdown(remainingMs);
+  currentMinigame?.sala.onTimerPaused?.(remainingMs);
 });
 
 socket.on('game:timer-resumed', ({ endsAt, serverNow }) => {
   resumeCountdown(endsAt, serverNow);
+  currentMinigame?.sala.onTimerResumed?.(ServerClock.localDeadline(endsAt, serverNow));
 });
 
 socket.on('game:ended', () => {

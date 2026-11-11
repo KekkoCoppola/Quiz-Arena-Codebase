@@ -578,6 +578,15 @@ section('Presentazione della Coppia Scoppiata');
     assert(Array.isArray(pres.COLORS) && pres.COLORS.length === get('coppia_scoppiata').options.length,
       'un colore esadecimale per ogni opzione del modulo server');
     assert(pres.salaOptions === false, 'in sala niente carte delle opzioni');
+    assert(typeof pres.sala.onTimerPaused === 'function' && typeof pres.sala.onTimerResumed === 'function',
+      'la bomba ascolta pausa e ripresa del timer');
+    assert(Minigames.get('morra_cinese').sala.onTimerPaused === null, 'la Morra non ha onTimerPaused (default null)');
+    const t = { endsAt: 10000, pausedLeft: null };
+    assert(pres._remaining(t, 4000) === 6000, 'tempo che resta: scadenza meno adesso');
+    t.pausedLeft = 6000;
+    assert(pres._remaining(t, 9000) === 6000, 'in pausa il tempo resta fermo');
+    t.pausedLeft = null; t.endsAt = 15000;
+    assert(pres._remaining(t, 9000) === 6000, 'alla ripresa riparte dalla nuova scadenza');
   }
 }
 

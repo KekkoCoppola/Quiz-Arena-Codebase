@@ -99,6 +99,16 @@
     scene = null;
   }
 
+  /**
+   * Quanto manca allo scoppio: fermo durante la pausa dell'host, altrimenti
+   * la scadenza meno adesso. Puro, testato da tools/test-minigames.js.
+   * @param {{ endsAt: number, pausedLeft: number|null }} t
+   */
+  function remaining(t, now) {
+    if (t.pausedLeft !== null && t.pausedLeft !== undefined) return Math.max(0, t.pausedLeft);
+    return Math.max(0, t.endsAt - now);
+  }
+
   function formatTime(ms) {
     const sec = Math.ceil(ms / 1000);
     return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
@@ -180,7 +190,7 @@
         // `answersOpenAt` è già sull'orologio locale (la sala lo calcola alla
         // ricezione, prima del sipario): la scadenza è lì più la durata del round.
         const total = (round.time_limit_s || 90) * 1000;
-        const endsAt = (ctx && ctx.answersOpenAt ? ctx.answersOpenAt : Date.now()) + total;
+        const timing = { endsAt: (ctx && ctx.answersOpenAt ? ctx.answersOpenAt : Date.now()) + total, pausedLeft: null };
         const bomb = stage.querySelector('.mg-coppia-scoppiata-bomb');
         const time = stage.querySelector('.mg-coppia-scoppiata-time');
         const fuse = stage.querySelector('.mg-coppia-scoppiata-fuse');
@@ -188,7 +198,7 @@
         const fuseLength = fuse.getTotalLength ? fuse.getTotalLength() : 0;
 
         const update = () => {
-          const left = Math.max(0, endsAt - Date.now());
+          const left = remaining(timing, Date.now());
           const frac = Math.min(1, left / total);
           time.textContent = formatTime(left);
           // La miccia parte dal tappo: ne resta la parte vicina alla bomba, e
@@ -201,12 +211,25 @@
           bomb.classList.toggle('is-danger', left > 0 && left <= DANGER_MS);
           bomb.classList.toggle('is-out', left === 0);
         };
-        scene = { tick: setInterval(update, 200), timers: [], stage };
+        scene = { tick: setInterval(update, 200), timers: [], stage, timing };
         update();
       },
 
       stopSuspense() {
         clearScene();
+      },
+
+      /** L'host ferma il tempo: la miccia smette di bruciare. */
+      onTimerPaused(remainingMs) {
+        if (scene && scene.timing) scene.timing.pausedLeft = remainingMs;
+      },
+
+      /** L'host riprende: la miccia riparte dalla nuova scadenza. */
+      onTimerResumed(localEndsAt) {
+        if (scene && scene.timing) {
+          scene.timing.endsAt = localEndsAt;
+          scene.timing.pausedLeft = null;
+        }
       },
 
       /** Ogni gruppo salvato entra in testa alla striscia, con un pop e un suono. */
@@ -372,5 +395,6 @@
 
     // Usati dal ramo `sala` (Task 7) e dai test.
     _buildCard: buildCard,
+    _remaining: remaining,
   };
 });

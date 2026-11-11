@@ -164,6 +164,17 @@
       onGroupsCompleted: null,
 
       /**
+       * OPZIONALI. L'host ha messo in pausa il timer del round (`remainingMs`
+       * rimasti) o l'ha ripreso (`localEndsAt`, nuova scadenza già
+       * sull'orologio locale). Servono a un minigioco che disegna un proprio
+       * conto alla rovescia; `null` = nessun timer proprio.
+       * @type {null | ((remainingMs: number) => void)}
+       */
+      onTimerPaused: null,
+      /** @type {null | ((localEndsAt: number) => void)} */
+      onTimerResumed: null,
+
+      /**
        * Reveal davanti alla sala.
        * @param {{ questionText: HTMLElement, correctAnswer: HTMLElement }} els
        * @param {object} results payload game:results
