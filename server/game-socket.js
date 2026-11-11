@@ -249,6 +249,16 @@ function emitQuestion(io) {
     io.emit('game:question', payload);
   }
 
+  // Carte private: a ogni telefono SOLO la sua, socket per socket. Mai un
+  // emit alla room `players`: chiunque leggesse il payload vedrebbe le carte
+  // di tutti. I telefoni addormentati la ricevono al rientro (player:rejoin).
+  if (q.privateHand) {
+    for (const [socketId, playerId] of socketPlayers) {
+      const card = currentSession.getHand(playerId);
+      if (card) io.to(socketId).emit('game:hand', { roundIndex: q.index, card });
+    }
+  }
+
   clearQuestionTimer();
   pausedRemainingMs = null;
   questionTimer = setTimeout(() => closeQuestion(io), endsAt - now);
@@ -263,6 +273,17 @@ function emitQuestion(io) {
  * scrivesse nella sessione per una via tutta sua proverebbe un gioco che non
  * esiste. La sola differenza è che non c'è un socket a monte.
  */
+/**
+ * Annuncia i gruppi appena completati in un minigioco a carte private: la sala
+ * li mette nella striscia dei "salvati". Va a tutti, telefoni compresi: in un
+ * gioco cooperativo sapere chi è già salvato aiuta a cercare, e una risposta
+ * data non si cambia più.
+ */
+function emitGroupsCompleted(io, groups) {
+  if (!groups?.length) return;
+  io.emit('game:groups-completed', { roundIndex: currentSession.currentRoundIndex, groups });
+}
+
 function scheduleBotAnswers(io, round) {
   if (botPlayers.size === 0) return;
   const optionCount = round.options?.length ?? 0;
@@ -272,12 +293,17 @@ function scheduleBotAnswers(io, round) {
     const delay = round.startMs + round.introMs + round.previewMs + testBots.answerDelayMs(round.time_limit_s);
     botTimers.push(setTimeout(() => {
       if (!currentSession || currentSession.state !== STATES.QUESTION) return;
+      let result;
       try {
-        currentSession.submitAnswer(playerId, testBots.pickOption(optionCount));
+        // Un minigioco può dire come giocherebbe un bot (`botChoice`): senza,
+        // tira a caso. Sempre dalla stessa porta di un umano.
+        const choice = currentSession.getBotChoice(playerId) ?? testBots.pickOption(optionCount);
+        result = currentSession.submitAnswer(playerId, choice);
       } catch {
         // Round già chiuso o bot non più in partita: non c'è nulla da fare.
         return;
       }
+      emitGroupsCompleted(io, result?.newlyCompleted);
       emitAnswerCount(io);
       maybeCloseEarly(io);
     }, delay));
@@ -491,6 +517,10 @@ function attachGameHandlers(io) {
           isPaused: currentSession.isPaused,
           remainingMs: pausedRemainingMs,
           alreadyAnswered: currentSession.currentAnswers.has(playerId),
+          // Carte private: la stessa carta di prima (mai ridistribuita), e i
+          // gruppi già salvati.
+          hand: currentSession.getHand(playerId),
+          completedGroups: currentSession.getCompletedGroups(),
         };
       } else if (
         currentSession.state === STATES.RESULTS ||
@@ -517,6 +547,7 @@ function attachGameHandlers(io) {
           playerId, payload?.optionIndex, undefined, payload?.roundIndex
         );
         ok(cb, result);
+        emitGroupsCompleted(io, result.newlyCompleted);
         emitAnswerCount(io);
         maybeCloseEarly(io);
       } catch (err) {
@@ -618,6 +649,7 @@ function attachGameHandlers(io) {
           ...(preview ? { preview } : {}),
         };
         data.answered = currentSession.currentAnswers.size;
+        data.completedGroups = currentSession.getCompletedGroups();
         data.total = countConnected();
       } else if (state === STATES.RESULTS) {
         data.results = lastResults;
