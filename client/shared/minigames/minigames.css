@@ -732,7 +732,7 @@
 
 /* La carta: due facce e una rotazione 3D. 432×578 è la misura dei disegni. */
 .mg-coppia-scoppiata-card {
-  width: min(56vw, 34vh, 240px);
+  width: min(72vw, 42vh, 310px);
   aspect-ratio: 432 / 578;
   perspective: 900px;
   cursor: pointer;
@@ -785,10 +785,9 @@
   width: 100%;
 }
 .mg-coppia-scoppiata-dots .answer-btn.mg-coppia-scoppiata-dot {
-  flex-direction: column; align-items: center; justify-content: flex-start; gap: 6px;
+  flex-direction: column; align-items: center; justify-content: flex-start; gap: 8px;
   padding: 4px 0; min-height: 0;
   background: none; border: 0; box-shadow: none;
-  font-size: 13px; font-weight: 800; text-align: center; color: var(--ink, #201b0d);
 }
 .mg-coppia-scoppiata-swatch {
   width: 48px; height: 48px; border-radius: 9999px;
@@ -798,6 +797,31 @@
 .mg-coppia-scoppiata-dot:active .mg-coppia-scoppiata-swatch { transform: translate(2px, 2px); box-shadow: none; }
 .answer-locked .mg-coppia-scoppiata-dot.answer-chosen .mg-coppia-scoppiata-swatch {
   outline: 4px solid var(--ink, #201b0d); outline-offset: 3px;
+}
+.mg-coppia-scoppiata-name {
+  display: inline-block;
+  background: #ffffff;
+  color: var(--ink, #201b0d);
+  border: 2px solid var(--ink, #201b0d);
+  border-radius: 9999px;
+  padding: 2px 7px;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  box-shadow: 2px 2px 0 var(--ink, #201b0d);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: transform 100ms, box-shadow 100ms, background 150ms;
+}
+.mg-coppia-scoppiata-dot:active .mg-coppia-scoppiata-name {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--ink, #201b0d);
+}
+.answer-locked .mg-coppia-scoppiata-dot.answer-chosen .mg-coppia-scoppiata-name {
+  background: var(--insert-coin-yellow, #ffe500);
+  border-color: var(--ink, #201b0d);
 }
 
 /* ── Sala: la bomba, la striscia dei salvati ─────────────────────────────── */
@@ -865,19 +889,63 @@
 .mg-coppia-scoppiata-faces { display: inline-flex; font-size: 1.2em; }
 .mg-coppia-scoppiata-face-mini { display: inline-block; }
 
-/* ── Sala: la rivelazione, carte girate gruppo per gruppo ──────────────────── */
+/* ── Sala: la rivelazione a sequenza ────────────────────────────────────────── */
+
+.mg-coppia-scoppiata-reveal-stage {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 100%; height: 100%; position: relative; overflow: hidden;
+}
+.mg-coppia-scoppiata-reveal-step {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 100%; height: 100%; gap: 14px;
+  opacity: 1; transform: scale(1);
+  transition: opacity 300ms cubic-bezier(0.4, 0, 0.2, 1), transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.mg-coppia-scoppiata-reveal-step.is-entering {
+  animation: mg-coppia-scoppiata-step-in 320ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+.mg-coppia-scoppiata-reveal-step.is-leaving {
+  opacity: 0;
+  transform: scale(0.92) translateY(-10px);
+}
+@keyframes mg-coppia-scoppiata-step-in {
+  from { opacity: 0; transform: scale(0.93) translateY(18px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.mg-coppia-scoppiata-step-header {
+  display: flex; justify-content: center; align-items: center;
+  flex: none;
+}
+.mg-coppia-scoppiata-step-title {
+  display: inline-block; padding: 6px 26px;
+  border: 4px solid #1c1c26; border-radius: 9999px;
+  font-size: clamp(20px, 4.5cqh, 38px); font-weight: 900;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  box-shadow: 4px 4px 0 #1c1c26;
+}
+.mg-coppia-scoppiata-step-title.is-complete { background: #2e7d32; color: #ffffff; }
+.mg-coppia-scoppiata-step-title.is-half     { background: var(--insert-coin-yellow, #ffe500); color: #201b0d; }
+.mg-coppia-scoppiata-step-title.is-burst    { background: #e5383b; color: #ffffff; }
+
+.mg-coppia-scoppiata-empty-state {
+  display: flex; align-items: center; justify-content: center;
+  font-size: clamp(18px, 3.8cqh, 32px); font-weight: 800;
+  color: var(--ink-muted, #4a4731);
+  padding: 30px;
+}
 
 .mg-coppia-scoppiata-board {
   display: grid; grid-template-columns: repeat(var(--cols, 3), 1fr);
-  align-content: center; gap: 14px 18px; width: 100%; height: 100%;
-  box-sizing: border-box; padding: 8px;
+  align-content: center; justify-items: center; gap: 14px 22px; width: 100%;
+  box-sizing: border-box; padding: 8px; flex: 1; min-height: 0;
 }
 .mg-coppia-scoppiata-tile {
-  display: flex; flex-direction: column; align-items: center; gap: 0.3em;
-  font-size: 14px; font-weight: 800; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 0.35em;
+  font-size: 15px; font-weight: 800; text-align: center;
 }
-.mg-coppia-scoppiata-tile-cards { display: flex; gap: 0.4em; }
-.mg-coppia-scoppiata-card.is-small { width: auto; height: 90px; cursor: default; }
+.mg-coppia-scoppiata-tile-cards { display: flex; gap: 0.5em; align-items: center; }
+.mg-coppia-scoppiata-card.is-small { width: auto; height: 170px; cursor: default; }
 .mg-coppia-scoppiata-tile-names { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mg-coppia-scoppiata-verdict { font-weight: 900; opacity: 0; }
 .mg-coppia-scoppiata-tile.is-shown .mg-coppia-scoppiata-verdict { opacity: 1; animation: mg-coppia-scoppiata-pop 400ms cubic-bezier(0.3, 1.6, 0.5, 1) both; }
@@ -893,9 +961,9 @@
   .mg-coppia-scoppiata-bomb { height: 58cqh; }
   .mg-coppia-scoppiata-time { font-size: 13cqh; }
   .mg-coppia-scoppiata-strip { font-size: clamp(13px, 3.4cqh, 34px); }
-  .mg-coppia-scoppiata-board { width: 100cqw; height: 100cqh; gap: 2.5cqh 2cqw; padding: 2cqh 2cqw; }
-  .mg-coppia-scoppiata-tile { font-size: clamp(12px, calc(5cqh / var(--rows, 1) + 1cqh), 30px); }
-  .mg-coppia-scoppiata-card.is-small { height: calc(62cqh / var(--rows, 1)); }
+  .mg-coppia-scoppiata-board { width: 100cqw; gap: 2.5cqh 2cqw; padding: 1cqh 2cqw; }
+  .mg-coppia-scoppiata-tile { font-size: clamp(14px, calc(4.5cqh / var(--rows, 1) + 1cqh), 30px); }
+  .mg-coppia-scoppiata-card.is-small { height: clamp(130px, calc(48cqh / var(--rows, 1)), 270px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -905,6 +973,8 @@
   .mg-coppia-scoppiata-chip.is-new,
   .mg-coppia-scoppiata-tile.is-burst.is-shown .mg-coppia-scoppiata-tile-cards { animation: none; }
   .mg-coppia-scoppiata-spark path { animation: none; }
+  .mg-coppia-scoppiata-reveal-step { transition: none; }
+  .mg-coppia-scoppiata-reveal-step.is-entering { animation: none; }
 }
 
 /* ─── prossimo minigioco ────────────────────────────────────────────────────

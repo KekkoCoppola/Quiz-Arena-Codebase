@@ -1191,8 +1191,20 @@
 
         const iconImg = s.icon ? loadedIcons.get(s.icon) : null;
         if (iconImg) {
-          const iconSize = Math.round(badgeR * 1.44);
-          ctx.drawImage(iconImg, -iconSize / 2, badgeY - iconSize / 2, iconSize, iconSize);
+          const maxDim = Math.round(badgeR * 1.44);
+          let drawW = maxDim;
+          let drawH = maxDim;
+          const natW = iconImg.naturalWidth || iconImg.width || 0;
+          const natH = iconImg.naturalHeight || iconImg.height || 0;
+          if (natW > 0 && natH > 0) {
+            const aspect = natW / natH;
+            if (aspect > 1) {
+              drawH = maxDim / aspect;
+            } else {
+              drawW = maxDim * aspect;
+            }
+          }
+          ctx.drawImage(iconImg, -drawW / 2, badgeY - drawH / 2, drawW, drawH);
         } else {
           // Icona geometrica a stella/emblema di fallback finché l'immagine del logo carica
           ctx.fillStyle = s.index % 2 === 0 ? '#e05a47' : '#006a6a';

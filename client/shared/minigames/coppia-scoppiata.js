@@ -160,7 +160,7 @@
 
     hostStatusText: '🃏 Minigioco: la sala cerca le coppie…',
     playerBadge: '🃏 Coppia Scoppiata!',
-    wheelIcon: `${IMG}/figure/gatto.svg`,
+    wheelIcon: `${IMG}/back_carta.webp`,
     audio: AUDIO,
     COLORS,
     // In sala niente carte delle opzioni: i colori sono sul telefono, e
@@ -262,68 +262,156 @@
       },
 
       /**
-       * A round chiuso, fino a `revealAt`: le carte di tutti si girano in tre
-       * tempi — prima i gruppi salvati, poi quelli a metà, poi gli scoppiati.
+       * A round chiuso, fino a `revealAt`: i risultati vengono mostrati in sequenza.
+       * Prima i salvati, poi spariscono e appaiono quelli a metà, poi spariscono
+       * e appaiono gli eliminati.
        */
       playReveal(els, results, options, ctx) {
         clearScene();
         const outcomes = new Map((results.answers || []).map((a) => [a.playerId, a]));
         const names = new Map((results.leaderboard || []).map((p) => [p.id, p.nickname]));
-        const ORDER = ['complete', 'half', 'burst'];
         const groups = ((results.reveal && results.reveal.groups) || []).map((g) => {
           const res = g.members.map((m) => (outcomes.get(m.playerId) || {}).outcome);
           const kind = res.includes('complete') ? 'complete' : res.includes('half') ? 'half' : 'burst';
           return Object.assign({}, g, { kind });
         });
-        groups.sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind));
 
-        const board = document.createElement('div');
-        board.className = 'mg-coppia-scoppiata-board';
-        const cols = Math.max(1, Math.min(6, Math.ceil(Math.sqrt(groups.length * 1.6))));
-        board.style.setProperty('--cols', String(cols));
-        board.style.setProperty('--rows', String(Math.max(1, Math.ceil(groups.length / cols))));
-        const flips = { complete: [], half: [], burst: [] };
-        for (const g of groups) {
-          const tile = document.createElement('div');
-          tile.className = `mg-coppia-scoppiata-tile is-${g.kind}`;
-          const row = document.createElement('div');
-          row.className = 'mg-coppia-scoppiata-tile-cards';
-          const who = [];
-          for (const m of g.members) {
-            const card = buildCard({ figure: g.figure, color: m.color }, 'is-small');
-            row.appendChild(card.el);
-            flips[g.kind].push(() => card.faceUp(true));
-            who.push(names.get(m.playerId) || '?');
-          }
-          const label = document.createElement('div');
-          label.className = 'mg-coppia-scoppiata-tile-names';
-          label.textContent = who.join(' + ');
-          const verdict = document.createElement('div');
-          verdict.className = 'mg-coppia-scoppiata-verdict';
-          const pts = Math.max(0, ...g.members.map((m) => (outcomes.get(m.playerId) || {}).pointsAwarded || 0));
-          verdict.textContent = g.kind === 'complete' ? `Salvati! +${pts}`
-            : g.kind === 'half' ? `A metà · +${pts}` : 'Scoppiata!';
-          tile.append(row, label, verdict);
-          board.appendChild(tile);
-          flips[g.kind].push(() => tile.classList.add('is-shown'));
-        }
+        const groupsByKind = {
+          complete: groups.filter((g) => g.kind === 'complete'),
+          half: groups.filter((g) => g.kind === 'half'),
+          burst: groups.filter((g) => g.kind === 'burst'),
+        };
+
+        const STEPS = [
+          {
+            kind: 'complete',
+            title: 'Coppie Salvate',
+            badgeText: (pts) => `Salvati! +${pts}`,
+            emptyText: 'Nessuna coppia salvata',
+            sfx: 'saved',
+          },
+          {
+            kind: 'half',
+            title: 'A Metà',
+            badgeText: (pts) => `A metà · +${pts}`,
+            emptyText: 'Nessuna coppia a metà',
+            sfx: 'flip',
+          },
+          {
+            kind: 'burst',
+            title: 'Eliminati',
+            badgeText: () => 'Scoppiata!',
+            emptyText: 'Nessun eliminato',
+            sfx: 'flip',
+          },
+        ];
+
+        const stage = document.createElement('div');
+        stage.className = 'mg-coppia-scoppiata-reveal-stage';
         els.questionText.innerHTML = '';
-        els.questionText.appendChild(board);
+        els.questionText.appendChild(stage);
 
         const timers = [];
-        scene = { tick: null, timers, stage: board };
+        scene = { tick: null, timers, stage };
+
         const revealAt = ctx && ctx.revealAt ? ctx.revealAt : Date.now() + 9000;
-        const left = Math.max(1500, revealAt - Date.now());
-        const beat = (left - 600) / 3;
+        const totalLeft = Math.max(1500, revealAt - Date.now());
         const stale = () => !!(ctx && ctx.isStale && ctx.isStale());
-        ORDER.forEach((kind, i) => {
+
+        // Calcolo delle durate: i passaggi vuoti durano meno (1200ms) lasciando
+        // più tempo ai passaggi con gruppi veri.
+        const emptyCount = STEPS.filter((s) => groupsByKind[s.kind].length === 0).length;
+        const fullCount = STEPS.length - emptyCount;
+        const emptyDur = 1200;
+        const buffer = 200;
+        const availableForFull = Math.max(fullCount * 1200, totalLeft - buffer - (emptyCount * emptyDur));
+        const fullDur = fullCount > 0 ? availableForFull / fullCount : totalLeft / STEPS.length;
+        const durations = STEPS.map((s) => (groupsByKind[s.kind].length === 0 ? emptyDur : fullDur));
+
+        function showStep(index) {
+          if (stale()) return;
+          if (index >= STEPS.length) {
+            if (ctx && ctx.done) ctx.done();
+            return;
+          }
+
+          const step = STEPS[index];
+          const dur = durations[index];
+          const stepGroups = groupsByKind[step.kind];
+
+          stage.innerHTML = '';
+          const stepEl = document.createElement('div');
+          stepEl.className = `mg-coppia-scoppiata-reveal-step is-entering is-${step.kind}`;
+
+          const header = document.createElement('div');
+          header.className = 'mg-coppia-scoppiata-step-header';
+          const title = document.createElement('span');
+          title.className = `mg-coppia-scoppiata-step-title is-${step.kind}`;
+          title.textContent = step.title;
+          header.appendChild(title);
+          stepEl.appendChild(header);
+
+          const flips = [];
+          if (stepGroups.length > 0) {
+            const board = document.createElement('div');
+            board.className = 'mg-coppia-scoppiata-board';
+            const cols = Math.max(1, Math.min(stepGroups.length, stepGroups.length <= 4 ? stepGroups.length : Math.ceil(Math.sqrt(stepGroups.length * 1.5))));
+            board.style.setProperty('--cols', String(cols));
+            board.style.setProperty('--rows', String(Math.max(1, Math.ceil(stepGroups.length / cols))));
+
+            for (const g of stepGroups) {
+              const tile = document.createElement('div');
+              tile.className = `mg-coppia-scoppiata-tile is-${g.kind}`;
+              const row = document.createElement('div');
+              row.className = 'mg-coppia-scoppiata-tile-cards';
+              const who = [];
+              for (const m of g.members) {
+                const card = buildCard({ figure: g.figure, color: m.color }, 'is-small');
+                row.appendChild(card.el);
+                flips.push(() => card.faceUp(true));
+                who.push(names.get(m.playerId) || '?');
+              }
+              const label = document.createElement('div');
+              label.className = 'mg-coppia-scoppiata-tile-names';
+              label.textContent = who.join(' + ');
+              const verdict = document.createElement('div');
+              verdict.className = 'mg-coppia-scoppiata-verdict';
+              const pts = Math.max(0, ...g.members.map((m) => (outcomes.get(m.playerId) || {}).pointsAwarded || 0));
+              verdict.textContent = step.badgeText(pts);
+              tile.append(row, label, verdict);
+              board.appendChild(tile);
+              flips.push(() => tile.classList.add('is-shown'));
+            }
+            stepEl.appendChild(board);
+          } else {
+            const emptyEl = document.createElement('div');
+            emptyEl.className = 'mg-coppia-scoppiata-empty-state';
+            emptyEl.textContent = step.emptyText;
+            stepEl.appendChild(emptyEl);
+          }
+
+          stage.appendChild(stepEl);
+
+          if (flips.length) {
+            timers.push(setTimeout(() => {
+              if (stale()) return;
+              if (ctx && ctx.sfx) ctx.sfx(step.sfx || 'flip');
+              flips.forEach((fn, k) => timers.push(setTimeout(fn, k * 35)));
+            }, 180));
+          }
+
+          const leaveDelay = Math.max(200, dur - 350);
           timers.push(setTimeout(() => {
             if (stale()) return;
-            if (flips[kind].length && ctx && ctx.sfx) ctx.sfx('flip');
-            flips[kind].forEach((fn, k) => timers.push(setTimeout(fn, k * 40)));
-          }, 300 + i * beat));
-        });
-        timers.push(setTimeout(() => { if (!stale() && ctx && ctx.done) ctx.done(); }, left));
+            stepEl.classList.add('is-leaving');
+          }, leaveDelay));
+
+          timers.push(setTimeout(() => {
+            showStep(index + 1);
+          }, dur));
+        }
+
+        showStep(0);
       },
     },
 

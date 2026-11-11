@@ -51,3 +51,6 @@ server/db/*.sqlite-shm
 
 # Prompt di lavoro per Gemini (materiale locale, non fa parte del prodotto)
 docs/gemini/
+
+#Docs Personali
+PERSONAL.md
