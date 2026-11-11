@@ -155,6 +155,15 @@
       playReveal: null,
 
       /**
+       * OPZIONALE, minigiochi a carte private. Chiamata a ogni
+       * `game:groups-completed` del round in corso, con i gruppi appena
+       * completati (array di array di id) e i giocatori della partita.
+       * `null` = la sala non mostra nulla di speciale.
+       * @type {null | ((els: object, groups: string[][], ctx: { players: Array<{ id: string, nickname: string, avatar: string }>, sfx?: (name: string) => void }) => void)}
+       */
+      onGroupsCompleted: null,
+
+      /**
        * Reveal davanti alla sala.
        * @param {{ questionText: HTMLElement, correctAnswer: HTMLElement }} els
        * @param {object} results payload game:results
@@ -167,6 +176,16 @@
     },
 
     player: {
+      /**
+       * OPZIONALE, minigiochi a carte private (`deal` nel modulo server).
+       * Disegna sul telefono la carta segreta del giocatore e i comandi per
+       * rispondere, al posto dei bottoni delle scelte. La carta arriva con
+       * `game:hand` (o al rientro): `player/app.js` la passa qui.
+       * `null` = nessuna carta privata, si usano i bottoni di `renderChoice`.
+       * @type {null | ((container: HTMLElement, card: object, ctx: { options: string[], answered: boolean, submit: (optionIndex: number, el: HTMLElement) => void }) => void)}
+       */
+      renderHand: null,
+
       /**
        * Riempie il bottone di una scelta sul telefono del giocatore.
        * @param {HTMLButtonElement} btn bottone vuoto, già agganciato al click

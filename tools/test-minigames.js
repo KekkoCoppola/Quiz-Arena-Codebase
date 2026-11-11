@@ -560,6 +560,27 @@ section('Registry di presentazione lato client, caricato senza DOM');
   );
 }
 
+section('Presentazione della Coppia Scoppiata');
+{
+  const Minigames = require('../client/shared/minigames');
+  require('../client/shared/minigames/morra-cinese');
+  let loaded = true;
+  try { require('../client/shared/minigames/coppia-scoppiata'); } catch (err) {
+    loaded = false;
+    assert(false, `client/shared/minigames/coppia-scoppiata.js si carica (${err.message.split('\n')[0]})`);
+  }
+  if (loaded) {
+    const pres = Minigames.get('coppia_scoppiata');
+    assert(Minigames.has('coppia_scoppiata'), 'registrata nel registry di presentazione');
+    assert(typeof pres.player.renderHand === 'function', 'player.renderHand è una funzione');
+    assert(Minigames.get('morra_cinese').player.renderHand === null, 'la Morra non ha renderHand (default null)');
+    assert(Minigames.get('morra_cinese').sala.onGroupsCompleted === null, 'la Morra non ha sala.onGroupsCompleted (default null)');
+    assert(Array.isArray(pres.COLORS) && pres.COLORS.length === get('coppia_scoppiata').options.length,
+      'un colore esadecimale per ogni opzione del modulo server');
+    assert(pres.salaOptions === false, 'in sala niente carte delle opzioni');
+  }
+}
+
 section('Audio dei minigiochi: ogni file dichiarato esiste');
 
 {
