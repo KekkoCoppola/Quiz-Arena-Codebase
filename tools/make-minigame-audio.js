@@ -595,6 +595,81 @@ function morraLand() {
   return out;
 }
 
+// ═══ La Coppia Scoppiata ════════════════════════════════════════════════════
+
+const COPPIA_BPM = 112;
+const COPPIA_PROGRESSION = ['Dm', 'Dm', 'Bb', 'Am', 'Dm', 'Gm', 'Bb', 'Am'];
+
+/**
+ * `music` — 90 secondi a cercare qualcuno in sala: un orologio che ticchetta
+ * su ogni battito, un basso pizzicato che cammina e un motivetto curioso.
+ * Suspense, ma da gioco: nessuno deve sentirsi sotto esame.
+ */
+function coppiaMusic() {
+  const beat = 60 / COPPIA_BPM;
+  const eighth = beat / 2;
+  return renderLoop(COPPIA_PROGRESSION.length * 4 * beat, (buf) => {
+    COPPIA_PROGRESSION.forEach((name, b) => {
+      const { root, iv } = CHORDS[name];
+      const bar0 = b * 4 * beat;
+      // Basso che cammina: fondamentale, quinta, ottava, quinta.
+      [0, 7, 12, 7].forEach((step, q) => {
+        mixInto(buf, bar0 + q * beat, pluckNote(hz(root + step), beat * 0.9, 900 + b * 4 + q, 0.35), 0.5);
+      });
+      // Tic-tac dell'orologio: due legni alternati, l'accento sul primo.
+      for (let q = 0; q < 4; q++) {
+        mixInto(buf, bar0 + q * beat, woodblock(q % 2 === 0 ? 1500 : 1180, 0.05), q === 0 ? 0.24 : 0.16);
+      }
+      // Accordo staccato in levare: la curiosità.
+      [1, 3].forEach((q) => {
+        for (const step of iv) {
+          mixInto(buf, bar0 + q * beat + eighth, pulseNote(hz(root + 24 + step), eighth * 0.5, { duty: 0.25, release: 0.03 }), 0.07);
+        }
+      });
+      if (b % 4 === 3) mixInto(buf, bar0 + 3 * beat + eighth, hat(950 + b, 0.06), 0.25);
+    });
+    // Motivetto a domanda e risposta, ogni due battute.
+    const motif = [['A4', 0], ['C5', 1], ['D5', 2], ['F5', 3], ['E5', 5], ['D5', 6]];
+    for (let b = 0; b < COPPIA_PROGRESSION.length; b += 2) {
+      motif.forEach(([n, at], i) => {
+        const shift = b === 4 ? -2 : 0;
+        mixInto(buf, (b * 4 + 2) * beat + at * eighth, triangleNote(hz(midiOf(n) + shift), eighth * 0.85), 0.2 - i * 0.01);
+      });
+    }
+  });
+}
+
+/** `saved` — una coppia si è trovata: arpeggio in su e campanellino. */
+function coppiaSaved() {
+  const out = new Float32Array(seconds(0.9));
+  ['C5', 'E5', 'G5', 'C6'].forEach((n, i) => {
+    mixInto(out, i * 0.06, pulseNote(hz(midiOf(n)), 0.1, { duty: 0.5, release: 0.06 }), 0.5);
+  });
+  mixInto(out, 0.26, triangleNote(hz(midiOf('E6')), 0.5, { release: 0.45 }), 0.45);
+  mixInto(out, 0.26, triangleNote(hz(midiOf('G6')), 0.5, { release: 0.45 }), 0.3);
+  return out;
+}
+
+/** `flip` — la carta si gira: fruscio breve che sale. */
+function coppiaFlip() {
+  const noise = makeNoise(31);
+  let lp = 0;
+  return build(0.2, (t) => {
+    const k = 0.08 + t * 2.5;
+    lp += (noise() - lp) * Math.min(0.9, k);
+    return lp * Math.sin(Math.PI * Math.min(1, t / 0.2)) * 0.8;
+  });
+}
+
+/** `deal` — la carta arriva sul tavolo: schiocco di carta e un tonfo leggero. */
+function coppiaDeal() {
+  const noise = makeNoise(57);
+  const out = new Float32Array(seconds(0.3));
+  mixInto(out, 0, build(0.08, (t) => noise() * Math.exp(-t * 60)), 0.8);
+  mixInto(out, 0, kick(0.12, 180, 70), 0.4);
+  return out;
+}
+
 // ─── Scrittura ───────────────────────────────────────────────────────────────
 
 /** Scrive un OGG Vorbis passando da un WAV temporaneo. */
@@ -619,6 +694,15 @@ const OUTPUT = {
     'letters-01.wav': () => masterSfx(cupLetters()),
     'lift-01.wav': () => masterSfx(cupLift()),
     'ball-01.wav': () => masterSfx(cupBall()),
+  },
+  // La musica è in WAV e non in OGG: è suonata solo dalla sala (il Pi stesso,
+  // in locale), quindi il peso non passa dal Wi-Fi dei telefoni, e così si
+  // genera anche senza ffmpeg.
+  'coppia-scoppiata': {
+    'music.wav': () => masterMusic(coppiaMusic()),
+    'saved-01.wav': () => masterSfx(coppiaSaved()),
+    'flip-01.wav': () => masterSfx(coppiaFlip()),
+    'deal-01.wav': () => masterSfx(coppiaDeal()),
   },
   'morra-cinese': {
     'music.ogg': () => masterMusic(morraMusic()),
@@ -659,6 +743,10 @@ module.exports = {
 };
 
 if (require.main === module) {
-  writeAll(OUTPUT);
+  // Un nome di cartella come argomento rigenera solo quel minigioco
+  // (es. `node tools/make-minigame-audio.js coppia-scoppiata`).
+  const only = process.argv[2];
+  if (only && !OUTPUT[only]) throw new Error(`Minigioco sconosciuto: ${only}`);
+  writeAll(only ? { [only]: OUTPUT[only] } : OUTPUT);
   console.log('\n  I file vanno dichiarati nel campo `audio` del minigioco (client/shared/minigames/).');
 }
