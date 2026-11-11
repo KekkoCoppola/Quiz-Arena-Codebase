@@ -111,6 +111,41 @@ module.exports = {
    */
   // stages: 5,
 
+  /**
+   * FACOLTATIVO. Sotto questo numero di giocatori il round non si gioca:
+   * la partita lo salta, e l'host non può inserirlo (default 1).
+   */
+  // minPlayers: 2,
+
+  /**
+   * ═══ FACOLTATIVO: CARTE PRIVATE ═══════════════════════════════════════════
+   * Per i giochi in cui ogni giocatore ha un'informazione SUA (una carta
+   * segreta) e la risposta giusta cambia da persona a persona (es. La Coppia
+   * Scoppiata). Se c'è `deal` deve esserci anche `progress`, e `resolve`
+   * cambia forma (vedi sotto). Tutte pure: il registry le esegue a vuoto.
+   *
+   * deal(players, rnd) — all'APERTURA del round, con TUTTI i giocatori in
+   *   partita `[{ id, connected }]` (anche i telefoni addormentati).
+   *   Restituisce `{ hands: { [id]: carta }, table }`: ogni carta arriva SOLO
+   *   al telefono del suo giocatore (`game:hand`), `table` resta sul server.
+   *
+   * progress(table, answers, present) — dopo ogni risposta. `answers` è una
+   *   Map id → optionIndex, `present` l'insieme di chi si è collegato almeno
+   *   una volta nel round. Restituisce i gruppi completati (array di array di
+   *   id): la sala li annuncia subito (`game:groups-completed`).
+   *
+   * resolve(rnd, { table, answers, completed }) — alla chiusura. `completed`
+   *   è l'insieme degli id dei gruppi completati durante il round. Restituisce
+   *   `{ machineChoice: null, outcomeFor(optionIndex, playerId), reveal }`;
+   *   `reveal` è pubblico e finisce in `game:results`.
+   *
+   * botChoice(table, playerId, rnd) — come risponde un giocatore di prova.
+   *   Senza, i bot tirano a caso.
+   */
+  // deal(players, rnd) { ... },
+  // progress(table, answers, present) { ... },
+  // botChoice(table, playerId, rnd) { ... },
+
   /** Testo mostrato all'apertura del round. */
   prompt: 'La domanda che vede il giocatore.',
 
