@@ -80,51 +80,22 @@
       <section class="sala-panel" id="sala-lobby" hidden>
         <div class="sala-lobby-grid">
           <div class="sala-guide-slot" id="sala-guide-lobby"></div>
-          <!-- La scheda del QR tenuta in mano dal personaggio del gioco: la
-               testa spunta da dietro il bordo alto (sta PRIMA della scheda,
-               che le passa sopra), le mani la stringono sui lati (stanno
-               DENTRO la scheda, quindi sopra). Disegno piatto con contorno
-               inchiostro, come il resto della sala; colori in style.css. -->
+          <!-- La scheda del QR tenuta in mano dal personaggio del gioco, lo
+               stesso avatar dei giocatori: la testa spunta da dietro il bordo
+               alto (sta PRIMA della scheda, che le passa sopra), le mani la
+               stringono sui lati (stanno DENTRO la scheda, quindi sopra). Sono
+               foto del modello 3D, generate da `node tools/render-avatars.js
+               mascot` in resources/img/avatars/mascot/. -->
           <div class="sala-join">
             <div class="sala-mascot-peek" aria-hidden="true">
-              <svg class="sala-mascot sala-mascot-head" viewBox="0 0 220 180">
-                <defs>
-                  <clipPath id="sala-mascot-mouth">
-                    <path d="M72 108 Q110 116 148 108 Q145 150 110 150 Q75 150 72 108 Z"/>
-                  </clipPath>
-                </defs>
-                <rect class="m-skin" x="8" y="8" width="204" height="164" rx="40"/>
-                <rect class="m-shine" x="30" y="22" width="58" height="11" rx="5.5"/>
-                <ellipse class="m-cheek" cx="50" cy="116" rx="14" ry="8"/>
-                <ellipse class="m-cheek" cx="170" cy="116" rx="14" ry="8"/>
-                <path class="m-line" d="M58 54 Q77 40 96 51"/>
-                <path class="m-line" d="M124 51 Q143 40 162 54"/>
-                <ellipse class="m-eye" cx="78" cy="80" rx="18" ry="16"/>
-                <ellipse class="m-eye" cx="142" cy="80" rx="18" ry="16"/>
-                <circle class="m-pupil" cx="80" cy="86" r="8"/>
-                <circle class="m-pupil" cx="144" cy="86" r="8"/>
-                <circle class="m-glint" cx="83" cy="83" r="2.6"/>
-                <circle class="m-glint" cx="147" cy="83" r="2.6"/>
-                <path class="m-mouth" d="M72 108 Q110 116 148 108 Q145 150 110 150 Q75 150 72 108 Z"/>
-                <g clip-path="url(#sala-mascot-mouth)">
-                  <rect class="m-teeth" x="66" y="100" width="88" height="17"/>
-                  <ellipse class="m-tongue" cx="110" cy="152" rx="24" ry="14"/>
-                </g>
-                <path class="m-line" d="M72 108 Q110 116 148 108 Q145 150 110 150 Q75 150 72 108 Z"/>
-              </svg>
+              <img class="sala-mascot-head" src="/resources/img/avatars/mascot/head.png" alt="">
             </div>
             <div class="sala-join-card">
               <p class="sala-join-title">Scannerizza per giocare</p>
               <div class="sala-qr" id="sala-qr" role="img" aria-label="QR code per entrare in partita"></div>
               <p class="sala-join-url" id="sala-join-url"></p>
-              <svg class="sala-mascot sala-mascot-hand sala-mascot-hand--left" viewBox="0 0 92 100" aria-hidden="true">
-                <rect class="m-skin" x="6" y="6" width="80" height="88" rx="28"/>
-                <path class="m-line" d="M86 34 H64 M86 52 H61 M86 70 H64"/>
-              </svg>
-              <svg class="sala-mascot sala-mascot-hand sala-mascot-hand--right" viewBox="0 0 92 100" aria-hidden="true">
-                <rect class="m-skin" x="6" y="6" width="80" height="88" rx="28"/>
-                <path class="m-line" d="M6 34 H28 M6 52 H31 M6 70 H28"/>
-              </svg>
+              <img class="sala-mascot-hand sala-mascot-hand--left" src="/resources/img/avatars/mascot/hand.png" alt="" aria-hidden="true">
+              <img class="sala-mascot-hand sala-mascot-hand--right" src="/resources/img/avatars/mascot/hand.png" alt="" aria-hidden="true">
             </div>
           </div>
           <div class="sala-lobby-strip">

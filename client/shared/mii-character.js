@@ -1697,6 +1697,9 @@
     leftArmPivot.add(leftSleeve);
 
     const leftForearm = new THREE.Mesh(geos.forearmGeo, skinMat);
+    // Il nome serve a tools/render-avatars.js, che fotografa la mano da sola
+    // per la mascotte che tiene il QR in sala.
+    leftForearm.name = 'forearm';
     leftArmPivot.add(leftForearm);
 
     const rightArmPivot = new THREE.Group();

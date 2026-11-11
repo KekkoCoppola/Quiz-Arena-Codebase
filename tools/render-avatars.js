@@ -40,6 +40,9 @@ const PORT = 3999;
  *       telefono (fino a ~180 px a densità 2-3). Una per colore × outfit.
  * expr: SOLO la faccia disegnata, nella stessa inquadratura di `body`: il
  *       telefono la sovrappone al corpo. Una per espressione.
+ * mascot: il personaggio che tiene la scheda del QR in sala (sala/index.html):
+ *       la testa, di fronte e grande perché si proietta, e una mano sola (la
+ *       destra è la stessa specchiata dal CSS). Giallo e sorridente, sempre.
  */
 const ALL_SIZES = Object.freeze([
   // Orizzontale come la testa del modello (più larga che alta): in un quadrato
@@ -47,7 +50,12 @@ const ALL_SIZES = Object.freeze([
   Object.freeze({ name: 'face', w: 176, h: 128, show: 'head' }),
   Object.freeze({ name: 'body', w: 432, h: 540, show: 'body' }),
   Object.freeze({ name: 'expr', w: 432, h: 540, show: 'decal' }),
+  // Misura e cosa mostrare le porta ogni foto (vedi jobsFor).
+  Object.freeze({ name: 'mascot', w: 528, h: 384, show: 'head' }),
 ]);
+
+/** La mascotte della sala: colore e faccia del catalogo. */
+const MASCOT = Object.freeze({ color: 'sunny_yellow', face: 'happy' });
 
 /** `node tools/render-avatars.js face` rigenera solo quella misura. */
 const requested = process.argv.slice(2);
@@ -78,6 +86,7 @@ const PAGE = `<!doctype html>
 import * as THREE from '/three.js';
 const SIZES = ${JSON.stringify(SIZES)};
 const NEUTRAL = ${JSON.stringify(NEUTRAL)};
+const MASCOT = ${JSON.stringify(MASCOT)};
 const stato = document.getElementById('stato');
 
 const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
@@ -106,9 +115,13 @@ headCamera.lookAt(0, 1.19, 0);
 /** Sotto questa quota sta il corpo: nel ritratto della testa non si disegna. */
 const HEAD_MIN_Y = 0.95;
 
+/** La mano da sola: la camera la inquadra dove sta, con un filo di margine. */
+const handCamera = new THREE.PerspectiveCamera(20, 1, 0.1, 50);
+
 /**
  * Cosa resta visibile: 'head' la testa con la faccia, 'body' tutto tranne la
- * faccia disegnata, 'decal' solo la faccia disegnata, 'all' tutto.
+ * faccia disegnata, 'decal' solo la faccia disegnata, 'hand' l'avambraccio
+ * sinistro, 'all' tutto.
  */
 function show(group, what) {
   group.updateMatrixWorld(true);
@@ -120,13 +133,39 @@ function show(group, what) {
     if (what === 'head') o.visible = box.setFromObject(o).getCenter(center).y >= HEAD_MIN_Y;
     else if (what === 'body') o.visible = !decal;
     else if (what === 'decal') o.visible = decal;
+    else if (what === 'hand') o.visible = o.name === 'forearm';
     else o.visible = true;
   });
+}
+
+function frameHand(group, aspect) {
+  let mesh = null;
+  group.traverse((o) => { if (o.name === 'forearm') mesh = o; });
+  // Braccio dritto: la posa di riposo la inclina, e sul bordo della scheda
+  // una mano storta sembrava un dado caduto.
+  mesh.parent.rotation.set(0, 0, 0);
+  group.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(mesh);
+  const center = box.getCenter(new THREE.Vector3());
+  const radius = box.getSize(new THREE.Vector3()).length() / 2;
+  const dist = (radius * 1.02) / Math.tan((handCamera.fov * Math.PI) / 360);
+  handCamera.aspect = aspect;
+  handCamera.updateProjectionMatrix();
+  handCamera.position.set(center.x, center.y + dist * 0.25, center.z + dist);
+  handCamera.lookAt(center);
+  return handCamera;
 }
 
 function jobsFor(size) {
   const { COLORS, FACES, OUTFITS } = AvatarCatalog;
   const jobs = [];
+  if (size.name === 'mascot') {
+    const hex = COLORS.find((c) => c.id === MASCOT.color).hex;
+    return [
+      { name: 'head', hex, face: MASCOT.face, show: 'head', turn: 0 },
+      { name: 'hand', hex, face: MASCOT.face, show: 'hand', turn: -0.45, w: 240, h: 240 },
+    ];
+  }
   if (size.name === 'face') {
     for (const c of COLORS) for (const f of FACES) jobs.push({ name: c.id + '-' + f.id, hex: c.hex, face: f.id });
   } else if (size.name === 'body') {
@@ -145,10 +184,12 @@ function draw(job, size, what) {
   const mii = MiiCharacter3D.createMii(THREE, { skinColor: job.hex, expression: job.face, outfit: job.outfit });
   scene.add(mii.group);
   // La testa da sola gira meno: la faccia deve leggersi anche a 20 px.
-  mii.group.rotation.y = what === 'head' ? -0.22 : -0.32;
+  mii.group.rotation.y = job.turn ?? (what === 'head' ? -0.22 : -0.32);
   show(mii.group, what);
   renderer.setSize(size.w, size.h, false);
-  renderer.render(scene, what === 'head' ? headCamera : bodyCamera);
+  const camera = what === 'hand' ? frameHand(mii.group, size.w / size.h)
+    : what === 'head' ? headCamera : bodyCamera;
+  renderer.render(scene, camera);
   scene.remove(mii.group);
   mii.dispose();
   return renderer.domElement;
@@ -158,7 +199,8 @@ const total = SIZES.reduce((n, s) => n + jobsFor(s).length, 0);
 let done = 0;
 for (const s of SIZES) {
   for (const job of jobsFor(s)) {
-    const blob = await new Promise((r) => draw(job, s, s.show).toBlob(r, 'image/png'));
+    const size = { w: job.w || s.w, h: job.h || s.h };
+    const blob = await new Promise((r) => draw(job, size, job.show || s.show).toBlob(r, 'image/png'));
     const res = await fetch('/save?size=' + s.name + '&name=' + job.name, { method: 'POST', body: blob });
     if (!res.ok) throw new Error('salvataggio rifiutato: ' + job.name);
     stato.textContent = 'Disegnati ' + (++done) + ' di ' + total;

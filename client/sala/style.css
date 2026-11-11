@@ -486,7 +486,7 @@ body {
 
 #sala-idle .sala-guide-slot {
   font-size: min(2.7vh, 1.55vw);
-  max-width: 40em;
+  max-width: 52em;
 }
 
 #sala-idle.is-guide .sala-idle-text {
@@ -497,62 +497,114 @@ body {
 }
 
 /* ─── Guida "come si entra" ─────────────────────────────────────────────── */
-/* Quattro schede a zig-zag unite da un tratteggio, come un percorso segnato a
-   penna: le dispari a sinistra, le pari a destra. Ogni passo ha un colore, ma
-   solo sul disco e sull'etichetta: i bordi restano inchiostro (DESIGN.md, The
-   Stamped-Ink Rule), come ogni altra superficie della sala.
+/* Quattro schede in griglia 2×2, nell'ordine di lettura. Ogni scheda: bordo
+   inchiostro con una seconda riga sottile nel colore del passo appena dentro
+   (il "doppio bordo" da biglietto), un bollino con l'icona a cavallo
+   dell'angolo in alto a destra, "PASSO N" grande, il titolo sottolineato nel
+   colore del passo e i dettagli centrati. Il colore resta sugli accenti: i
+   bordi sono inchiostro (DESIGN.md, The Stamped-Ink Rule).
+
+   Le schede compaiono e spariscono in sequenza, in loop (motion.css).
 
    Tutto è in `em`: la misura la decide il font-size di `.sala-guide-slot`,
    diverso in attesa e in lobby e dato in vh, così la stessa guida regge un
    proiettore 720p e uno 1080p senza ritocchi. */
 
 .sala-guide-slot {
-  --guide-c:    0.8;     /* larghezza di una scheda, in frazione della colonna */
-  --guide-gap:  1.5em;   /* aria fra due schede: ci passa il tratteggio */
-  --guide-disc: 2.6em;
+  --guide-disc: 2.9em;
   width: 100%;
-  /* Il disco sborda di metà dal lato esterno della scheda. */
-  padding-inline: calc(var(--guide-disc) / 2 + 0.5em);
+  /* Il bollino sborda dall'angolo in alto a destra. */
+  padding: calc(var(--guide-disc) * 0.4) calc(var(--guide-disc) * 0.4) 0 0.6em;
 }
 
 .sala-guide {
+  position: relative;      /* riferimento del sentiero e di offsetLeft/Top */
   list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--guide-gap);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* Corridoi larghi abbastanza da far vedere i riccioli del sentiero. */
+  gap: 2.5em 3.4em;
+}
+
+/* Il sentiero da mappa del tesoro (drawGuideTrail in app.js): sotto le
+   schede, che vengono dopo nel DOM e gli passano sopra. Il tratteggio è sulla
+   linea; la maschera, animata in motion.css, decide quale pezzo si vede. */
+.sala-guide-trail {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.sala-guide-trail-line {
+  fill: none;
+  stroke: var(--retro-dark);
+  stroke-width: 0.17em;
+  stroke-dasharray: 0.55em 0.45em;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Estremità piatte: a tratto nullo non resta un puntino (app.js ci conta). */
+.sala-guide-trail-mask {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.2em;
+  stroke-linecap: butt;
+  stroke-linejoin: round;
+}
+
+/* Il sentiero esce dalla griglia (sopra, a destra, sotto): il cartello
+   d'attesa e la striscia della lobby gli passano sopra invece di farsi
+   attraversare. */
+#sala-idle .sala-idle-text,
+.sala-lobby-strip {
+  position: relative;
+  z-index: 1;
 }
 
 .sala-guide-step {
   --step:     var(--indigo);
   --step-ink: var(--white);
   position: relative;
-  align-self: flex-start;
-  width: calc(var(--guide-c) * 100%);
   display: flex;
   align-items: center;
-  gap: 1em;
+  justify-content: center;
+  text-align: center;
   background: var(--white);
   border: var(--border);
-  border-radius: 1.1em;
-  box-shadow: var(--block);
-  padding: 0.85em 1.3em 0.85em calc(var(--guide-disc) / 2 + 0.9em);
-}
-.sala-guide-step:nth-child(even) {
-  align-self: flex-end;
-  padding: 0.85em calc(var(--guide-disc) / 2 + 0.9em) 0.85em 1.3em;
+  border-radius: 1.2em;
+  box-shadow:
+    inset 0 0 0 0.32em var(--white),
+    inset 0 0 0 0.5em var(--step),
+    var(--block);
+  padding: 1.15em 1.6em 1.25em;
 }
 
 .sala-guide-step.is-step-2 { --step: var(--logo-yellow);  --step-ink: var(--retro-dark); }
 .sala-guide-step.is-step-3 { --step: var(--arcade-teal);  --step-ink: var(--retro-dark); }
 .sala-guide-step.is-step-4 { --step: var(--ticket-ochre); --step-ink: var(--retro-dark); }
 
-/* Il disco del passo, a cavallo del bordo esterno. */
+/* I pallini sul bordo, mezzi fuori: dove il sentiero entra ed esce. */
+.sala-guide-pin {
+  position: absolute;
+  z-index: 1;
+  /* left/top li mette app.js (GUIDE_PINS): dove il sentiero si attacca. */
+  width: 0.9em;
+  height: 0.9em;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: var(--step);
+  border: 3px solid var(--retro-dark);
+}
+
+/* Il bollino del passo, a cavallo dell'angolo in alto a destra. */
 .sala-guide-disc {
   position: absolute;
   z-index: 1;
-  top: 50%;
-  left: 0;
-  translate: -50% -50%;
+  top: 0;
+  right: 0;
+  translate: 38% -38%;
   width: var(--guide-disc);
   height: var(--guide-disc);
   display: grid;
@@ -563,88 +615,78 @@ body {
   border: var(--border);
   box-shadow: var(--block-sm);
 }
-.sala-guide-step:nth-child(even) .sala-guide-disc {
-  left: auto;
-  right: 0;
-  translate: 50% -50%;
-}
 
-.sala-guide-disc .material-symbols-outlined { font-size: 1.45em; }
+.sala-guide-disc .material-symbols-outlined { font-size: 1.55em; }
 
 /* Finché il font delle icone non è arrivato, al suo posto c'è il NOME
    dell'icona ("qr_code_scanner") in un font qualunque, che sbordava dal disco.
    Una scatola di 1em che taglia il resto lo nasconde. */
 .sala-guide .material-symbols-outlined { width: 1em; overflow: hidden; }
-.sala-guide-head { font-size: 1.2em; display: inline-flex; }
+.sala-guide-head { font-size: 1.3em; display: inline-flex; }
 
-/* I raggi intorno al disco, solo sul lato che guarda fuori: il "flash" da
-   fumetto dell'esplosione del logo. Statici, si dipingono una volta. */
+/* I raggi tutto intorno al bollino: il "flash" da fumetto dell'esplosione
+   del logo. Statici, si dipingono una volta. */
 .sala-guide-disc::before {
   content: '';
   position: absolute;
   z-index: -1;
-  inset: -0.8em;
+  inset: -0.85em;
   border-radius: 50%;
   background: repeating-conic-gradient(from 4deg, var(--retro-dark) 0 7deg, transparent 7deg 30deg);
-  -webkit-mask:
-    radial-gradient(closest-side, transparent 70%, #000 71%),
-    linear-gradient(to right, #000 50%, transparent 50%);
-  -webkit-mask-composite: source-in;
-  mask:
-    radial-gradient(closest-side, transparent 70%, #000 71%),
-    linear-gradient(to right, #000 50%, transparent 50%);
-  mask-composite: intersect;
-}
-.sala-guide-step:nth-child(even) .sala-guide-disc::before {
-  -webkit-mask:
-    radial-gradient(closest-side, transparent 70%, #000 71%),
-    linear-gradient(to left, #000 50%, transparent 50%);
-  -webkit-mask-composite: source-in;
-  mask:
-    radial-gradient(closest-side, transparent 70%, #000 71%),
-    linear-gradient(to left, #000 50%, transparent 50%);
-  mask-composite: intersect;
+  -webkit-mask: radial-gradient(closest-side, transparent 70%, #000 71%);
+  mask: radial-gradient(closest-side, transparent 70%, #000 71%);
 }
 
-/* "Passo N": la pillola a cavallo del bordo alto, come il nastro della
-   scheda domanda e l'etichetta del QR. */
+.sala-guide-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* "PASSO N": la parola grande della scheda. */
 .sala-guide-kicker {
-  position: absolute;
-  top: 0;
-  left: calc(var(--guide-disc) / 2 + 0.9em);
-  translate: 0 -58%;
-  font-size: 0.62em;
+  font-size: 1.75em;
   font-weight: 900;
+  line-height: 1;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  white-space: nowrap;
-  background: var(--step);
-  color: var(--step-ink);
-  border: 3px solid var(--retro-dark);
-  border-radius: var(--radius-full);
-  box-shadow: 3px 3px 0 0 var(--retro-dark);
-  padding: 0.3em 1em;
-}
-.sala-guide-step:nth-child(even) .sala-guide-kicker {
-  left: auto;
-  right: calc(var(--guide-disc) / 2 + 0.9em);
+  letter-spacing: 0.04em;
+  color: var(--retro-dark);
 }
 
-.sala-guide-body { flex: 1 1 auto; min-width: 0; }
-
+/* Il titolo, con sotto la pennellata nel colore del passo. */
 .sala-guide-title {
-  font-size: 1.4em;
+  margin-top: 0.3em;
+  font-size: 1.15em;
   font-weight: 900;
-  line-height: 1.12;
+  line-height: 1.15;
   letter-spacing: -0.01em;
+  padding-bottom: 0.32em;
+  background:
+    linear-gradient(var(--step), var(--step)) center bottom / 70% 0.24em no-repeat;
+}
+
+.sala-guide-detail {
+  margin-top: 0.4em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8em;
+}
+
+.sala-guide-lines {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .sala-guide-sub {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 0.35em;
-  margin-top: 0.35em;
+  margin-top: 0.3em;
   font-size: 0.9em;
   line-height: 1.3;
 }
@@ -669,50 +711,6 @@ body {
   display: flex;
 }
 .sala-guide-wifi-qr svg { width: 100%; height: 100%; display: block; }
-
-/* Il tratteggio verso il passo dopo. Parte da un bottone sul bordo interno,
-   corre in orizzontale fino al lato opposto della colonna e scende sul disco
-   della scheda successiva. È figlio della scheda che lo apre, quindi la
-   scheda dopo (che viene dopo nel DOM) gli passa sopra: il tratto che finisce
-   dietro di lei sparisce da solo, qualunque sia l'altezza delle due.
-   La larghezza è "la colonna meno questa scheda": 100% qui è la scheda. */
-.sala-guide-link {
-  position: absolute;
-  top: 50%;
-  left: 100%;
-  width: calc(100% / var(--guide-c) - 100% + 8px);
-  height: calc(100% + var(--guide-gap));
-  border-top: 0.16em dashed var(--retro-dark);
-  border-right: 0.16em dashed var(--retro-dark);
-  border-top-right-radius: 1.4em;
-  pointer-events: none;
-}
-.sala-guide-step:nth-child(even) .sala-guide-link {
-  left: auto;
-  right: 100%;
-  border-right: 0;
-  border-left: 0.16em dashed var(--retro-dark);
-  border-top-right-radius: 0;
-  border-top-left-radius: 1.4em;
-}
-
-.sala-guide-link::before {
-  content: '';
-  position: absolute;
-  top: -0.08em;
-  left: 0;
-  width: 0.85em;
-  height: 0.85em;
-  translate: -50% -50%;
-  border-radius: 50%;
-  background: var(--step);
-  border: 3px solid var(--retro-dark);
-}
-.sala-guide-step:nth-child(even) .sala-guide-link::before {
-  left: auto;
-  right: 0;
-  translate: 50% -50%;
-}
 
 /* ─── Scheda domanda ────────────────────────────────────────────────────── */
 
@@ -1673,17 +1671,18 @@ body:has(#sala-question.has-roster:not([hidden])) .sala-shape--burst {
   align-self: center;
   /* Spazio per le mani, che sbordano dai lati della scheda: a destra
      uscirebbero dallo schermo. */
-  padding-inline: 3vh;
+  padding-inline: 4vh;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
 /* La testa sta prima della scheda nel DOM e la scheda è posizionata: le passa
-   sopra e ne nasconde il mento. Il margine negativo è la parte nascosta. */
+   sopra e ne nasconde il mento. Il margine negativo è la parte nascosta (più
+   il bordo trasparente sotto la testa nella foto). */
 .sala-mascot-peek {
-  width: 22vh;
-  margin-bottom: -3vh;
+  width: 27vh;
+  margin-bottom: -4.2vh;
 }
 .sala-mascot-head { display: block; width: 100%; height: auto; }
 
@@ -1741,37 +1740,28 @@ body:has(#sala-question.has-roster:not([hidden])) .sala-shape--burst {
   text-align: center;
 }
 
-/* Le mani: blocchi col colore della testa, sopra il bordo della scheda. Non
-   entrano oltre il margine bianco del QR, che la fotocamera deve vedere. */
+/* Le mani: i blocchi delle mani dell'avatar, sopra il bordo della scheda. Non
+   entrano oltre il margine bianco del QR, che la fotocamera deve vedere. La
+   foto è una sola (la sinistra): la destra è la stessa specchiata. */
 .sala-mascot-hand {
   position: absolute;
-  width: 8.5vh;
+  width: 10vh;
   height: auto;
+  pointer-events: none;
 }
 .sala-mascot-hand--left {
   left: 0;
   top: 42%;
-  translate: -58% -50%;
-  rotate: -10deg;
+  translate: -52% -50%;
+  rotate: -8deg;
 }
 .sala-mascot-hand--right {
   right: 0;
   top: 84%;
-  translate: 58% -50%;
-  rotate: 12deg;
+  translate: 52% -50%;
+  rotate: 10deg;
+  scale: -1 1;
 }
-
-/* Il disegno: colore del personaggio "giallo" del catalogo, contorni inchiostro. */
-.sala-mascot .m-skin   { fill: var(--insert-coin-yellow); stroke: var(--retro-dark); stroke-width: 7; }
-.sala-mascot .m-line   { fill: none; stroke: var(--retro-dark); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
-.sala-mascot .m-shine  { fill: var(--white); opacity: 0.55; }
-.sala-mascot .m-cheek  { fill: #ff7a6b; opacity: 0.45; }
-.sala-mascot .m-eye    { fill: var(--white); stroke: var(--retro-dark); stroke-width: 5; }
-.sala-mascot .m-pupil  { fill: var(--retro-dark); }
-.sala-mascot .m-glint  { fill: var(--white); }
-.sala-mascot .m-mouth  { fill: #4a1414; }
-.sala-mascot .m-teeth  { fill: var(--white); }
-.sala-mascot .m-tongue { fill: #ef5b52; }
 
 /* La striscia di chi è entrato: una riga sola, l'ultimo arrivato in testa.
    Chi non ci sta più finisce nel "+N" (fitLobbyStrip in app.js). */

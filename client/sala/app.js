@@ -591,6 +591,26 @@ const GUIDE_STEPS = [
   },
 ];
 
+/**
+ * Dove il sentiero entra (`in`) ed esce (`out`) da ogni scheda: lato e
+ * frazione lungo quel lato (da sinistra, o dall'alto). Lontano dall'angolo in
+ * alto a destra, dove sta il bollino che coprirebbe il tratto.
+ */
+const GUIDE_PINS = [
+  { out: { side: 'top', f: 0.42 } },
+  { in: { side: 'top', f: 0.32 }, out: { side: 'right', f: 0.55 } },
+  { in: { side: 'top', f: 0.5 }, out: { side: 'bottom', f: 0.55 } },
+  { in: { side: 'bottom', f: 0.45 } },
+];
+
+/** Un attacco come frazioni della scheda: { x, y } fra 0 e 1. */
+function pinXY({ side, f }) {
+  if (side === 'top') return { x: f, y: 0 };
+  if (side === 'bottom') return { x: f, y: 1 };
+  if (side === 'left') return { x: 0, y: f };
+  return { x: 1, y: f };
+}
+
 /** Disegna la guida dentro `slot`. `where`: 'idle' | 'lobby'. */
 function renderGuide(slot, where) {
   const list = guideNode('ol', 'sala-guide');
@@ -609,21 +629,329 @@ function renderGuide(slot, where) {
       disc.append(guideNode('span', 'material-symbols-outlined', step.icon));
     }
 
-    const body = guideNode('div', 'sala-guide-body');
-    body.append(guideNode('p', 'sala-guide-title', step.title), ...step.lines(where));
+    // "Passo N" grande in testa, il titolo sottolineato, poi i dettagli (col
+    // QR del Wi-Fi accanto, dove c'è: in colonna la scheda crescerebbe troppo).
+    const detail = guideNode('div', 'sala-guide-detail');
+    const lines = guideNode('div', 'sala-guide-lines');
+    lines.append(...step.lines(where));
+    detail.append(lines);
+    if (step.extra) detail.append(step.extra(where));
 
-    li.append(disc, guideNode('span', 'sala-guide-kicker', `Passo ${i + 1}`), body);
-    if (step.extra) li.append(step.extra(where));
-    // Il tratteggio che porta al passo dopo: parte dal bordo interno di
-    // questa scheda e scende sul disco della successiva (style.css).
-    if (i < GUIDE_STEPS.length - 1) {
-      const link = guideNode('span', 'sala-guide-link');
-      link.setAttribute('aria-hidden', 'true');
-      li.append(link);
+    const body = guideNode('div', 'sala-guide-body');
+    body.append(
+      guideNode('p', 'sala-guide-kicker', `Passo ${i + 1}`),
+      guideNode('p', 'sala-guide-title', step.title),
+      detail,
+    );
+
+    li.append(disc, body);
+    // I pallini dove il sentiero entra ed esce dalla scheda: stessa tabella
+    // di drawGuideTrail, in percentuale, quindi reggono qualunque misura.
+    for (const pin of Object.values(GUIDE_PINS[i])) {
+      const { x, y } = pinXY(pin);
+      const dot = guideNode('span', 'sala-guide-pin');
+      dot.setAttribute('aria-hidden', 'true');
+      dot.style.left = `${x * 100}%`;
+      dot.style.top = `${y * 100}%`;
+      li.append(dot);
     }
     list.append(li);
   });
+  list.prepend(guideTrail(where));
   slot.replaceChildren(list);
+  // Il sentiero dipende da dove stanno le schede: si ridisegna a ogni cambio
+  // di misura. Lo stesso osservatore sa quando il pannello compare (da zero a
+  // una misura vera) e quando sparisce: lì parte e si ferma lo spettacolo.
+  const show = { list, gen: 0, running: false, trail: null, anims: [] };
+  new ResizeObserver(() => onGuideResize(show)).observe(list);
+}
+
+/* ── Il sentiero da mappa del tesoro fra i passi ──────────────────────────
+   Una linea tratteggiata, ondulata e con qualche giro su sé stessa, che va dal
+   passo 1 al 2, dal 2 al 3 e dal 3 al 4. Sta SOTTO le schede: passa negli
+   spazi fra l'una e l'altra e da dietro le schede ne "esce" da sola. È un
+   unico tracciato, quindi la maschera animata in motion.css lo percorre come
+   un serpente: la testa arriva al 4, poi la coda si ritira dall'inizio. */
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function svgNode(tag, attrs = {}) {
+  const n = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+  return n;
+}
+
+function guideTrail(where) {
+  const svg = svgNode('svg', { class: 'sala-guide-trail', 'aria-hidden': 'true' });
+  const maskId = `sala-guide-trail-mask-${where}`;
+  // I riccioli possono uscire dal riquadro della lista: la maschera copre largo.
+  const mask = svgNode('mask', {
+    id: maskId, maskUnits: 'userSpaceOnUse', x: '-50%', y: '-50%', width: '200%', height: '200%',
+  });
+  mask.append(svgNode('path', { class: 'sala-guide-trail-mask', pathLength: '1' }));
+  svg.append(svgNode('defs'), svgNode('path', { class: 'sala-guide-trail-line', mask: `url(#${maskId})` }));
+  svg.firstChild.append(mask);
+  return svg;
+}
+
+/**
+ * Un tratto fra due bordi: parte da `a` uscendo nella direzione `da`, arriva
+ * in `b` entrando nella direzione opposta a `db`. La base è una curva di
+ * Bézier; sopra ci gira un punto su una circonferenza (una trocoide), e
+ * quando il giro va all'indietro più veloce di quanto la base vada avanti
+ * nasce un ricciolo. L'inviluppo sin(πu) tiene ferme le due estremità.
+ */
+function trailLeg(a, da, b, db, { loops, radius = 0, curl, maxRadius, wave, reach }) {
+  const c1 = { x: a.x + da.x * reach, y: a.y + da.y * reach };
+  const c2 = { x: b.x + db.x * reach, y: b.y + db.y * reach };
+  const at = (u) => {
+    const v = 1 - u;
+    return {
+      x: v * v * v * a.x + 3 * v * v * u * c1.x + 3 * v * u * u * c2.x + u * u * u * b.x,
+      y: v * v * v * a.y + 3 * v * v * u * c1.y + 3 * v * u * u * c2.y + u * u * u * b.y,
+    };
+  };
+  // `curl`: quanto il giro supera la soglia del ricciolo (raggio = lunghezza
+  // della base / 2π·giri). Sopra 1 ogni giro fa un occhiello vero; sotto,
+  // solo una gobba. Senza `curl` vale `radius` così com'è.
+  let baseLen = 0;
+  for (let k = 1, prev = a; k <= 40; k++) {
+    const p = at(k / 40);
+    baseLen += Math.hypot(p.x - prev.x, p.y - prev.y);
+    prev = p;
+  }
+  const R = curl && loops ? Math.min(maxRadius ?? Infinity, (curl * baseLen) / (2 * Math.PI * loops)) : radius;
+  const pts = [];
+  const N = 40 + loops * 40;
+  for (let k = 0; k <= N; k++) {
+    const u = k / N;
+    const p = at(u);
+    const q = at(Math.min(1, u + 0.01));
+    const r = at(Math.max(0, u - 0.01));
+    let tx = q.x - r.x, ty = q.y - r.y;
+    const len = Math.hypot(tx, ty) || 1;
+    tx /= len; ty /= len;
+    const nx = -ty, ny = tx;
+    const env = Math.sin(Math.PI * u);
+    // Fase un po' storta: giri tutti uguali sembravano il bordo di una nuvola.
+    const phi = 2 * Math.PI * loops * (u + 0.07 * Math.sin(2 * Math.PI * u));
+    const d = R * env;
+    const w = wave * env * Math.sin(Math.PI * 3 * u);
+    pts.push({
+      x: p.x + d * (Math.sin(phi) * nx - (1 - Math.cos(phi)) * tx) + w * nx,
+      y: p.y + d * (Math.sin(phi) * ny - (1 - Math.cos(phi)) * ty) + w * ny,
+    });
+  }
+  return pts;
+}
+
+function drawGuideTrail(list) {
+  const svg = list.querySelector('.sala-guide-trail');
+  const cards = [...list.querySelectorAll('.sala-guide-step')];
+  if (!svg || cards.length < 4 || list.offsetWidth === 0) return;
+
+  // offsetLeft/Top: la posizione di layout, senza le trasformazioni
+  // dell'entrata animata (relative a `.sala-guide`, che è posizionata).
+  const box = cards.map((c) => ({ x: c.offsetLeft, y: c.offsetTop, w: c.offsetWidth, h: c.offsetHeight }));
+  const [b1, b2, b3, b4] = box;
+  const em = parseFloat(getComputedStyle(list).fontSize) || 16;
+  const rowGap = b3.y - (b1.y + b1.h);
+
+  const center = (b) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
+  // Il punto di attacco sul bordo, dalla stessa tabella che posa i pallini.
+  const at = (b, pin) => {
+    const { x, y } = pinXY(pin);
+    return { x: b.x + b.w * x, y: b.y + b.h * y };
+  };
+  const [p1, p2, p3, p4] = GUIDE_PINS;
+  const UP = { x: 0, y: -1 }, DOWN = { x: 0, y: 1 }, RIGHT = { x: 1, y: 0 };
+
+  // Il sentiero gira FUORI dalle schede, dove c'è spazio per i riccioli:
+  //   1 → 2  esce dal bordo alto del 1, fa un arco sopra e scende sul 2;
+  //   2 → 3  esce a destra del 2, scende lungo il fianco e torna a sinistra
+  //          ondeggiando nel corridoio fra le righe, fino al bordo alto del 3;
+  //   3 → 4  esce dal bordo basso del 3, passa sotto e risale nel 4.
+  // Gli attacchi stanno lontano dai bollini, che sono sugli angoli in alto a
+  // destra e coprirebbero il tratto.
+  // Riccioli veri (curl > 1) nei tratti lunghi; il fianco del 2 solo ondeggia,
+  // perché a destra in lobby c'è subito il QR.
+  const over = { loops: 2, curl: 1.9, maxRadius: em * 2.2, wave: em * 1.2, reach: em * 3.4 };
+  const under = { loops: 2, curl: 1.9, maxRadius: em * 1.9, wave: em * 1, reach: em * 2.4 };
+  const flank = { loops: 0, wave: em * 0.35, reach: em * 1.6 };
+  const across = { loops: 3, curl: 1.5, maxRadius: em * 1.6, wave: rowGap * 0.3, reach: rowGap * 1.3 };
+
+  // Il punto in cui il sentiero gira l'angolo in basso a destra del 2: ci
+  // arriva scendendo verso sinistra e riparte nella stessa direzione.
+  const turn = { x: b2.x + b2.w + em * 1.3, y: b2.y + b2.h + rowGap * 0.5 };
+  const v = { x: -0.92, y: 0.38 };
+
+  const leg12 = trailLeg(at(b1, p1.out), UP, at(b2, p2.in), UP, over);
+  const leg23a = trailLeg(at(b2, p2.out), RIGHT, turn, { x: -v.x, y: -v.y }, flank);
+  const leg23b = trailLeg(turn, v, at(b3, p3.in), UP, across);
+  const leg34 = trailLeg(at(b3, p3.out), DOWN, at(b4, p4.in), DOWN, under);
+
+  // Un tracciato solo: fra un tratto e l'altro passa dal centro della scheda
+  // (dietro di lei, invisibile). `stops`: a che frazione della lunghezza il
+  // sentiero arriva sul bordo del 2, del 3 e del 4.
+  const parts = [[center(b1)], leg12, [center(b2)], leg23a, leg23b, [center(b3)], leg34, [center(b4)]];
+  const arrivals = new Set([leg12, leg23b, leg34]);
+  const pts = [];
+  const reached = [];
+  let length = 0;
+  for (const part of parts) {
+    for (const p of part) {
+      const prev = pts[pts.length - 1];
+      if (prev) length += Math.hypot(p.x - prev.x, p.y - prev.y);
+      pts.push(p);
+    }
+    if (arrivals.has(part)) reached.push(length);
+  }
+  const d = 'M' + pts.map((p) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' L');
+  for (const path of svg.querySelectorAll('path')) path.setAttribute('d', d);
+  return { length, stops: reached.map((l) => l / length) };
+}
+
+/* ── Lo spettacolo della guida ────────────────────────────────────────────
+   All'apertura: compare il passo 1, il sentiero parte e quando arriva al 2
+   compare il 2; aspetta 2 s e prosegue verso il 3, che compare; lo stesso per
+   il 4. Poi le schede restano e solo il sentiero continua, in loop: la coda si
+   ritira dall'inizio come un serpente, la testa riparte dal 1 e ritorna al 4,
+   e ogni bollino dà un colpo quando la testa arriva alla sua scheda.
+
+   È JavaScript (Web Animations) e non solo CSS perché i tempi dipendono da
+   dove sta il sentiero: la scheda compare quando la testa la raggiunge, e la
+   lunghezza di ogni tratto cambia con lo schermo. Il sentiero si mostra con
+   la maschera: un tratto pieno lungo `pathLength = 1`; il pezzo visibile
+   [s, e] è `stroke-dasharray: (e−s) 2` con `stroke-dashoffset: −s`. */
+
+const GUIDE_SHOW = Object.freeze({
+  popMs: 480,          // entrata di una scheda
+  firstLegDelayMs: 600,
+  waitMs: 2000,        // sosta del sentiero su ogni passo
+  pxPerSec: 560,       // velocità della testa durante l'apertura
+  minLegMs: 1100,
+  maxLegMs: 2600,
+  loopDelayMs: 1500,   // a sentiero completo, prima che parta il loop
+  loopMs: 9000,
+  // Fasi del loop, in frazione del ciclo: pieno, la coda si ritira, vuoto,
+  // la testa ridisegna fino al 4, pieno.
+  retractFrom: 0.12, retractTo: 0.5, drawFrom: 0.56, drawTo: 0.94,
+});
+
+function onGuideResize(show) {
+  if (show.list.offsetWidth === 0) {
+    stopGuideShow(show);
+    return;
+  }
+  show.trail = drawGuideTrail(show.list) || show.trail;
+  if (!show.running) startGuideShow(show);
+}
+
+function stopGuideShow(show) {
+  show.gen++;
+  show.running = false;
+  for (const a of show.anims) a.cancel();
+  show.anims = [];
+}
+
+function setTrailSpan(mask, s, e) {
+  mask.style.strokeDasharray = `${Math.max(0, e - s)} 2`;
+  mask.style.strokeDashoffset = `${-s}`;
+}
+
+async function startGuideShow(show) {
+  show.running = true;
+  const gen = ++show.gen;
+  const alive = () => gen === show.gen;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const track = (a) => { show.anims.push(a); return a; };
+
+  const cards = [...show.list.querySelectorAll('.sala-guide-step')];
+  const discs = cards.map((c) => c.querySelector('.sala-guide-disc'));
+  const mask = show.list.querySelector('.sala-guide-trail-mask');
+
+  // Movimento ridotto: tutto fermo e visibile, sentiero intero.
+  if (reducedMotion() || !show.trail) {
+    for (const c of cards) c.style.opacity = '';
+    mask.style.strokeDasharray = '';
+    mask.style.strokeDashoffset = '';
+    return;
+  }
+
+  const beat = (disc) => track(disc.animate([
+    { transform: 'none' },
+    { transform: 'scale(1.18) rotate(-10deg)', offset: 0.45 },
+    { transform: 'none' },
+  ], { duration: 420, easing: 'ease-out' }));
+  const pop = (i) => {
+    cards[i].style.opacity = '';
+    track(cards[i].animate([
+      { opacity: 0, transform: 'translateY(1.2em) scale(0.85) rotate(-3deg)' },
+      { opacity: 1, transform: 'translateY(-0.15em) scale(1.04) rotate(1deg)', offset: 0.65 },
+      { opacity: 1, transform: 'none' },
+    ], { duration: GUIDE_SHOW.popMs, easing: 'ease-out' }));
+    beat(discs[i]);
+  };
+
+  for (const c of cards) c.style.opacity = '0';
+  setTrailSpan(mask, 0, 0);
+  pop(0);
+  await sleep(GUIDE_SHOW.firstLegDelayMs);
+  if (!alive()) return;
+
+  let from = 0;
+  for (let i = 1; i < cards.length; i++) {
+    const to = show.trail.stops[i - 1];
+    const ms = Math.min(GUIDE_SHOW.maxLegMs, Math.max(GUIDE_SHOW.minLegMs,
+      ((to - from) * show.trail.length / GUIDE_SHOW.pxPerSec) * 1000));
+    const leg = track(mask.animate([
+      { strokeDasharray: `${from} 2`, strokeDashoffset: '0' },
+      { strokeDasharray: `${to} 2`, strokeDashoffset: '0' },
+    ], { duration: ms, easing: 'ease-in-out', fill: 'forwards' }));
+    await leg.finished.catch(() => {});
+    if (!alive()) return;
+    setTrailSpan(mask, 0, to);
+    leg.cancel();
+    pop(i);
+    from = to;
+    if (i < cards.length - 1) {
+      await sleep(GUIDE_SHOW.waitMs);
+      if (!alive()) return;
+    }
+  }
+
+  await sleep(GUIDE_SHOW.loopDelayMs);
+  if (!alive()) return;
+  startTrailLoop(show, mask, discs);
+}
+
+function startTrailLoop(show, mask, discs) {
+  const S = GUIDE_SHOW;
+  const full = { strokeDasharray: '1 2', strokeDashoffset: '0' };
+  setTrailSpan(mask, 0, 1);
+  show.anims.push(mask.animate([
+    { offset: 0, ...full },
+    { offset: S.retractFrom, ...full, easing: 'ease-in-out' },
+    { offset: S.retractTo, strokeDasharray: '0 2', strokeDashoffset: '-1' },
+    // A tratto nullo il salto dell'offset non si vede (estremità piatte).
+    { offset: S.drawFrom, strokeDasharray: '0 2', strokeDashoffset: '0' },
+    { offset: S.drawTo, ...full },
+    { offset: 1, ...full },
+  ], { duration: S.loopMs, iterations: Infinity }));
+
+  // Il colpo di ogni bollino, nel momento in cui la testa (che nella fase di
+  // disegno va a velocità costante) raggiunge la sua scheda.
+  const stops = [0, ...show.trail.stops];
+  discs.forEach((disc, i) => {
+    const at = S.drawFrom + (S.drawTo - S.drawFrom) * stops[i];
+    show.anims.push(disc.animate([
+      { offset: 0, transform: 'none' },
+      { offset: at, transform: 'none' },
+      { offset: at + 0.02, transform: 'scale(1.18) rotate(-10deg)' },
+      { offset: Math.min(1, at + 0.045), transform: 'none' },
+      { offset: 1, transform: 'none' },
+    ], { duration: S.loopMs, iterations: Infinity }));
+  });
 }
 
 /**
