@@ -210,6 +210,63 @@ assertThrows(
   'rifiuta un machineChoice fuori dal range delle opzioni'
 );
 
+// ─── Contratto: carte private ────────────────────────────────────────────────────
+
+section('Contratto: carte private (deal, progress, botChoice, minPlayers)');
+
+/** Una carta per giocatore, il tavolo ricorda solo gli id. */
+function fakeDeal(players) {
+  const hands = {};
+  players.forEach((p, i) => { hands[p.id] = { n: i }; });
+  return { hands, table: { ids: players.map((p) => p.id) } };
+}
+
+/** Modulo a carte private minimo e valido. */
+function handDef(overrides = {}) {
+  return validDef({
+    deal: fakeDeal,
+    progress: () => [],
+    resolve(_rnd, _ctx) {
+      return { machineChoice: null, outcomeFor: () => 'win', reveal: {} };
+    },
+    ...overrides,
+  });
+}
+
+const tryValidate = (def) => () => validateDefinition(def, 'finto-gioco.js', 'finto_gioco');
+
+assertThrows(tryValidate(handDef({ deal: 'x' })), MinigameContractError,
+  'deal deve essere una funzione');
+assertThrows(tryValidate(handDef({ progress: undefined })), MinigameContractError,
+  'un modulo con deal deve avere anche progress');
+assertThrows(tryValidate(validDef({ minPlayers: 0 })), MinigameContractError,
+  'minPlayers deve essere un intero >= 1');
+{
+  let threw = false;
+  try { validateDefinition(validDef({ minPlayers: 2 }), 'finto-gioco.js', 'finto_gioco'); } catch { threw = true; }
+  assert(!threw, 'minPlayers: 2 è accettato');
+}
+{
+  let threw = null;
+  try { validateDefinition(handDef(), 'finto-gioco.js', 'finto_gioco'); } catch (err) { threw = err; }
+  assert(threw === null, `un modulo a carte private valido (machineChoice: null) passa${threw ? ` — ${threw.message}` : ''}`);
+}
+assertThrows(
+  tryValidate(handDef({
+    deal(players) {
+      const { hands, table } = fakeDeal(players);
+      delete hands[players[0].id];
+      return { hands, table };
+    },
+  })),
+  MinigameContractError,
+  'deal che dimentica un giocatore viene rifiutato'
+);
+assertThrows(tryValidate(handDef({ botChoice: () => 99 })), MinigameContractError,
+  'botChoice fuori dal range delle opzioni viene rifiutato');
+assertThrows(tryValidate(handDef({ progress: () => 'nope' })), MinigameContractError,
+  'progress deve restituire un array');
+
 // ─── Shuffle bag ─────────────────────────────────────────────────────────────────
 
 section('Shuffle bag — estrazione casuale con varietà garantita');
