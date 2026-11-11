@@ -743,6 +743,20 @@ function run() {
       assert(g.getCurrentRound().text === 'Q2', 'minPlayers: con 1 giocatore la Coppia pianificata si salta');
     }
     {
+      // Estrazione casuale con un giocatore solo: mai un minigioco che ne chiede di più.
+      let threw = null; const drawn = new Set();
+      for (const v of [0, 0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9, 0.999]) {
+        const g = new GameSession(QUIZ_COPPIA, { rnd: () => v });
+        const solo = g.addPlayer('Solo');
+        g.startGame(0);
+        g.submitAnswer(solo.id, 0, 500);
+        g.endQuestion(1000);
+        try { g.insertMinigame('random', 1000); drawn.add(g.getCurrentRound().minigameType); } catch (err) { threw = err; }
+      }
+      assert(threw === null && !drawn.has('coppia_scoppiata'),
+        `insertMinigame("random") con 1 giocatore pesca solo minigiochi giocabili${threw ? ` (lanciato: ${threw.message})` : ''}`);
+    }
+    {
       const g = new GameSession({ ...QUIZ_COPPIA, minigames: [{ afterQuestionIndex: 0, type: 'morra_cinese' }] });
       g.addPlayer('Ada');
       g.startGame(0);

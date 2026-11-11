@@ -1022,7 +1022,15 @@ class GameSession {
         && !this._allowedMinigames.has(type)) {
       throw new InvalidMinigameTypeError('Questo minigioco non è incluso nella licenza.');
     }
-    const def = resolveMinigameDef(type, this._minigameBag, this._allowedMinigames);
+    let def = resolveMinigameDef(type, this._minigameBag, this._allowedMinigames);
+    // L'estrazione casuale pesca solo fra i minigiochi giocabili con chi c'è:
+    // un "random" non deve mai fallire perché il sacchetto ha scelto un gioco
+    // da due a una partita da uno. Un giro intero del sacchetto basta.
+    if (type === RANDOM_TYPE) {
+      for (let tries = this._minigameBag.size; def && (def.minPlayers ?? 1) > this.players.size && tries > 0; tries--) {
+        def = resolveMinigameDef(type, this._minigameBag, this._allowedMinigames);
+      }
+    }
     if (!def) {
       throw new InvalidMinigameTypeError();
     }
