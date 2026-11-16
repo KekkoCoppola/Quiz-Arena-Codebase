@@ -1741,6 +1741,17 @@ function connectGameSocket(quiz, type, { resume = false } = {}) {
       ? 'Round saltato: nessun punto assegnato.'
       : 'Round chiuso: risultati sul tabellone.';
 
+    // Il round da cui viene questo riepilogo lo dice il riepilogo stesso, non
+    // il `game:question` che l'ha preceduto: un pannello ricaricato a metà
+    // partita rientra direttamente nei risultati (`host:resync`) e quel
+    // `game:question` non l'ha mai visto. Senza, `currentMinigame` restava
+    // null e `renderRoundOutcome` moriva prima di mostrare la schermata,
+    // lasciando l'host sulla lobby con "Avvia partita" acceso.
+    currentMinigame = isMinigame ? Minigames.get(results.minigameType) : null;
+    if (Array.isArray(results.options) && results.options.length > 0) {
+      currentQuestionOptions = results.options;
+    }
+
     // Round saltato dall'host: niente esito da rivelare né risposte da
     // contare. Resta la classifica, ferma ai punti di prima.
     if (results.skipped) {

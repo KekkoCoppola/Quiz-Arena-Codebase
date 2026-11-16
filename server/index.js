@@ -37,6 +37,50 @@ const app = express();
 // Rimuove l'header X-Powered-By: Express (fingerprinting passivo)
 app.disable('x-powered-by');
 
+// ─── Intestazioni di sicurezza ───────────────────────────────────────────────
+// Scritte a mano invece di `helmet`: il Pi non vede internet e il progetto ha
+// già eliminato i moduli nativi per il packaging SEA su ARM, quindi una
+// dipendenza in più andrebbe portata, aggiornata e compilata per niente —
+// qui servono sei intestazioni fisse.
+//
+// Non è il confine di sicurezza del prodotto (quello è la rete chiusa
+// dell'access point, più `requireHost` sui comandi): è ciò che limita i danni
+// se un giorno una domanda, un nickname o un quiz importato portassero dentro
+// del markup. `script-src 'self'` è la riga che conta: nessuno script scritto
+// dentro la pagina viene eseguito, e il progetto non ne ha nemmeno uno (le tre
+// SPA sono file .js serviti da qui, three.js compreso).
+//
+// `style-src` tiene `'unsafe-inline'` perché il gioco calcola gli stili mentre
+// gira — la larghezza delle barre dei risultati, `--q-fit` della domanda che
+// non ci sta, le variabili del palco dei minigiochi. `frame-ancestors 'self'`
+// e non `'none'` perché la pagina /debug mostra sala e telefono in due iframe.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self'",
+  "media-src 'self' blob:",
+  // Socket.io: polling sulla stessa origine, poi l'upgrade a websocket.
+  "connect-src 'self' ws: wss:",
+  "frame-src 'self'",
+  "frame-ancestors 'self'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+].join('; ');
+
+app.use((_req, res, next) => {
+  res.setHeader('Content-Security-Policy', CSP);
+  // Un .js servito come text/plain non deve poter diventare uno script.
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'same-origin');
+  // Nessuna delle tre SPA chiede camera, microfono o posizione.
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
+
 // Parsing body: JSON con limite 1 MB per prevenire payload bombing
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false }));
@@ -276,6 +320,16 @@ httpServer.listen(config.port, () => {
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 });
 
+// Un errore sulla porta (occupata, permesso negato per la 80) è l'unico caso
+// in cui morire è la cosa giusta: il server non sta servendo nessuno, e
+// restare in piedi significa che systemd non riprova mai e il Pi resta muto
+// con un processo vivo. Senza questo ascoltatore ci pensava `uncaughtException`
+// qui sotto, che invece lo lasciava passare in silenzio.
+httpServer.on('error', (err) => {
+  console.error('[Server] Impossibile mettersi in ascolto:', err);
+  process.exit(1);
+});
+
 // ─── Graceful Shutdown ────────────────────────────────────────────────────────
 function shutdown(signal) {
   console.log(`\n[Server] Ricevuto ${signal}. Chiusura in corso...`);
@@ -288,3 +342,23 @@ function shutdown(signal) {
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT',  () => shutdown('SIGINT'));
+
+// ─── Rete di sicurezza ────────────────────────────────────────────────────────
+// La partita vive solo in memoria: se il processo muore, systemd lo riavvia in
+// due secondi (deploy/setup-pi.sh) ma punteggi e giocatori sono persi, e in
+// sala non c'è nessuno al terminale a capire cosa è successo. L'error handler
+// di Express copre solo le richieste HTTP; un'eccezione dentro un gestore
+// Socket.io, un setTimeout o una promise arriva qui e, senza questi due
+// ascoltatori, è fatale.
+//
+// Deliberatamente NON si esce: un server rimasto in piedi con un round rotto
+// lascia comunque all'host "Ripeti domanda" e "Prossima"; uscire butta fuori
+// la sala e tutti i telefoni. L'errore finisce nel journal del Pi, che è dove
+// si va a leggerlo dopo la serata.
+process.on('uncaughtException', (err) => {
+  console.error('[Server] Eccezione non gestita (la partita resta in piedi):', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Server] Promise rifiutata senza catch (la partita resta in piedi):', reason);
+});

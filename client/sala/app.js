@@ -1007,7 +1007,10 @@ async function loadJoinInfo() {
     const body = await res.json();
     url = body.data.url;
     // Sotto il QR il nome della sala, se il server ne ha uno (JOIN_HOST):
-    // si detta e si digita meglio dell'IP. Il QR resta sull'IP.
+    // si detta e si digita meglio dell'IP. Oggi `url` e `label` sono la
+    // stessa stringa, perché il nome lo risolve il DNS dell'access point del
+    // Pi e inquadrare il QR porta allo stesso posto che digitarlo; restano
+    // due campi distinti perché è `/api/join-info` a decidere, non la sala.
     label = body.data.label ?? null;
     wifi = body.data.wifi ?? null;
   } catch {

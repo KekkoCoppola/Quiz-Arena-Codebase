@@ -191,6 +191,11 @@ class AnswersNotOpenError extends Error {
 function resolveMinigameDef(type, bag, allowed = null) {
   const concreteType = type === RANDOM_TYPE ? bag.next() : type;
   if (!concreteType || (allowed && !allowed.has(concreteType))) return null;
+  // Uno slot pianificato porta il nome scritto in chiaro e non passa dal
+  // sacchetto: il sacchetto non sapeva che quel minigioco era appena stato
+  // giocato e poteva riestrarlo un round dopo. In sala si vedeva — Morra
+  // pianificata, poi "Minigioco a sorpresa", di nuovo Morra.
+  if (type !== RANDOM_TYPE) bag.note?.(concreteType);
   return minigames.get(concreteType);
 }
 
@@ -903,6 +908,11 @@ class GameSession {
       questionIndex: this.currentRoundIndex,
       kind: round.kind,
       minigameType: round.minigameType ?? null,
+      // Le etichette delle opzioni viaggiano già in `game:question`, ma chi
+      // rientra a round chiuso (il pannello host ricaricato, che riprende da
+      // `host:resync`) quel messaggio non l'ha mai ricevuto: senza, la
+      // distribuzione diceva "Opzione 1…4" e il reveal "—".
+      options: Array.isArray(round.options) ? round.options.slice() : [],
       stage: round.stage ?? null,
       correctIndex: round.kind === 'minigame' ? null : round.correct_index,
       machineChoice,

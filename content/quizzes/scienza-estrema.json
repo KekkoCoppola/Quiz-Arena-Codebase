@@ -1,0 +1,184 @@
+{
+  "title": "🚀 Scienza estrema",
+
+  "category": "Scienza",
+
+  "minigames": [
+    { "afterQuestionIndex": 5, "type": "random" },
+    { "afterQuestionIndex": 11, "type": "random" },
+    { "afterQuestionIndex": 16, "type": "random" }
+  ],
+
+  "questions": [
+    {
+      "text": "Quanto tempo impiega la luce del Sole ad arrivare fino a noi?",
+      "options": ["Un istante", "Circa 8 minuti", "Circa 8 ore", "Circa 8 giorni"],
+      "correct_index": 1,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Qual è il pianeta più caldo del Sistema Solare?",
+      "options": ["Mercurio", "Venere", "Marte", "Giove"],
+      "correct_index": 1,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Perché gli astronauti galleggiano dentro la Stazione Spaziale?",
+      "options": [
+        "Perché lassù la gravità non esiste",
+        "Perché stanno cadendo insieme alla stazione",
+        "Perché l'aria li spinge in alto",
+        "Perché indossano scarpe speciali"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 25
+    },
+    {
+      "text": "Quanti cuori ha un polpo?",
+      "options": ["Uno", "Due", "Tre", "Nessuno"],
+      "correct_index": 2,
+      "time_limit_s": 15
+    },
+    {
+      "text": "Un fulmine è più caldo o più freddo della superficie del Sole?",
+      "options": [
+        "Molto più caldo",
+        "Più o meno uguale",
+        "Molto più freddo",
+        "Un fulmine non ha temperatura"
+      ],
+      "correct_index": 0,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Quale di questi dinosauri mangiava soltanto piante?",
+      "options": ["Tirannosauro", "Velociraptor", "Spinosauro", "Triceratopo"],
+      "correct_index": 3,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Quanto tempo fa si sono estinti i dinosauri?",
+      "options": [
+        "Circa 6.000 anni fa",
+        "Circa 2 milioni di anni fa",
+        "Circa 66 milioni di anni fa",
+        "Circa 500 milioni di anni fa"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Che cos'è un anno luce?",
+      "options": [
+        "Un anno passato su un altro pianeta",
+        "La distanza che la luce percorre in un anno",
+        "Il tempo che la luce impiega a fare il giro della Terra",
+        "Un anno particolarmente luminoso"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 25
+    },
+    {
+      "text": "Qual è il gas più abbondante nell'aria che respiriamo?",
+      "options": ["Ossigeno", "Azoto", "Anidride carbonica", "Elio"],
+      "correct_index": 1,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Che cos'è un buco nero?",
+      "options": [
+        "Un buco vuoto nello spazio",
+        "Una stella spenta e fredda",
+        "Un posto dove la gravità è così forte che nemmeno la luce riesce a uscire",
+        "Una nuvola di polvere scura"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 25
+    },
+    {
+      "text": "Quante ossa ha il corpo di una persona adulta?",
+      "options": ["106", "206", "306", "406"],
+      "correct_index": 1,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Che cosa fa l'acqua quando si trasforma in ghiaccio?",
+      "options": [
+        "Diventa più piccola",
+        "Resta uguale",
+        "Si gonfia e occupa più spazio",
+        "Diventa più pesante"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Su quale pianeta si trova il vulcano più alto di tutto il Sistema Solare?",
+      "options": ["Terra", "Marte", "Venere", "Nettuno"],
+      "correct_index": 1,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Che cos'è il DNA?",
+      "options": [
+        "Le istruzioni per costruire un essere vivente",
+        "Un tipo di vitamina",
+        "Il sangue che scorre nelle vene",
+        "Una parte del cervello"
+      ],
+      "correct_index": 0,
+      "time_limit_s": 25
+    },
+    {
+      "text": "Perché la Luna cambia forma nel corso del mese?",
+      "options": [
+        "Perché entra nell'ombra della Terra ogni notte",
+        "Perché vediamo di volta in volta una parte diversa illuminata dal Sole",
+        "Perché si allontana e si avvicina",
+        "Perché ruota su se stessa molto in fretta"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 25
+    },
+    {
+      "text": "Qual è l'animale più veloce del mondo quando si lancia in picchiata?",
+      "options": ["Il ghepardo", "Il falco pellegrino", "Il pesce vela", "La rondine"],
+      "correct_index": 1,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Perché di giorno il cielo è azzurro?",
+      "options": [
+        "Perché riflette il mare",
+        "Perché l'aria sparpaglia soprattutto la luce blu",
+        "Perché l'ossigeno è di colore azzurro",
+        "Perché lo spazio è azzurro"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 25
+    },
+    {
+      "text": "Una di quelle grandi nuvole bianche pesa più o meno quanto…",
+      "options": [
+        "Una piuma: galleggia, quindi non pesa",
+        "Un'automobile",
+        "Centinaia di elefanti",
+        "Niente: è solo aria"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Qual è l'organo che consuma più energia rispetto a quanto pesa?",
+      "options": ["Il cuore", "Lo stomaco", "I muscoli delle gambe", "Il cervello"],
+      "correct_index": 3,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Di che cosa è fatto soprattutto il Sole?",
+      "options": ["Fuoco", "Lava", "Idrogeno", "Ferro incandescente"],
+      "correct_index": 2,
+      "time_limit_s": 20
+    }
+  ]
+}

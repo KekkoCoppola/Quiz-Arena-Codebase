@@ -26,7 +26,7 @@ const jwt      = require('jsonwebtoken');
 
 const config                                          = require('../config');
 const { verifyToken }                                 = require('../middleware/auth');
-const { lanJoinUrl }                                  = require('../lan-url');
+const { lanJoinUrl, displayJoinUrl }                  = require('../lan-url');
 const { listForUi: listMinigamesForUi, RANDOM_TYPE }  = require('../minigames');
 const licenseService                                  = require('../license-service');
 const { isMinigameAllowed }                           = require('../license');
@@ -86,6 +86,61 @@ function sendError(res, status, message) {
   return res.status(status).json({ success: false, error: message });
 }
 
+// ─── Tentativi di accesso ────────────────────────────────────────────────────────
+
+/**
+ * Quanti tentativi falliti di fila prima della pausa, e quanto dura.
+ *
+ * Il pannello host non si crea da sé (`tools/create-host.js`): la password non
+ * si recupera e non si cambia da nessuna schermata, quindi l'unico attacco
+ * possibile è provarle tutte. Durante una serata ogni telefono presente è
+ * sulla stessa rete del Pi, e bcrypt da solo rallenta un tentativo, non mille.
+ *
+ * Il numero è alto e la pausa breve apposta: deve fermare una macchina, non
+ * l'host che sbaglia a digitare al buio davanti alla sala.
+ */
+const LOGIN_MAX_FAILURES = 10;
+const LOGIN_LOCKOUT_MS   = 60 * 1000;
+
+/**
+ * Tentativi falliti per indirizzo. In memoria e basta: il server si riavvia a
+ * ogni accensione del Pi, e una tabella su disco qui non aggiungerebbe nulla
+ * se non scritture durante la partita.
+ * @type {Map<string, { failures: number, until: number }>}
+ */
+const loginAttempts = new Map();
+
+/** Da dove arriva il tentativo. Rete locale, nessun proxy davanti. */
+function loginKey(req) {
+  return req.ip || req.socket?.remoteAddress || 'sconosciuto';
+}
+
+/**
+ * Millisecondi di pausa ancora da scontare, 0 se la strada è libera. Pulisce
+ * da sé le voci scadute, così la mappa non cresce per tutta la serata.
+ */
+function loginLockoutMs(key, now = Date.now()) {
+  const entry = loginAttempts.get(key);
+  if (!entry) return 0;
+  if (entry.until > now) return entry.until - now;
+  if (entry.until !== 0) loginAttempts.delete(key);
+  return 0;
+}
+
+function noteLoginFailure(key, now = Date.now()) {
+  const entry = loginAttempts.get(key) ?? { failures: 0, until: 0 };
+  entry.failures += 1;
+  if (entry.failures >= LOGIN_MAX_FAILURES) {
+    entry.until = now + LOGIN_LOCKOUT_MS;
+    entry.failures = 0;
+  }
+  loginAttempts.set(key, entry);
+}
+
+function clearLoginFailures(key) {
+  loginAttempts.delete(key);
+}
+
 // ─── Validazione Input Quiz ───────────────────────────────────────────────────────
 // La validazione NON vive più qui: sta in server/quiz-schema.js, perché deve
 // valere anche per i quiz che non passano dall'HTTP (quelli di sistema, letti
@@ -133,6 +188,16 @@ function findMissingImageError(questions) {
 router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body ?? {};
+    const attemptKey = loginKey(req);
+
+    const waitMs = loginLockoutMs(attemptKey);
+    if (waitMs > 0) {
+      return sendError(
+        res,
+        429,
+        `Troppi tentativi. Riprova fra ${Math.ceil(waitMs / 1000)} secondi.`
+      );
+    }
 
     if (!username || !password) {
       return sendError(res, 400, 'Username e password sono obbligatori.');
@@ -142,13 +207,17 @@ router.post('/login', async (req, res) => {
 
     // Risposta generica per non rivelare se l'username esiste o meno
     if (!user) {
+      noteLoginFailure(attemptKey);
       return sendError(res, 401, 'Credenziali non valide.');
     }
 
     const passwordMatch = await bcryptjs.compare(String(password), user.password);
     if (!passwordMatch) {
+      noteLoginFailure(attemptKey);
       return sendError(res, 401, 'Credenziali non valide.');
     }
+
+    clearLoginFailures(attemptKey);
 
     const token = jwt.sign(
       { userId: user.id, username: user.username },

@@ -73,6 +73,10 @@
   const QUALITY_WINDOW_FRAMES = 20;
   const QUALITY_SLOW_MS = 24;         // sotto i ~40 fps si scende di un gradino
   const QUALITY_VERY_SLOW_MS = 50;    // sotto i 20 fps di due
+  // Nessun tetto al fotogramma lento, di proposito: sulla V3D del Pi la scena
+  // piena lagga davvero, e fotogrammi da centinaia di millisecondi sono il
+  // segnale per cui la discesa esiste. Filtrarli terrebbe la cerimonia al
+  // gradino pieno proprio sull'hardware che non lo regge.
   const QUALITY_PIXEL_SCALE = [1, 1, 1, 0.75, 0.6];
 
   /**
@@ -2365,6 +2369,14 @@
     function measureQuality(frameMs) {
       const q = state.quality;
       if (!state.renderer || q.level >= MAX_QUALITY_LEVEL) return;
+      // Pagina non visibile: il browser non disegna, quindi non c'è niente da
+      // misurare. Sul proiettore in kiosk non succede mai; succede su un PC
+      // dove la sala sta in una scheda dietro, cioè proprio mentre si prova.
+      if (typeof document !== 'undefined' && document.hidden) {
+        q.sumMs = 0;
+        q.count = 0;
+        return;
+      }
       q.frames += 1;
       if (q.frames <= QUALITY_WARMUP_FRAMES) return;
       q.sumMs += frameMs;

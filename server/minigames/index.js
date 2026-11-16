@@ -290,7 +290,8 @@ function loadDefinitions() {
   const registry = {};
   for (const file of files) {
     const expectedType = typeFromFilename(file);
-    // eslint-disable-next-line global-require, import/no-dynamic-require
+    // Il `require` dentro il ciclo è il punto: la cartella si scandisce
+    // all'avvio e ogni file diventa un minigioco senza un elenco centrale.
     const def = require(path.join(__dirname, file));
     validateDefinition(def, file, expectedType);
     registry[def.type] = Object.freeze(def);
@@ -384,6 +385,20 @@ function createShuffleBag(keys, rnd = Math.random) {
       }
       last = pool.pop();
       return last;
+    },
+    /**
+     * Segna un minigioco come appena giocato senza estrarlo: serve agli slot
+     * che l'editor ha pianificato col nome scritto in chiaro, che non passano
+     * di qui e quindi lasciavano il sacchetto all'oscuro. Senza, una Morra
+     * pianificata poteva essere seguita subito da una Morra estratta a sorte.
+     * Il tipo esce anche dal giro in corso: è appena stato visto.
+     * @param {string} type
+     */
+    note(type) {
+      if (!type || !source.includes(type)) return;
+      last = type;
+      const i = pool.lastIndexOf(type);
+      if (i !== -1) pool.splice(i, 1);
     },
   };
 }

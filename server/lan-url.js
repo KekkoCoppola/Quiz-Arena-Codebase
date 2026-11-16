@@ -36,9 +36,14 @@ function lanJoinUrl() {
 
 /**
  * L'indirizzo da SCRIVERE sotto il QR: il nome della sala (`config.joinHost`)
- * se c'è, altrimenti lo stesso IP del QR. Con "http://" davanti apposta: un
- * dominio come ".gioca" scritto da solo nella barra del browser finisce in
- * una ricerca, non sul sito. La porta compare solo se non è la 80.
+ * se c'è, altrimenti l'IP. Con "http://" davanti apposta: un dominio come
+ * ".gioca" scritto da solo nella barra del browser finisce in una ricerca,
+ * non sul sito. La porta compare solo se non è la 80.
+ *
+ * Oggi restituisce esattamente ciò che va nel QR, perché il nome lo risolve
+ * il DNS dell'access point del Pi e le due strade portano allo stesso posto.
+ * Resta una funzione a sé perché è qui che si separano, se un giorno il QR
+ * dovrà codificare l'IP per non dipendere dal DNS del telefono.
  * @returns {string} es. "http://quizzata.gioca" o "http://192.168.4.1:3000"
  */
 function displayJoinUrl() {

@@ -1,0 +1,144 @@
+{
+  "title": "🌍 Giro del mondo",
+
+  "category": "Mondo",
+
+  "minigames": [
+    { "afterQuestionIndex": 5, "type": "random" },
+    { "afterQuestionIndex": 11, "type": "random" },
+    { "afterQuestionIndex": 16, "type": "random" }
+  ],
+
+  "questions": [
+    {
+      "text": "Qual è il paese più grande del mondo per superficie?",
+      "options": ["Cina", "Stati Uniti", "Russia", "Canada"],
+      "correct_index": 2,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Quale di queste città NON è la capitale del suo paese?",
+      "options": ["Oslo", "Barcellona", "Lisbona", "Vienna"],
+      "correct_index": 1,
+      "time_limit_s": 20
+    },
+    {
+      "text": "In quale paese si trova Machu Picchu, la città di pietra sulle montagne?",
+      "options": ["Messico", "Perù", "Cile", "Colombia"],
+      "correct_index": 1,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Quanti anelli ci sono nel simbolo delle Olimpiadi?",
+      "options": ["Tre", "Quattro", "Cinque", "Sei"],
+      "correct_index": 2,
+      "time_limit_s": 15
+    },
+    {
+      "text": "Quanti giocatori di una stessa squadra stanno in campo nella pallavolo?",
+      "options": ["Cinque", "Sei", "Sette", "Undici"],
+      "correct_index": 1,
+      "time_limit_s": 15
+    },
+    {
+      "text": "In quale paese sono stati inventati i mattoncini Lego?",
+      "options": ["Germania", "Danimarca", "Svezia", "Paesi Bassi"],
+      "correct_index": 1,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Quale paese ha una foglia d'acero rossa sulla bandiera?",
+      "options": ["Canada", "Norvegia", "Nuova Zelanda", "Svizzera"],
+      "correct_index": 0,
+      "time_limit_s": 15
+    },
+    {
+      "text": "Qual è l'oceano più grande della Terra?",
+      "options": ["Atlantico", "Indiano", "Pacifico", "Artico"],
+      "correct_index": 2,
+      "time_limit_s": 15
+    },
+    {
+      "text": "In quale continente si trova il deserto del Sahara?",
+      "options": ["Asia", "Africa", "America del Sud", "Oceania"],
+      "correct_index": 1,
+      "time_limit_s": 15
+    },
+    {
+      "text": "Quale di queste NON è una regione italiana?",
+      "options": ["Molise", "Umbria", "Carinzia", "Basilicata"],
+      "correct_index": 2,
+      "time_limit_s": 25
+    },
+    {
+      "text": "Qual è l'ingrediente principale del guacamole?",
+      "options": ["Avocado", "Zucchina", "Piselli", "Kiwi"],
+      "correct_index": 0,
+      "time_limit_s": 15
+    },
+    {
+      "text": "Quale città è costruita su più di cento isolette collegate da ponti?",
+      "options": ["Amsterdam", "Venezia", "Stoccolma", "Copenaghen"],
+      "correct_index": 1,
+      "time_limit_s": 20
+    },
+    {
+      "text": "In quale paese si trovano le piramidi di Giza?",
+      "options": ["Messico", "Egitto", "Sudan", "Iraq"],
+      "correct_index": 1,
+      "time_limit_s": 15
+    },
+    {
+      "text": "Che cosa divide la linea dell'Equatore?",
+      "options": [
+        "La terraferma dal mare",
+        "La Terra in una metà nord e una metà sud",
+        "Il giorno dalla notte",
+        "L'estate dall'inverno"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 25
+    },
+    {
+      "text": "Quale sport si gioca nel famoso torneo di Wimbledon?",
+      "options": ["Golf", "Tennis", "Cricket", "Rugby"],
+      "correct_index": 1,
+      "time_limit_s": 15
+    },
+    {
+      "text": "Qual è la lingua madre di più persone al mondo?",
+      "options": ["Inglese", "Spagnolo", "Cinese mandarino", "Hindi"],
+      "correct_index": 2,
+      "time_limit_s": 25
+    },
+    {
+      "text": "Che cos'è il Ramadan?",
+      "options": [
+        "Una festa con i fuochi d'artificio",
+        "Un mese in cui i musulmani digiunano dall'alba al tramonto",
+        "Il capodanno cinese",
+        "Un pellegrinaggio in India"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 25
+    },
+    {
+      "text": "Qual è la montagna più alta della Terra?",
+      "options": ["Monte Bianco", "Kilimangiaro", "Everest", "Aconcagua"],
+      "correct_index": 2,
+      "time_limit_s": 15
+    },
+    {
+      "text": "Ogni quanti anni si disputano le Olimpiadi estive?",
+      "options": ["Due", "Tre", "Quattro", "Cinque"],
+      "correct_index": 2,
+      "time_limit_s": 15
+    },
+    {
+      "text": "Quale di questi animali vive allo stato selvatico soltanto in Australia?",
+      "options": ["Koala", "Lemure", "Panda", "Bradipo"],
+      "correct_index": 0,
+      "time_limit_s": 20
+    }
+  ]
+}

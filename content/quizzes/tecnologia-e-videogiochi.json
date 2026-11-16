@@ -1,0 +1,194 @@
+{
+  "title": "🎮 Tecnologia e videogiochi",
+
+  "category": "Tecnologia",
+
+  "minigames": [
+    { "afterQuestionIndex": 5, "type": "random" },
+    { "afterQuestionIndex": 11, "type": "random" },
+    { "afterQuestionIndex": 16, "type": "random" }
+  ],
+
+  "questions": [
+    {
+      "text": "In Minecraft, come si chiama il mostro verde che ti si avvicina in silenzio e poi esplode?",
+      "options": ["Zombie", "Creeper", "Enderman", "Scheletro"],
+      "correct_index": 1,
+      "time_limit_s": 15
+    },
+    {
+      "text": "Nelle chat di oggi, che cosa vuol dire di solito l'emoji 💀?",
+      "options": [
+        "Che hai paura",
+        "Che è tutto finito",
+        "Che stai morendo dal ridere",
+        "Che hai sonno"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 15
+    },
+    {
+      "text": "Quale azienda costruisce la console Switch?",
+      "options": ["Sony", "Microsoft", "Nintendo", "Sega"],
+      "correct_index": 2,
+      "time_limit_s": 15
+    },
+    {
+      "text": "In un videogioco, che cos'è un NPC?",
+      "options": [
+        "Un personaggio comandato dal computer",
+        "Un giocatore che bara",
+        "Un livello segreto",
+        "Un tipo di controller"
+      ],
+      "correct_index": 0,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Che cosa succede quando inquadri un QR code con il telefono?",
+      "options": [
+        "Si scatta una foto",
+        "Il telefono apre un indirizzo nascosto dentro il codice",
+        "Si scarica una app a sorpresa",
+        "Il telefono si collega al Bluetooth"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Quale di queste quattro è la password più difficile da indovinare?",
+      "options": ["123456", "password", "Tr3no-Blu-42!", "ciaociao"],
+      "correct_index": 2,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Il «www» che si vede negli indirizzi dei siti sta per…",
+      "options": [
+        "World Wide Web",
+        "Windows Web World",
+        "Wireless Web Work",
+        "Web Without Wires"
+      ],
+      "correct_index": 0,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Quale di questi NON è un sistema operativo?",
+      "options": ["Windows", "Android", "Linux", "Photoshop"],
+      "correct_index": 3,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Uno dei primi videogiochi famosi aveva solo due barrette e una pallina che rimbalzava. Come si chiamava?",
+      "options": ["Tetris", "Pong", "Pac-Man", "Space Invaders"],
+      "correct_index": 1,
+      "time_limit_s": 20
+    },
+    {
+      "text": "In Among Us, chi è che sabota la nave e fa sparire gli altri?",
+      "options": ["Il Capitano", "Il Meccanico", "L'Impostore", "Il Fantasma"],
+      "correct_index": 2,
+      "time_limit_s": 15
+    },
+    {
+      "text": "Quale di questi è un vero linguaggio di programmazione?",
+      "options": ["Cobra", "Vipera", "Python", "Anaconda"],
+      "correct_index": 2,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Che cosa vuol dire guardare un film «in streaming»?",
+      "options": [
+        "Guardarlo mentre arriva, senza scaricarlo tutto prima",
+        "Scaricarlo di notte e guardarlo la mattina",
+        "Guardarlo senza audio",
+        "Registrarlo dalla televisione"
+      ],
+      "correct_index": 0,
+      "time_limit_s": 25
+    },
+    {
+      "text": "Chi ha inventato il World Wide Web, cioè i siti che apriamo ogni giorno?",
+      "options": ["Bill Gates", "Steve Jobs", "Mark Zuckerberg", "Tim Berners-Lee"],
+      "correct_index": 3,
+      "time_limit_s": 25
+    },
+    {
+      "text": "Nel mondo dei computer, che cos'è un «bug»?",
+      "options": [
+        "Un errore che fa funzionare male il programma",
+        "Un gioco nascosto dentro il sistema",
+        "Un pezzo del computer che si surriscalda",
+        "Un file troppo grande"
+      ],
+      "correct_index": 0,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Che cos'è il Wi-Fi?",
+      "options": [
+        "Un tipo di cavo molto veloce",
+        "Un modo per collegarsi a internet senza fili",
+        "Una marca di computer",
+        "Un programma per navigare"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Quando si dice che un video «è diventato virale», vuol dire che…",
+      "options": [
+        "Contiene un virus",
+        "È stato cancellato",
+        "In pochissimo tempo lo hanno visto e condiviso in tantissimi",
+        "Dura più di un'ora"
+      ],
+      "correct_index": 2,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Un'intelligenza artificiale come quelle di oggi impara soprattutto…",
+      "options": [
+        "Andando a scuola come noi",
+        "Guardando moltissimi esempi",
+        "Collegandosi al cervello di una persona",
+        "Indovinando a caso"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 25
+    },
+    {
+      "text": "Che cos'è la «batteria al litio» che sta dentro quasi tutti i telefoni?",
+      "options": [
+        "Una batteria che si ricarica tante volte",
+        "Una batteria usa e getta",
+        "Un piccolo pannello solare",
+        "Un motore in miniatura"
+      ],
+      "correct_index": 0,
+      "time_limit_s": 20
+    },
+    {
+      "text": "A che cosa serve il GPS del telefono?",
+      "options": [
+        "A fare foto più nitide",
+        "A capire dove ti trovi sulla Terra",
+        "A rendere la batteria più duratura",
+        "A tradurre le lingue"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 20
+    },
+    {
+      "text": "Un drone riesce a stare fermo a mezz'aria soprattutto grazie a…",
+      "options": [
+        "Un palloncino di elio nascosto",
+        "Le eliche che girano a velocità diverse",
+        "Un magnete puntato verso terra",
+        "Il vento"
+      ],
+      "correct_index": 1,
+      "time_limit_s": 25
+    }
+  ]
+}
