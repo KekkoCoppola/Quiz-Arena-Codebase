@@ -1,0 +1,76 @@
+<template>
+  <style>
+    @font-face {
+      font-family: "Quicksand";
+      src: url("assets/fonts/quicksand-700.woff2") format("woff2");
+      font-weight: 700;
+    }
+    #root {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background-color: #ffe500;
+      background-image: radial-gradient(rgba(28, 28, 38, 0.16) 3px, transparent 3.5px);
+      background-size: 34px 34px;
+      font-family: "Quicksand", sans-serif;
+    }
+    #logo-stage {
+      position: absolute;
+      inset: 0;
+    }
+    #logo-img {
+      position: absolute;
+      left: 660px;
+      top: 150px;
+      width: 600px;
+      height: 600px;
+      filter: drop-shadow(14px 14px 0 #1c1c26);
+    }
+    .logo-stk {
+      position: absolute;
+      font-weight: 700;
+      font-size: 64px;
+      line-height: 1;
+      color: #1c1c26;
+      border: 6px solid #1c1c26;
+      border-radius: 20px;
+      box-shadow: 10px 10px 0 #1c1c26;
+      padding: 18px 34px 22px;
+      white-space: nowrap;
+    }
+    #logo-s1 {
+      left: 360px;
+      top: 760px;
+      background: #ffffff;
+    }
+    #logo-s2 {
+      left: 1090px;
+      top: 790px;
+      background: #90efef;
+    }
+  </style>
+  <div id="root" data-composition-id="logo" data-width="1920" data-height="1080">
+    <div id="logo-stage">
+      <img id="logo-img" src="assets/logo.png" alt="Quiz-Zata!" />
+      <div id="logo-s1" class="logo-stk">Zero internet.</div>
+      <div id="logo-s2" class="logo-stk">Zero app.</div>
+    </div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    // beat-locked: 3.60s — il logo sbatte al centro
+    tl.fromTo("#logo-img",
+      { scale: 2.3, rotation: -14, opacity: 0 },
+      { scale: 1, rotation: -3, opacity: 1, duration: 0.42, ease: "expo.out" }, 0);
+    // beat-grid: sticker a 4.00s e 4.35s (pop veri della sala)
+    tl.fromTo("#logo-s1",
+      { scale: 0.3, rotation: -12, opacity: 0 },
+      { scale: 1, rotation: -4, opacity: 1, duration: 0.34, ease: "back.out(1.8)" }, 0.4);
+    tl.fromTo("#logo-s2",
+      { scale: 0.3, rotation: 12, opacity: 0 },
+      { scale: 1, rotation: 3, opacity: 1, duration: 0.34, ease: "back.out(1.8)" }, 0.75);
+    // Uscita: tutto vola su (stessa direzione dell'ingresso della scena dopo)
+    tl.to("#logo-stage", { y: -1150, duration: 0.22, ease: "power3.in" }, 1.78);
+    window.__timelines["logo"] = tl;
+  </script>
+</template>

@@ -14,6 +14,17 @@ require('dotenv').config();
 
 const path = require('node:path');
 const fs   = require('node:fs');
+const os   = require('node:os');
+
+// `initDb` riallinea i quiz di sistema, e da quando le domande possono portare
+// una foto quel riallineamento stocca anche le immagini di `content/images/`.
+// Qui si conta `quiz_images` riga per riga, quindi il DB di prova deve partire
+// davvero vuoto: si punta la cartella delle immagini su una temporanea e
+// deserta. Va fatto PRIMA di richiedere quiz-manager, che carica `config`, il
+// quale legge l'ambiente una volta sola. Stessa idea del `dir` che
+// `loadQuizFiles` accetta per i test: iniettare invece di cablare.
+const IMMAGINI_VUOTE = fs.mkdtempSync(path.join(os.tmpdir(), 'quizzata-img-'));
+process.env.IMAGES_DIR = IMMAGINI_VUOTE;
 const {
   initDb,
   getDb,

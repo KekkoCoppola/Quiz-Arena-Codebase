@@ -25,7 +25,7 @@
 const path = require('node:path');
 const { loadQuizFiles, QUIZZES_DIR } = require(path.join(__dirname, '..', 'server', 'quiz-library'));
 
-const { quizzes, errors } = loadQuizFiles();
+const { quizzes, errors, warnings } = loadQuizFiles();
 
 console.log('');
 console.log('🔍  Quiz di sistema — ' + path.relative(process.cwd(), QUIZZES_DIR));
@@ -35,7 +35,17 @@ for (const q of quizzes) {
   const domande = q.questions.length;
   const minigiochi = q.minigames.length;
   const extra = minigiochi > 0 ? `, ${minigiochi} minigioc${minigiochi === 1 ? 'o' : 'hi'}` : '';
-  console.log(`  ✅  ${q.slug.padEnd(28)} "${q.title}"  (${domande} domande${extra})`);
+  const conFoto = q.questions.filter((d) => d.image).length;
+  const foto = conFoto > 0 ? `, ${conFoto} con foto` : '';
+  console.log(`  ✅  ${q.slug.padEnd(28)} "${q.title}"  (${domande} domande${extra}${foto})`);
+}
+
+// Un'immagine che manca non esclude il quiz: la domanda si gioca come una
+// domanda di testo. Va però detto, perché è la differenza fra "ho dimenticato
+// di copiare il file" e "quella domanda non doveva avere una foto".
+if (warnings.length > 0) {
+  console.log('');
+  for (const w of warnings) console.log(`  ⚠️   ${w}`);
 }
 
 if (errors.length > 0) {
@@ -45,7 +55,8 @@ if (errors.length > 0) {
 
 console.log('');
 console.log('━'.repeat(60));
-console.log(`  Validi: ${quizzes.length}   Esclusi: ${errors.length}`);
+const avvisi = warnings.length > 0 ? `   Avvisi: ${warnings.length}` : '';
+console.log(`  Validi: ${quizzes.length}   Esclusi: ${errors.length}${avvisi}`);
 console.log('━'.repeat(60));
 console.log('');
 

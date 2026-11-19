@@ -50,6 +50,15 @@ const config = {
   quizzesDir: process.env.QUIZZES_DIR || './content/quizzes',
 
   /**
+   * Cartella delle immagini dei quiz di sistema, una foto per file. Una
+   * domanda ci punta col NOME del file; a tradurlo nell'hash dei byte, che è
+   * l'unica forma che arriva alla partita, è server/image-library.js.
+   * Configurabile per la stessa ragione di `quizzesDir`: col binario SEA il
+   * codice sta dentro, i contenuti restano sul disco del Raspberry.
+   */
+  imagesDir: process.env.IMAGES_DIR || './content/images',
+
+  /**
    * Durata del sipario che apre ogni minigioco in sala (tende, ruota che
    * estrae il gioco, tende che si riaprono su di esso). Il server la riserva
    * PRIMA dell'anteprima e delle risposte, così nessuno sceglie mentre la sala

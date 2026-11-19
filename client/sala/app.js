@@ -1151,12 +1151,31 @@ function fitLobbyStrip() {
  *   `error` che arriva a round già cambiato — stesso idioma di `phaseToken` /
  *   `AudioLogic.isStale` usato altrove in questo file.
  */
-/** Applica la sfocatura percentuale (0-100) all'immagine della domanda corrente. */
-function setMediaBlur(blurValue) {
+/**
+ * Quanto è sfocata adesso l'immagine a schermo (0-100).
+ *
+ * Serve a sapere, a round chiuso, se c'è una sfocatura da sciogliere: un
+ * round senza foto o con una foto già nitida non deve far partire nessuna
+ * animazione. Lo tiene `setMediaBlur`, che è l'unico punto da cui la
+ * sfocatura cambia — dalla domanda, dalla manopola dell'host, o dal reveal.
+ */
+let mediaBlurNow = 0;
+
+/**
+ * Applica la sfocatura percentuale (0-100) all'immagine della domanda corrente.
+ *
+ * @param {number|boolean} blurValue
+ * @param {{ transitionMs?: number }} [opts] durata della dissolvenza. Zero
+ *   (il default) cambia di scatto: è ciò che serve alla domanda che entra e
+ *   alla manopola dell'host, che deve seguire il dito senza strascichi.
+ */
+function setMediaBlur(blurValue, { transitionMs = 0 } = {}) {
   if (!els.questionMedia) return;
   const num = typeof blurValue === 'number'
     ? Math.max(0, Math.min(100, Math.round(blurValue)))
     : (blurValue ? 60 : 0);
+  mediaBlurNow = num;
+  els.questionMedia.style.setProperty('--img-blur-ms', `${Math.max(0, Math.round(transitionMs))}ms`);
   if (num > 0) {
     els.questionMedia.classList.add('is-blurred');
     const factor = (num / 100).toFixed(3);
@@ -1165,6 +1184,29 @@ function setMediaBlur(blurValue) {
     els.questionMedia.classList.remove('is-blurred');
     els.questionMedia.style.removeProperty('--img-blur');
   }
+}
+
+/**
+ * Scioglie la sfocatura dell'immagine adesso che il round è chiuso.
+ *
+ * È il pagamento della domanda sfocata: finché si gioca la foto è un indovinello,
+ * e al rullo di tamburi si mette a fuoco sotto gli occhi della sala, arrivando
+ * nitida insieme alla risposta corretta. Per questo la dissolvenza dura quanto
+ * la sospensione (`AudioLogic.SUSPENSE_MS`) e parte nello stesso istante.
+ *
+ * Non c'è niente da sincronizzare col server: `game:results` è un `io.emit`
+ * unico e l'immagine la disegna solo la sala, quindi non esiste un secondo
+ * schermo che possa sfasarsi. Stessa ragione per cui la premiazione parte da
+ * quando arriva l'evento invece che da un timestamp.
+ *
+ * Chi ha chiesto meno movimento la trova nitida di colpo: una media query CSS
+ * non può fermare questa transizione, perché la durata la scrive il JavaScript.
+ */
+function revealMediaBlur() {
+  if (mediaBlurNow <= 0) return;
+  const ridotto = typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  setMediaBlur(0, { transitionMs: ridotto ? 0 : AudioLogic.SUSPENSE_MS });
 }
 
 function renderQuestionMedia(round, token) {
@@ -2467,6 +2509,13 @@ socket.on('game:results', (results) => {
   // Il round è chiuso: nessuna risposta in più nella colonna, che resta ferma
   // finché non la riprende la scena degli esiti.
   rosterLive = false;
+
+  // La domanda è ancora a schermo (la parata degli avatar e la classifica
+  // arrivano dopo la sospensione): è adesso che una foto sfocata si mette a
+  // fuoco, mentre tutti la stanno guardando. Vale anche per un round saltato:
+  // quella domanda è finita comunque, e lasciarla sfocata mentre si passa
+  // oltre sembrerebbe un errore.
+  revealMediaBlur();
 
   // Round saltato dall'host: niente da rivelare né da festeggiare, e nessun
   // rullo di tamburi che prometta un esito. Dritti alla classifica.

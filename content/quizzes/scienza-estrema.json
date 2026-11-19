@@ -34,6 +34,18 @@
       "time_limit_s": 25
     },
     {
+      "text": "Che cos'è questa luce verde che di notte ondeggia nel cielo del Nord?",
+      "options": [
+        "Un'aurora polare",
+        "Un arcobaleno di notte",
+        "Il riflesso del mare",
+        "Una pioggia di meteore"
+      ],
+      "correct_index": 0,
+      "time_limit_s": 25,
+      "image": { "file": "aurora-boreale.jpg", "blur": 60 }
+    },
+    {
       "text": "Quanti cuori ha un polpo?",
       "options": ["Uno", "Due", "Tre", "Nessuno"],
       "correct_index": 2,
@@ -68,6 +80,13 @@
       "time_limit_s": 20
     },
     {
+      "text": "Questa scala attorcigliata su se stessa è il disegno di una cosa che hai dentro ogni cellula. Che cos'è?",
+      "options": ["Il DNA", "Un virus", "Una proteina", "Un globulo rosso"],
+      "correct_index": 0,
+      "time_limit_s": 25,
+      "image": { "file": "dna.png", "blur": 55 }
+    },
+    {
       "text": "Che cos'è un anno luce?",
       "options": [
         "Un anno passato su un altro pianeta",
@@ -96,38 +115,22 @@
       "time_limit_s": 25
     },
     {
-      "text": "Quante ossa ha il corpo di una persona adulta?",
-      "options": ["106", "206", "306", "406"],
-      "correct_index": 1,
-      "time_limit_s": 20
-    },
-    {
-      "text": "Che cosa fa l'acqua quando si trasforma in ghiaccio?",
-      "options": [
-        "Diventa più piccola",
-        "Resta uguale",
-        "Si gonfia e occupa più spazio",
-        "Diventa più pesante"
-      ],
-      "correct_index": 2,
-      "time_limit_s": 20
-    },
-    {
       "text": "Su quale pianeta si trova il vulcano più alto di tutto il Sistema Solare?",
       "options": ["Terra", "Marte", "Venere", "Nettuno"],
       "correct_index": 1,
       "time_limit_s": 20
     },
     {
-      "text": "Che cos'è il DNA?",
+      "text": "Che cosa sta succedendo in questa foto?",
       "options": [
-        "Le istruzioni per costruire un essere vivente",
-        "Un tipo di vitamina",
-        "Il sangue che scorre nelle vene",
-        "Una parte del cervello"
+        "La Luna sta passando davanti al Sole",
+        "Il Sole sta tramontando dietro una montagna",
+        "Una cometa sta sfiorando il Sole",
+        "È una fotografia di un altro pianeta"
       ],
       "correct_index": 0,
-      "time_limit_s": 25
+      "time_limit_s": 25,
+      "image": { "file": "eclissi-solare.jpg", "blur": 0 }
     },
     {
       "text": "Perché la Luna cambia forma nel corso del mese?",
@@ -169,10 +172,16 @@
       "time_limit_s": 20
     },
     {
-      "text": "Qual è l'organo che consuma più energia rispetto a quanto pesa?",
-      "options": ["Il cuore", "Lo stomaco", "I muscoli delle gambe", "Il cervello"],
-      "correct_index": 3,
-      "time_limit_s": 20
+      "text": "Questa nuvola colorata è lontanissima da noi. Che cos'è?",
+      "options": [
+        "Una nebulosa, dove nascono le stelle",
+        "Un'aurora vista dallo spazio",
+        "La coda di una cometa",
+        "La superficie di Giove"
+      ],
+      "correct_index": 0,
+      "time_limit_s": 25,
+      "image": { "file": "nebulosa.jpg", "blur": 0 }
     },
     {
       "text": "Di che cosa è fatto soprattutto il Sole?",

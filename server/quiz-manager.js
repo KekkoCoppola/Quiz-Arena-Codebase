@@ -201,6 +201,32 @@ function syncPreloadedQuizzes() {
     console.error('[quiz] ' + esito.errors.length + ' quiz esclusi: correggi i file in content/quizzes/ e riavvia.');
   }
 
+  // Un'immagine che manca non esclude il quiz \u2014 la domanda si gioca senza
+  // foto \u2014 ma va **vista**, come l'esclusione di un quiz: \u00E8 il momento in cui
+  // ci si accorge che un file non \u00E8 stato copiato, e deve capitare all'avvio
+  // invece che davanti a una sala piena.
+  for (const avviso of esito.warnings ?? []) {
+    console.warn('  \u26A0\uFE0F   IMMAGINE  ' + avviso);
+  }
+
+  // I byte delle immagini di sistema entrano in `quiz_images` qui, dalla
+  // stessa porta dell'editor: `putImage` ricalcola lo SHA-256 dai byte, quindi
+  // l'hash che la domanda porta con s\u00E9 non \u00E8 mai una parola del client ma
+  // sempre un conto del server. `INSERT OR IGNORE` rende la cosa idempotente a
+  // ogni accensione.
+  let nuove = 0;
+  for (const img of esito.referencedImages ?? []) {
+    try {
+      putImage(img.bytes, img.mime, img.width, img.height);
+      nuove++;
+    } catch (err) {
+      console.error('[img] immagine di sistema non stoccata: ' + err.message);
+    }
+  }
+  if (nuove > 0) {
+    console.log('[img] immagini di sistema: ' + nuove + ' pronte.');
+  }
+
   const mosse = [];
   if (esito.inserted) mosse.push(esito.inserted + ' aggiunti');
   if (esito.updated)  mosse.push(esito.updated + ' aggiornati');

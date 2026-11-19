@@ -1,0 +1,361 @@
+{
+  "ok": true,
+  "strict": false,
+  "browserSkipped": false,
+  "lint": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 8,
+    "infoCount": 0,
+    "findings": [
+      {
+        "code": "nested_media_start_basis_ambiguous",
+        "severity": "warning",
+        "message": "<video id=\"flow-q1\"> has data-start=\"4.0\" inside a sub-composition. Nested media timing is local to its composition by default; a nonzero value can be confused with a legacy root-global timestamp.",
+        "selector": "#flow-q1",
+        "dataAttributes": {},
+        "sourceFile": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\compositions\\flow.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep data-start=\"4.0\" if it is composition-local. If this is a legacy root-global timestamp, add data-hf-media-start-basis=\"global\"; otherwise convert it to local time by subtracting the host start."
+      },
+      {
+        "code": "nested_media_start_basis_ambiguous",
+        "severity": "warning",
+        "message": "<video id=\"flow-q2\"> has data-start=\"6.0\" inside a sub-composition. Nested media timing is local to its composition by default; a nonzero value can be confused with a legacy root-global timestamp.",
+        "selector": "#flow-q2",
+        "dataAttributes": {},
+        "sourceFile": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\compositions\\flow.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep data-start=\"6.0\" if it is composition-local. If this is a legacy root-global timestamp, add data-hf-media-start-basis=\"global\"; otherwise convert it to local time by subtracting the host start."
+      },
+      {
+        "code": "nested_media_start_basis_ambiguous",
+        "severity": "warning",
+        "message": "<video id=\"flow-cup1\"> has data-start=\"8.5\" inside a sub-composition. Nested media timing is local to its composition by default; a nonzero value can be confused with a legacy root-global timestamp.",
+        "selector": "#flow-cup1",
+        "dataAttributes": {},
+        "sourceFile": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\compositions\\flow.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep data-start=\"8.5\" if it is composition-local. If this is a legacy root-global timestamp, add data-hf-media-start-basis=\"global\"; otherwise convert it to local time by subtracting the host start."
+      },
+      {
+        "code": "nested_media_start_basis_ambiguous",
+        "severity": "warning",
+        "message": "<video id=\"flow-cup2\"> has data-start=\"9.7\" inside a sub-composition. Nested media timing is local to its composition by default; a nonzero value can be confused with a legacy root-global timestamp.",
+        "selector": "#flow-cup2",
+        "dataAttributes": {},
+        "sourceFile": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\compositions\\flow.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep data-start=\"9.7\" if it is composition-local. If this is a legacy root-global timestamp, add data-hf-media-start-basis=\"global\"; otherwise convert it to local time by subtracting the host start."
+      },
+      {
+        "code": "nested_media_start_basis_ambiguous",
+        "severity": "warning",
+        "message": "<video id=\"flow-cup3\"> has data-start=\"11.0\" inside a sub-composition. Nested media timing is local to its composition by default; a nonzero value can be confused with a legacy root-global timestamp.",
+        "selector": "#flow-cup3",
+        "dataAttributes": {},
+        "sourceFile": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\compositions\\flow.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep data-start=\"11.0\" if it is composition-local. If this is a legacy root-global timestamp, add data-hf-media-start-basis=\"global\"; otherwise convert it to local time by subtracting the host start."
+      },
+      {
+        "code": "nested_media_start_basis_ambiguous",
+        "severity": "warning",
+        "message": "<video id=\"flow-pjoin2\"> has data-start=\"2.55\" inside a sub-composition. Nested media timing is local to its composition by default; a nonzero value can be confused with a legacy root-global timestamp.",
+        "selector": "#flow-pjoin2",
+        "dataAttributes": {},
+        "sourceFile": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\compositions\\flow.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep data-start=\"2.55\" if it is composition-local. If this is a legacy root-global timestamp, add data-hf-media-start-basis=\"global\"; otherwise convert it to local time by subtracting the host start."
+      },
+      {
+        "code": "nested_media_start_basis_ambiguous",
+        "severity": "warning",
+        "message": "<video id=\"flow-pq1\"> has data-start=\"4.0\" inside a sub-composition. Nested media timing is local to its composition by default; a nonzero value can be confused with a legacy root-global timestamp.",
+        "selector": "#flow-pq1",
+        "dataAttributes": {},
+        "sourceFile": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\compositions\\flow.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep data-start=\"4.0\" if it is composition-local. If this is a legacy root-global timestamp, add data-hf-media-start-basis=\"global\"; otherwise convert it to local time by subtracting the host start."
+      },
+      {
+        "code": "nested_media_start_basis_ambiguous",
+        "severity": "warning",
+        "message": "<video id=\"flow-pq2\"> has data-start=\"6.3\" inside a sub-composition. Nested media timing is local to its composition by default; a nonzero value can be confused with a legacy root-global timestamp.",
+        "selector": "#flow-pq2",
+        "dataAttributes": {},
+        "sourceFile": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\compositions\\flow.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep data-start=\"6.3\" if it is composition-local. If this is a legacy root-global timestamp, add data-hf-media-start-basis=\"global\"; otherwise convert it to local time by subtracting the host start."
+      }
+    ],
+    "filesScanned": 6
+  },
+  "runtime": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": []
+  },
+  "layout": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 3,
+    "findings": [
+      {
+        "code": "container_overflow",
+        "severity": "info",
+        "time": 1.367,
+        "selector": "#hook-cam",
+        "message": "Element extends outside a clipping layout container.",
+        "rect": {
+          "left": -33.6,
+          "top": -18.9,
+          "right": 1953.6,
+          "bottom": 1098.9,
+          "width": 1987.2,
+          "height": 1117.8
+        },
+        "containerSelector": "#hook > div:nth-of-type(1)",
+        "fixHint": "Resize/reposition the child or container, or mark intentional overflow with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1920,
+          "bottom": 1080,
+          "width": 1920,
+          "height": 1080
+        },
+        "overflow": {
+          "left": 33.6,
+          "right": 33.6,
+          "top": 18.9,
+          "bottom": 18.9
+        },
+        "dataAttributes": {},
+        "sourceFile": "compositions/hook.html",
+        "bbox": {
+          "x": -33.6,
+          "y": -18.9,
+          "width": 1987.2,
+          "height": 1117.8
+        },
+        "firstSeen": 1.367,
+        "lastSeen": 1.367,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          1.367
+        ]
+      },
+      {
+        "code": "canvas_covered",
+        "severity": "info",
+        "time": 15.033,
+        "selector": "#flow > div:nth-of-type(1)",
+        "message": "An opaque element covers the canvas above every other visible clip, so the frame shows only it.",
+        "rect": {
+          "left": 0,
+          "top": 0,
+          "right": 1920,
+          "bottom": 1080,
+          "width": 1920,
+          "height": 1080
+        },
+        "fixHint": "Move the full-frame element below the content (earlier in the DOM or a lower z-index / track), or mark a deliberate full-frame card with data-layout-allow-occlusion.",
+        "dataAttributes": {
+          "data-hf-inner-root": "true",
+          "data-hf-authored-id": "root",
+          "data-width": "1920",
+          "data-height": "1080"
+        },
+        "sourceFile": "compositions/flow.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080
+        },
+        "firstSeen": 15.033,
+        "lastSeen": 17.767,
+        "occurrences": 2,
+        "heldMs": 0,
+        "times": [
+          15.033,
+          17.767
+        ]
+      },
+      {
+        "code": "container_overflow",
+        "severity": "info",
+        "time": 20.5,
+        "selector": "#pod-cam",
+        "message": "Element extends outside a clipping layout container.",
+        "rect": {
+          "left": -57.22,
+          "top": -32.18,
+          "right": 1977.22,
+          "bottom": 1112.18,
+          "width": 2034.43,
+          "height": 1144.37
+        },
+        "containerSelector": "#podium > div:nth-of-type(1)",
+        "fixHint": "Resize/reposition the child or container, or mark intentional overflow with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1920,
+          "bottom": 1080,
+          "width": 1920,
+          "height": 1080
+        },
+        "overflow": {
+          "left": 57.22,
+          "right": 57.22,
+          "top": 32.18,
+          "bottom": 32.18
+        },
+        "dataAttributes": {},
+        "sourceFile": "compositions/podium.html",
+        "bbox": {
+          "x": -57.22,
+          "y": -32.18,
+          "width": 2034.43,
+          "height": 1144.37
+        },
+        "firstSeen": 20.5,
+        "lastSeen": 20.5,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          20.5
+        ]
+      }
+    ],
+    "duration": 24.6,
+    "samples": [
+      1.367,
+      4.1,
+      6.833,
+      9.567,
+      12.3,
+      15.033,
+      17.767,
+      20.5,
+      23.233
+    ],
+    "transitionSamples": [],
+    "transitionSamplesDropped": 0,
+    "tolerance": 2,
+    "totalIssueCount": 3,
+    "truncated": false,
+    "faceCheck": {
+      "ran": true,
+      "candidates": 2,
+      "faces": 1
+    }
+  },
+  "motion": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": false,
+    "samples": 0
+  },
+  "contrast": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": true,
+    "samples": [
+      1.367,
+      6.833,
+      12.3,
+      17.767,
+      23.233
+    ],
+    "checked": 17,
+    "passed": 17
+  },
+  "craft": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": true,
+    "step": 0.125,
+    "samples": 197
+  },
+  "audio": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": []
+  },
+  "hdr": {
+    "autoPromotion": null,
+    "inspection": "available"
+  },
+  "snapshots": {
+    "enabled": false,
+    "files": [],
+    "times": [],
+    "findingFiles": []
+  }
+}

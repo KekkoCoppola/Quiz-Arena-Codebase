@@ -1,0 +1,1 @@
+Abbiamo fatto Quiz-Zata!, il quiz da festa che gira su un Raspberry Pi: niente internet, niente app, si inquadra il QR e si gioca dal telefono. Poi arrivano i minigiochi e il podio in 3D.

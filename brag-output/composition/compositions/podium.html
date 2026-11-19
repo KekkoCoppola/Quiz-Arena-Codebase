@@ -1,0 +1,64 @@
+<template>
+  <style>
+    @font-face {
+      font-family: "Quicksand";
+      src: url("assets/fonts/quicksand-700.woff2") format("woff2");
+      font-weight: 700;
+    }
+    #root {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: #3a2f9e;
+      font-family: "Quicksand", sans-serif;
+    }
+    #pod-cam {
+      position: absolute;
+      inset: 0;
+    }
+    #pod-video {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1920px;
+      height: 1080px;
+      object-fit: cover;
+    }
+    #pod-cap {
+      position: absolute;
+      left: 96px;
+      top: 88px;
+      font-weight: 700;
+      font-size: 64px;
+      line-height: 1;
+      color: #1c1c26;
+      background: #ffe500;
+      border: 6px solid #1c1c26;
+      border-radius: 20px;
+      box-shadow: 10px 10px 0 #1c1c26;
+      padding: 20px 36px 24px;
+      white-space: nowrap;
+    }
+    #pod-cap .hl {
+      color: #443be0;
+    }
+  </style>
+  <div id="root" data-composition-id="podium" data-width="1920" data-height="1080">
+    <div id="pod-cam">
+      <!-- Footage vero della premiazione 3D: il 2° sale, il 1° arriva a 2,15 s, coriandoli (2x) -->
+      <video id="pod-video" class="clip" src="assets/footage/sala-podium.mp4" muted playsinline
+        data-start="0" data-duration="3.5" data-media-start="7.0" data-playback-rate="2" data-track-index="0"></video>
+    </div>
+    <div id="pod-cap" data-layout-allow-overflow>Premiazione <span class="hl">in 3D.</span></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    // Whip da sinistra: arriva sfocato e si mette a fuoco
+    tl.fromTo("#pod-cap", { x: -700, rotation: -3, filter: "blur(10px)", opacity: 0 },
+      { x: 0, rotation: -3, filter: "blur(0px)", opacity: 1, duration: 0.3, ease: "expo.out" }, 0.3);
+    // Punch-in quando il 1° tocca il podio
+    tl.fromTo("#pod-cam", { scale: 1 }, { scale: 1.07, duration: 0.45, ease: "power2.inOut" }, 2.1);
+    tl.to("#pod-cap", { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 3.15);
+    window.__timelines["podium"] = tl;
+  </script>
+</template>

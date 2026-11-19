@@ -1,0 +1,65 @@
+IMMAGINI DELLE DOMANDE
+══════════════════════════════════════════════════════════════════════════════
+
+Metti qui dentro i file delle immagini usate dai quiz di sistema
+(content/quizzes/*.json). Niente sottocartelle: i file stanno tutti qui.
+
+Una domanda richiama l'immagine col NOME DEL FILE:
+
+    {
+      "text": "Che monumento è questo?",
+      "options": ["Colosseo", "Partenone", "Arena di Verona", "Circo Massimo"],
+      "correct_index": 0,
+      "time_limit_s": 20,
+      "image": { "file": "colosseo.webp", "blur": 60 }
+    }
+
+Il server legge il file, ne calcola l'impronta e lo mette nel database da solo
+a ogni avvio. Non devi fare altro che copiare il file qui e riavviare.
+
+
+LA SFOCATURA
+──────────────────────────────────────────────────────────────────────────────
+
+  "blur": 0       nessuna sfocatura, la foto si vede subito
+  "blur": 60      sfocata: si indovina, e si schiarisce quando scade il tempo
+  "blur": true    come 60
+  "blur": false   come 0
+
+Da 1 a 100: più alto, più sfocata. Sopra 75 di solito è troppo anche per chi
+la risposta la sa. Quando il round chiude, la sfocatura si scioglie da sola
+durante il rullo di tamburi e l'immagine arriva nitida insieme alla risposta.
+
+
+FORMATI E MISURE
+──────────────────────────────────────────────────────────────────────────────
+
+  Formati     .webp  .png  .jpg  .jpeg  .gif
+  Tetto       5 MB per file (oltre, il file viene rifiutato e la domanda si
+              gioca senza foto)
+  Consigliato lato lungo fra 1200 e 1600 px, orizzontale
+
+Qui puoi essere molto più generoso che nell'editor del pannello host, dove il
+tetto è 150 KB: quelle foto passano dal Wi-Fi dell'access point, queste stanno
+già sulla scheda SD e a scaricarle è il solo Chromium del proiettore, sullo
+stesso Raspberry che serve la pagina. I telefoni non scaricano le immagini.
+
+
+SE UN FILE MANCA
+──────────────────────────────────────────────────────────────────────────────
+
+Non succede niente di grave: la domanda si gioca come una normale domanda di
+testo, e il quiz resta valido. All'avvio il server scrive quale file cercava,
+e `npm run quizzes` te lo dice senza avviare nulla.
+
+È voluto: così si possono scrivere le domande prima di avere le foto, e
+lasciarle cadere al loro posto quando arrivano.
+
+
+UNA RACCOMANDAZIONE
+──────────────────────────────────────────────────────────────────────────────
+
+L'immagine finisce proiettata su un muro davanti a una sala. Usa foto di cui
+hai i diritti (tue, o con licenza libera) e guardale grandi prima della
+serata: un dettaglio che sullo schermo del PC si nota, a tre metri di distanza
+può sparire.

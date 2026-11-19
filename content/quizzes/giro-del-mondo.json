@@ -29,6 +29,13 @@
       "time_limit_s": 20
     },
     {
+      "text": "Quale monumento è questo?",
+      "options": ["Il Colosseo", "Il Partenone", "L'Arena di Verona", "Il Circo Massimo"],
+      "correct_index": 0,
+      "time_limit_s": 25,
+      "image": { "file": "colosseo.jpg", "blur": 60 }
+    },
+    {
       "text": "Quanti anelli ci sono nel simbolo delle Olimpiadi?",
       "options": ["Tre", "Quattro", "Cinque", "Sei"],
       "correct_index": 2,
@@ -47,16 +54,17 @@
       "time_limit_s": 20
     },
     {
-      "text": "Quale paese ha una foglia d'acero rossa sulla bandiera?",
-      "options": ["Canada", "Norvegia", "Nuova Zelanda", "Svizzera"],
-      "correct_index": 0,
-      "time_limit_s": 15
-    },
-    {
       "text": "Qual è l'oceano più grande della Terra?",
       "options": ["Atlantico", "Indiano", "Pacifico", "Artico"],
       "correct_index": 2,
       "time_limit_s": 15
+    },
+    {
+      "text": "Di quale paese è questa bandiera?",
+      "options": ["Brasile", "Giamaica", "Portogallo", "Sudafrica"],
+      "correct_index": 0,
+      "time_limit_s": 20,
+      "image": { "file": "bandiera-brasile.webp", "blur": 0 }
     },
     {
       "text": "In quale continente si trova il deserto del Sahara?",
@@ -71,22 +79,10 @@
       "time_limit_s": 25
     },
     {
-      "text": "Qual è l'ingrediente principale del guacamole?",
-      "options": ["Avocado", "Zucchina", "Piselli", "Kiwi"],
-      "correct_index": 0,
-      "time_limit_s": 15
-    },
-    {
       "text": "Quale città è costruita su più di cento isolette collegate da ponti?",
       "options": ["Amsterdam", "Venezia", "Stoccolma", "Copenaghen"],
       "correct_index": 1,
       "time_limit_s": 20
-    },
-    {
-      "text": "In quale paese si trovano le piramidi di Giza?",
-      "options": ["Messico", "Egitto", "Sudan", "Iraq"],
-      "correct_index": 1,
-      "time_limit_s": 15
     },
     {
       "text": "Che cosa divide la linea dell'Equatore?",
@@ -98,6 +94,13 @@
       ],
       "correct_index": 1,
       "time_limit_s": 25
+    },
+    {
+      "text": "In quale paese si trova questo palazzo di marmo bianco?",
+      "options": ["India", "Turchia", "Marocco", "Iran"],
+      "correct_index": 0,
+      "time_limit_s": 25,
+      "image": { "file": "taj-mahal.jpg", "blur": 60 }
     },
     {
       "text": "Quale sport si gioca nel famoso torneo di Wimbledon?",
@@ -129,10 +132,11 @@
       "time_limit_s": 15
     },
     {
-      "text": "Ogni quanti anni si disputano le Olimpiadi estive?",
-      "options": ["Due", "Tre", "Quattro", "Cinque"],
-      "correct_index": 2,
-      "time_limit_s": 15
+      "text": "Da quale paese arriva questo piatto?",
+      "options": ["Giappone", "Cina", "Thailandia", "Corea del Sud"],
+      "correct_index": 0,
+      "time_limit_s": 20,
+      "image": { "file": "sushi.jpg", "blur": 0 }
     },
     {
       "text": "Quale di questi animali vive allo stato selvatico soltanto in Australia?",

@@ -1,0 +1,40 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: #443be0;
+    }
+    #hook-cam {
+      position: absolute;
+      inset: 0;
+    }
+    #hook-cd {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1920px;
+      height: 1080px;
+      object-fit: cover;
+    }
+  </style>
+  <div id="root" data-composition-id="hook" data-width="1920" data-height="1080">
+    <!-- Footage vero: il conto alla rovescia della sala (Pronti? 3 2 1 VIA!), 1,5x -->
+    <div id="hook-cam">
+      <video id="hook-cd" class="clip" src="assets/footage/sala-question.mp4" muted playsinline
+        data-start="0" data-duration="3.6" data-media-start="0.3" data-playback-rate="1.5"
+        data-track-index="0"></video>
+    </div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    // Punch-in sulle cifre (3 a 0,70 · 2 a 1,53 · 1 a 2,33), più forte sul VIA! (3,10)
+    tl.fromTo("#hook-cam", { scale: 1 }, { scale: 1.035, duration: 0.18, ease: "power4.out" }, 0.7);
+    tl.to("#hook-cam", { scale: 1.06, duration: 0.18, ease: "power4.out" }, 1.53);
+    tl.to("#hook-cam", { scale: 1.09, duration: 0.18, ease: "power4.out" }, 2.33);
+    // beat-locked: 3.10s (VIA! = ingresso musica sul battere forte)
+    tl.to("#hook-cam", { scale: 1.0, duration: 0.3, ease: "expo.out" }, 3.1);
+    window.__timelines["hook"] = tl;
+  </script>
+</template>

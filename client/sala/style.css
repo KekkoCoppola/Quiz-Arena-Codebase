@@ -850,6 +850,27 @@ body {
    toggle resta reversibile. Il valore scala con l'altezza dello schermo perché
    lo stesso blur in px su un proiettore 1080p e su un monitor da sviluppo non
    nasconde la stessa quantità di soggetto. */
+/* Il `filter` sta sull'immagine SEMPRE, con `blur(0px)` come valore di riposo,
+   e non sulla sola `.is-blurred`. Serve alla messa a fuoco del reveal: una
+   proprietà che smette di applicarsi perché la classe è stata tolta non è un
+   valore che cambia, e il browser non ha nulla da animare. Così invece la
+   transizione è sempre da una sfocatura a un'altra — anche quando l'altra
+   vale zero — ed è l'unico modo per cui si vede davvero sciogliersi.
+
+   La durata la scrive il JavaScript in `--img-blur-ms`: zero quando la domanda
+   entra e quando l'host gira la manopola, che deve seguire il dito senza
+   strascichi; quanto il rullo di tamburi quando il round chiude. */
+.q-media img {
+  filter: var(--img-blur, blur(0px));
+  transition: filter var(--img-blur-ms, 0ms) ease-out;
+}
+
+/* La classe resta come il segno di "questa domanda nasconde qualcosa": la usa
+   il JavaScript per sapere cosa c'è a schermo, e resta agganciabile se un
+   giorno la sfocatura dovrà portarsi dietro dell'altro (una cornice, una
+   scritta "indovina"). Il valore scala con l'altezza dello schermo perché lo
+   stesso blur in px su un proiettore 1080p e su un monitor da sviluppo non
+   nasconde la stessa quantità di soggetto. */
 .q-media.is-blurred img {
   filter: var(--img-blur, blur(clamp(8px, 2.2vh, 26px)));
 }

@@ -45,12 +45,62 @@ const path = require('node:path');
 
 const config = require('./config');
 const { validateQuiz } = require('./quiz-schema');
+const { loadImageFiles } = require('./image-library');
 
 /** Cartella dei contenuti. Fuori da `server/` di proposito: nel packaging SEA
  *  il codice finisce dentro il binario, questi file devono restare sul disco
  *  del Pi per poter essere modificati senza ricompilare nulla — per questo il
  *  percorso e configurabile (QUIZZES_DIR) e non cablato. */
 const QUIZZES_DIR = path.resolve(config.quizzesDir);
+
+// ─── Immagini riferite per nome ──────────────────────────────────────────────
+
+/**
+ * Traduce `image: { file: "colosseo.webp", blur: 60 }` in `{ hash, blur }`.
+ *
+ * Nessuno può scrivere a mano lo SHA-256 dei byte dentro un JSON, quindi un
+ * file di sistema nomina l'immagine e la traduzione avviene qui, **prima**
+ * della validazione: `quiz-schema.js` continua a conoscere solo `hash`, e
+ * resta l'unica definizione di quiz valido. Il nome del file vive fra il disco
+ * e il caricamento, come lo slug del quiz.
+ *
+ * Un'immagine che non c'è **non esclude il quiz**: la domanda perde la foto e
+ * si gioca come una domanda di testo, e la cosa viene annunciata all'avvio.
+ * È la stessa scelta che regola tutto questo modulo — davanti a una sala un
+ * quiz che gioca senza una foto vale infinitamente più di un quiz che non
+ * c'è. Ed è anche ciò che permette di scrivere le domande prima di avere le
+ * immagini, e lasciarle cadere al loro posto quando arrivano.
+ *
+ * @param {Array<object>} questions domande grezze dal file
+ * @param {Map<string, object>} images da `loadImageFiles`
+ * @param {string} file nome del quiz, per i messaggi
+ * @param {string[]} warnings accumulatore, modificato sul posto
+ * @returns {Array<object>} domande con `image` risolto, o senza
+ */
+function resolveQuestionImages(questions, images, file, warnings) {
+  if (!Array.isArray(questions)) return questions;
+
+  return questions.map((q, i) => {
+    const img = q?.image;
+    // Niente immagine, o già in forma di hash (un quiz esportato dall'editor):
+    // non c'è nulla da tradurre.
+    if (!img || typeof img !== 'object' || typeof img.file !== 'string') return q;
+
+    const trovata = images.get(img.file);
+    if (!trovata) {
+      warnings.push(
+        `${file}: domanda ${i + 1} chiede l'immagine "${img.file}", che non è in `
+        + `content/images/ — la domanda si gioca senza foto`
+      );
+      const { image: _scartata, ...resto } = q;
+      return resto;
+    }
+
+    // `blur` resta com'era scritto: a validarlo è lo schema, qui si cambia
+    // solo il modo di nominare l'immagine.
+    return { ...q, image: { hash: trovata.hash, blur: img.blur ?? false } };
+  });
+}
 
 // ─── Lettura ─────────────────────────────────────────────────────────────────
 
@@ -67,9 +117,16 @@ const QUIZZES_DIR = path.resolve(config.quizzesDir);
  * @returns {{ quizzes: Array<object>, errors: string[] }}
  *   `quizzes` ordinati per slug, ciascuno con `{ slug, title, category, questions, minigames }`.
  */
-function loadQuizFiles(dir = QUIZZES_DIR) {
-  const quizzes = [];
-  const errors  = [];
+function loadQuizFiles(dir = QUIZZES_DIR, imagesDir = undefined) {
+  const quizzes  = [];
+  const errors   = [];
+  const warnings = [];
+
+  // Le immagini si leggono una volta sola per tutta la cartella: lo stesso
+  // file può servire a più quiz, e rileggerlo per ciascuno vorrebbe dire
+  // ricalcolarne lo SHA-256 ogni volta.
+  const { images, errors: erroriImmagini } = loadImageFiles(imagesDir);
+  for (const e of erroriImmagini) warnings.push(`immagini: ${e}`);
 
   let files;
   try {
@@ -77,7 +134,7 @@ function loadQuizFiles(dir = QUIZZES_DIR) {
   } catch (err) {
     // Cartella assente: nessun quiz di sistema. Il gioco resta funzionante con
     // i soli quiz personali, esattamente come con un manifest audio vuoto.
-    return { quizzes, errors: [`cartella ${dir} non leggibile: ${err.message}`] };
+    return { quizzes, errors: [`cartella ${dir} non leggibile: ${err.message}`], warnings, images };
   }
 
   for (const file of files) {
@@ -90,10 +147,14 @@ function loadQuizFiles(dir = QUIZZES_DIR) {
       continue;
     }
 
+    // Prima della validazione, non dopo: lo schema conosce solo `hash`, e qui
+    // le domande arrivano col nome del file.
+    const questions = resolveQuestionImages(raw.questions, images, file, warnings);
+
     // Stessa validazione dell'editor: una sola definizione di "quiz valido".
     const problema = validateQuiz({
       title:     raw.title,
-      questions: raw.questions,
+      questions,
       minigames: raw.minigames,
     });
     if (problema) {
@@ -105,12 +166,12 @@ function loadQuizFiles(dir = QUIZZES_DIR) {
       slug,
       title:     raw.title.trim(),
       category:  typeof raw.category === 'string' && raw.category.trim() ? raw.category.trim() : 'Generale',
-      questions: raw.questions,
+      questions,
       minigames: raw.minigames ?? [],
     });
   }
 
-  return { quizzes, errors };
+  return { quizzes, errors, warnings, images };
 }
 
 // ─── Sincronizzazione ────────────────────────────────────────────────────────
@@ -128,7 +189,19 @@ function loadQuizFiles(dir = QUIZZES_DIR) {
  * @returns {{ inserted: number, updated: number, removed: number, errors: string[] }}
  */
 function syncToDatabase(database) {
-  const { quizzes, errors } = loadQuizFiles();
+  const { quizzes, errors, warnings, images } = loadQuizFiles();
+
+  // Solo le immagini che una domanda usa davvero: `gcOrphanImages()` gira
+  // subito dopo questa sincronizzazione e cancella quelle che nessuno
+  // referenzia, quindi stoccare l'intera cartella sarebbe scrivere nel
+  // database righe destinate a sparire nella stessa accensione.
+  const usati = new Set();
+  for (const q of quizzes) {
+    for (const d of q.questions) {
+      if (d?.image?.hash) usati.add(d.image.hash);
+    }
+  }
+  const referencedImages = [...images.values()].filter((img) => usati.has(img.hash));
 
   // Righe senza slug: sono quelle scritte dal vecchio seed, che non aveva il
   // concetto di identità stabile. Vanno via subito, altrimenti si sommerebbero
@@ -176,7 +249,18 @@ function syncToDatabase(database) {
     removed++;
   }
 
-  return { inserted, updated, removed: removed + Number(legacy.changes ?? 0), errors };
+  return {
+    inserted,
+    updated,
+    removed: removed + Number(legacy.changes ?? 0),
+    errors,
+    warnings,
+    // I byte li scrive il chiamante (`quiz-manager.syncPreloadedQuizzes`) con
+    // `putImage`: è lì che vive l'unico punto di contatto con SQLite per le
+    // immagini, e quella funzione calcola già l'hash dai byte come fa per
+    // l'editor. Qui si dice solo QUALI servono.
+    referencedImages,
+  };
 }
 
 module.exports = { loadQuizFiles, syncToDatabase, QUIZZES_DIR };

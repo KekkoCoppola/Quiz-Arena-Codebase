@@ -34,6 +34,13 @@
       "time_limit_s": 15
     },
     {
+      "text": "Questo oggetto è ancora oggi il disegno del tasto «Salva» in mille programmi. Che cos'è?",
+      "options": ["Un floppy disk", "Una videocassetta", "Una scheda SIM", "Un hard disk"],
+      "correct_index": 0,
+      "time_limit_s": 25,
+      "image": { "file": "floppy-disk.jpg", "blur": 55 }
+    },
+    {
       "text": "In un videogioco, che cos'è un NPC?",
       "options": [
         "Un personaggio comandato dal computer",
@@ -42,17 +49,6 @@
         "Un tipo di controller"
       ],
       "correct_index": 0,
-      "time_limit_s": 20
-    },
-    {
-      "text": "Che cosa succede quando inquadri un QR code con il telefono?",
-      "options": [
-        "Si scatta una foto",
-        "Il telefono apre un indirizzo nascosto dentro il codice",
-        "Si scarica una app a sorpresa",
-        "Il telefono si collega al Bluetooth"
-      ],
-      "correct_index": 1,
       "time_limit_s": 20
     },
     {
@@ -77,6 +73,13 @@
       "options": ["Windows", "Android", "Linux", "Photoshop"],
       "correct_index": 3,
       "time_limit_s": 20
+    },
+    {
+      "text": "Questa tavola piena di circuiti sta dentro ogni computer e tiene insieme tutti i pezzi. Come si chiama?",
+      "options": ["La scheda madre", "Lo schermo", "L'alimentatore", "La ventola"],
+      "correct_index": 0,
+      "time_limit_s": 25,
+      "image": { "file": "scheda-madre.jpg", "blur": 65 }
     },
     {
       "text": "Uno dei primi videogiochi famosi aveva solo due barrette e una pallina che rimbalzava. Come si chiamava?",
@@ -106,6 +109,13 @@
       ],
       "correct_index": 0,
       "time_limit_s": 25
+    },
+    {
+      "text": "Questo connettore si infila nel verso che vuoi, e lo monta quasi ogni telefono nuovo. Come si chiama?",
+      "options": ["USB-C", "HDMI", "Jack audio", "Ethernet"],
+      "correct_index": 0,
+      "time_limit_s": 20,
+      "image": { "file": "connettore-usb-c.webp", "blur": 0 }
     },
     {
       "text": "Chi ha inventato il World Wide Web, cioè i siti che apriamo ogni giorno?",
@@ -147,45 +157,24 @@
       "time_limit_s": 20
     },
     {
+      "text": "A che cosa serve questo oggetto che si mette in testa?",
+      "options": [
+        "A vedere un mondo in 3D muovendo la testa",
+        "Ad ascoltare musica senza disturbare",
+        "A proteggersi mentre si va in bici",
+        "A ricaricare il telefono"
+      ],
+      "correct_index": 0,
+      "time_limit_s": 20,
+      "image": { "file": "visore-vr.jpg", "blur": 0 }
+    },
+    {
       "text": "Un'intelligenza artificiale come quelle di oggi impara soprattutto…",
       "options": [
         "Andando a scuola come noi",
         "Guardando moltissimi esempi",
         "Collegandosi al cervello di una persona",
         "Indovinando a caso"
-      ],
-      "correct_index": 1,
-      "time_limit_s": 25
-    },
-    {
-      "text": "Che cos'è la «batteria al litio» che sta dentro quasi tutti i telefoni?",
-      "options": [
-        "Una batteria che si ricarica tante volte",
-        "Una batteria usa e getta",
-        "Un piccolo pannello solare",
-        "Un motore in miniatura"
-      ],
-      "correct_index": 0,
-      "time_limit_s": 20
-    },
-    {
-      "text": "A che cosa serve il GPS del telefono?",
-      "options": [
-        "A fare foto più nitide",
-        "A capire dove ti trovi sulla Terra",
-        "A rendere la batteria più duratura",
-        "A tradurre le lingue"
-      ],
-      "correct_index": 1,
-      "time_limit_s": 20
-    },
-    {
-      "text": "Un drone riesce a stare fermo a mezz'aria soprattutto grazie a…",
-      "options": [
-        "Un palloncino di elio nascosto",
-        "Le eliche che girano a velocità diverse",
-        "Un magnete puntato verso terra",
-        "Il vento"
       ],
       "correct_index": 1,
       "time_limit_s": 25

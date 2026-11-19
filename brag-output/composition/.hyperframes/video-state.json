@@ -1,0 +1,755 @@
+{
+  "version": 1,
+  "historyId": "6c886349-3561-4ca3-a3c2-1a9b1e57d91e",
+  "currentRevision": "0efa5cac-6602-4c73-a699-03557c064c75",
+  "pendingChanges": false,
+  "files": {
+    "AGENTS.md": {
+      "hash": "268ff46777938da818baa92a718571785e9acf2cef2d3ffbacbb93483dcba37a",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\26\\268ff46777938da818baa92a718571785e9acf2cef2d3ffbacbb93483dcba37a"
+    },
+    "CLAUDE.md": {
+      "hash": "268ff46777938da818baa92a718571785e9acf2cef2d3ffbacbb93483dcba37a",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\26\\268ff46777938da818baa92a718571785e9acf2cef2d3ffbacbb93483dcba37a"
+    },
+    "assets/fonts/quicksand-700.woff2": {
+      "hash": "00bfba44dde0dd81d9296cacc53f0ffa3ceff85997e69abd2891cbb9518ff40e",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\00\\00bfba44dde0dd81d9296cacc53f0ffa3ceff85997e69abd2891cbb9518ff40e"
+    },
+    "assets/footage/phone-join.mp4": {
+      "hash": "78c223c4c4bf8f57d1354e054eb307f6f29915955638fde7f7af6630a99a3620",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\78\\78c223c4c4bf8f57d1354e054eb307f6f29915955638fde7f7af6630a99a3620"
+    },
+    "assets/footage/phone-question.mp4": {
+      "hash": "0b37ae1b367d5da1f08e888beaf159184c87a216e7750666772d62955b3827de",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\0b\\0b37ae1b367d5da1f08e888beaf159184c87a216e7750666772d62955b3827de"
+    },
+    "assets/logo.png": {
+      "hash": "67279f0594ea1baecfd84a2682eaf9d9ed20d9c859aefe29572977ff563cd74b",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\67\\67279f0594ea1baecfd84a2682eaf9d9ed20d9c859aefe29572977ff563cd74b"
+    },
+    "assets/sfx/avatar-land-01.wav": {
+      "hash": "14daf1d46b59c6aeba346c647bd4aa985481e8f6e044a6c1c71a93b258c800dd",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\14\\14daf1d46b59c6aeba346c647bd4aa985481e8f6e044a6c1c71a93b258c800dd"
+    },
+    "assets/sfx/avatar-land-02.wav": {
+      "hash": "24e0ac9279df0f1168e84331b1c03d6cd1291024e438e1a517f486c392b036fd",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\24\\24e0ac9279df0f1168e84331b1c03d6cd1291024e438e1a517f486c392b036fd"
+    },
+    "assets/sfx/call-01.wav": {
+      "hash": "1bea1509aab4fdf2c196c1fcacf155fac007f8ca565120cfd7df95ff65b70e90",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\1b\\1bea1509aab4fdf2c196c1fcacf155fac007f8ca565120cfd7df95ff65b70e90"
+    },
+    "assets/sfx/card-slide-1.ogg": {
+      "hash": "006cf9822d15d7063f8899e56041f41646df30adb6fbd8b974ee5d5420012690",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\00\\006cf9822d15d7063f8899e56041f41646df30adb6fbd8b974ee5d5420012690"
+    },
+    "assets/sfx/card-slide-3.ogg": {
+      "hash": "af2ab62656cb3df73316ce5771b8ee1111a840962b21607e3202151e7413c52c",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\af\\af2ab62656cb3df73316ce5771b8ee1111a840962b21607e3202151e7413c52c"
+    },
+    "assets/sfx/countdown-beep-01.wav": {
+      "hash": "5b13dcc548df23e2d61a47214f0dc5e61163d914093cadcf100b7698cb125e7b",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\5b\\5b13dcc548df23e2d61a47214f0dc5e61163d914093cadcf100b7698cb125e7b"
+    },
+    "assets/sfx/countdown-go-01.wav": {
+      "hash": "5382002da86865d7a9e1fa33f247b966b7b03f3b768d3129054334e35b6ef109",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\53\\5382002da86865d7a9e1fa33f247b966b7b03f3b768d3129054334e35b6ef109"
+    },
+    "assets/sfx/countdown-ready-01.wav": {
+      "hash": "088ae0811980a98e797883a09a0bfe2ec03f26e3207946e1072e69b1cd56b59b",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\08\\088ae0811980a98e797883a09a0bfe2ec03f26e3207946e1072e69b1cd56b59b"
+    },
+    "assets/sfx/impactBell_heavy_000.ogg": {
+      "hash": "94b8bb5f2d43ab65e4bcc32b28562416e9bc2c51d9fd4be1e333660ee52f977f",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\94\\94b8bb5f2d43ab65e4bcc32b28562416e9bc2c51d9fd4be1e333660ee52f977f"
+    },
+    "assets/sfx/impactSoft_medium_001.ogg": {
+      "hash": "7642a4fd43e547afe4f7adfadb3dabb681c0ff512f52c1674bae30a726841faf",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\76\\7642a4fd43e547afe4f7adfadb3dabb681c0ff512f52c1674bae30a726841faf"
+    },
+    "assets/sfx/player-joined-01.wav": {
+      "hash": "bd3453c9260a8d7488fbec3c202cafb6ad5f282757c9654f864b5a967ae6e4ba",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\bd\\bd3453c9260a8d7488fbec3c202cafb6ad5f282757c9654f864b5a967ae6e4ba"
+    },
+    "assets/sfx/reveal-01.wav": {
+      "hash": "cb01a8787ca9a9639a93820c78b904b7770d97ba196accb211525fad0379ed66",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\cb\\cb01a8787ca9a9639a93820c78b904b7770d97ba196accb211525fad0379ed66"
+    },
+    "assets/sfx/swap-01.wav": {
+      "hash": "85416143d24b60f236fc824f4fe8e4df81b0409c4eeb0a8d612ff530805f0e14",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\85\\85416143d24b60f236fc824f4fe8e4df81b0409c4eeb0a8d612ff530805f0e14"
+    },
+    "assets/sfx/swap-02.wav": {
+      "hash": "fd9d0ebacd3b6d582021d130eb679e98c5b3dfea687a000f3193502c60d0e98e",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\fd\\fd9d0ebacd3b6d582021d130eb679e98c5b3dfea687a000f3193502c60d0e98e"
+    },
+    "assets/sfx/swap-03.wav": {
+      "hash": "d7fd7043346eaf34172c92ee39919eaf310cd1d10632c7014abb2cbb2900f374",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\d7\\d7fd7043346eaf34172c92ee39919eaf310cd1d10632c7014abb2cbb2900f374"
+    },
+    "assets/sfx/winner-01.wav": {
+      "hash": "dd7d936eddf250c297e6c103c7d2418645024e68e32cc6659db55faa156c342b",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\dd\\dd7d936eddf250c297e6c103c7d2418645024e68e32cc6659db55faa156c342b"
+    },
+    "compositions/endcard.html": {
+      "hash": "eb26943d3b0c50c8317254d111aa9750fb06079a6e24955edeb51d432526db94",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\eb\\eb26943d3b0c50c8317254d111aa9750fb06079a6e24955edeb51d432526db94"
+    },
+    "compositions/flow.html": {
+      "hash": "d5a2927638dd76c65b1ebcba627f5fd392008111696d2d1c200f998e7237e0f2",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\d5\\d5a2927638dd76c65b1ebcba627f5fd392008111696d2d1c200f998e7237e0f2"
+    },
+    "compositions/hook.html": {
+      "hash": "c3c455e5cce7f669c36fc866953ef6c849276a7308429b2c048cedbd0c675410",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\c3\\c3c455e5cce7f669c36fc866953ef6c849276a7308429b2c048cedbd0c675410"
+    },
+    "compositions/logo.html": {
+      "hash": "7b1902d0d1a4a08f572c5082866989d66e10c9f7da84ab14989d4aac21bf1d03",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\7b\\7b1902d0d1a4a08f572c5082866989d66e10c9f7da84ab14989d4aac21bf1d03"
+    },
+    "compositions/podium.html": {
+      "hash": "34f7db5d424fb3596e0e8304ae0e1a805af8d14ec2e32e6894615b6763ab4a98",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\34\\34f7db5d424fb3596e0e8304ae0e1a805af8d14ec2e32e6894615b6763ab4a98"
+    },
+    "hyperframes.json": {
+      "hash": "53dbce1e19aa713cbb12ee0bc4d206143b45ab15e6ffbfcaa8f69572d4d24d50",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\53\\53dbce1e19aa713cbb12ee0bc4d206143b45ab15e6ffbfcaa8f69572d4d24d50"
+    },
+    "index.html": {
+      "hash": "efa46d48277803e582f6e271d0ef0b27710db047d0266b6f7c75c88ee07912ad",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\ef\\efa46d48277803e582f6e271d0ef0b27710db047d0266b6f7c75c88ee07912ad"
+    },
+    "meta.json": {
+      "hash": "e4042082c0aa057b36aefb5b4c999fa1169dee0006f73911f6521852b9976b10",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\e4\\e4042082c0aa057b36aefb5b4c999fa1169dee0006f73911f6521852b9976b10"
+    },
+    "package.json": {
+      "hash": "10a6e00b42a90f5c44ac50fd6f0de1943cce72e49924e8f5228c18950a83b441",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\10\\10a6e00b42a90f5c44ac50fd6f0de1943cce72e49924e8f5228c18950a83b441"
+    },
+    "assets/footage/sala-cup.mp4": {
+      "hash": "676c2423adddf0c37b2a3a85b28d63d69e1504b250034ca16fd606196b4dd96c",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\67\\676c2423adddf0c37b2a3a85b28d63d69e1504b250034ca16fd606196b4dd96c"
+    },
+    "assets/footage/sala-lobby.mp4": {
+      "hash": "ce9c226e6b919cd47af96bb64879e28f8c8acb0ef7eccdb5c8a12b2f50e1d2c1",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\ce\\ce9c226e6b919cd47af96bb64879e28f8c8acb0ef7eccdb5c8a12b2f50e1d2c1"
+    },
+    "assets/footage/sala-podium.mp4": {
+      "hash": "97482892f83e3f17be2844a196b9467de58717380a89aa0b28ff6dff7d968fd9",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\97\\97482892f83e3f17be2844a196b9467de58717380a89aa0b28ff6dff7d968fd9"
+    },
+    "assets/footage/sala-question.mp4": {
+      "hash": "5dde716504e14fc70e7307d1ba24267f0bab6bd986b63302fa2158be7ab2ae21",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\5d\\5dde716504e14fc70e7307d1ba24267f0bab6bd986b63302fa2158be7ab2ae21"
+    },
+    "assets/music/happy-beats-business-moves-vol-1-by-ende-dot-app.mp3": {
+      "hash": "aa56ab1cdcbef6b05566c6a7c114323078580ccf6a740a9e6c6b6c4b40b4389f",
+      "content": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\aa\\aa56ab1cdcbef6b05566c6a7c114323078580ccf6a740a9e6c6b6c4b40b4389f"
+    }
+  },
+  "revisions": {
+    "66a3d332-8de9-45d4-b93a-82449d16dfc1": {
+      "actor": {
+        "kind": "outside",
+        "name": "Outside"
+      },
+      "label": "Changed outside the app",
+      "startedAt": 1794945505486,
+      "endedAt": 1794945505503,
+      "files": {
+        "compositions/endcard.html": {
+          "before": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\e5\\e558cf1dd1f9377118a22e9be8c690f55640ff6896538dcf739839f919f0ee00",
+          "after": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\eb\\eb26943d3b0c50c8317254d111aa9750fb06079a6e24955edeb51d432526db94"
+        },
+        "compositions/flow.html": {
+          "before": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\14\\145f13f6d6690681786d15f3a4b72447237b2b68875448aecc330517f0ec7ee9",
+          "after": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\d5\\d5a2927638dd76c65b1ebcba627f5fd392008111696d2d1c200f998e7237e0f2"
+        }
+      }
+    },
+    "0efa5cac-6602-4c73-a699-03557c064c75": {
+      "actor": {
+        "kind": "outside",
+        "name": "Outside"
+      },
+      "label": "Changed outside the app",
+      "startedAt": 1794945816362,
+      "endedAt": 1794945818369,
+      "files": {
+        "index.html": {
+          "before": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\73\\73bdff17374574eec203b83e3a2dd0504d2958f8e908daca80d30f688c56c9b5",
+          "after": "C:\\Users\\franc\\.cache\\hyperframes\\history\\6c886349-3561-4ca3-a3c2-1a9b1e57d91e\\blobs\\ef\\efa46d48277803e582f6e271d0ef0b27710db047d0266b6f7c75c88ee07912ad"
+        }
+      }
+    }
+  },
+  "checks": {
+    "latest": {
+      "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+      "id": "8f921fff-44db-4f3d-9616-69db7c30d57f"
+    },
+    "revisions": {
+      "66a3d332-8de9-45d4-b93a-82449d16dfc1": [
+        {
+          "id": "8f921fff-44db-4f3d-9616-69db7c30d57f",
+          "scope": "project",
+          "report": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\checks\\8f921fff-44db-4f3d-9616-69db7c30d57f.json",
+          "metadata": {
+            "ok": true,
+            "browserSkipped": false,
+            "options": {
+              "samples": 9,
+              "atTransitions": false,
+              "maxIssues": 80,
+              "collapseStatic": true,
+              "tolerance": 2,
+              "timeout": 45000,
+              "cache": true,
+              "contrast": true,
+              "craft": true,
+              "strict": false,
+              "snapshots": false,
+              "safeZones": [
+                "tiktok",
+                "reels",
+                "shorts"
+              ],
+              "browserGpuMode": "auto",
+              "includeUnmounted": false
+            }
+          },
+          "createdAt": 1794945574976,
+          "contentHash": "f61a117e5ed6c232e8f9cd8f5fe929e38a87030eea26ff68ee40d4ce41184643",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        }
+      ]
+    },
+    "unversioned": [
+      {
+        "id": "c9ecebcd-43dc-4ae0-84c4-2c8bbf4a52be",
+        "scope": "project",
+        "report": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\checks\\c9ecebcd-43dc-4ae0-84c4-2c8bbf4a52be.json",
+        "metadata": {
+          "ok": true,
+          "browserSkipped": false,
+          "options": {
+            "samples": 9,
+            "atTransitions": false,
+            "maxIssues": 80,
+            "collapseStatic": true,
+            "tolerance": 2,
+            "timeout": 45000,
+            "cache": true,
+            "contrast": true,
+            "craft": true,
+            "strict": false,
+            "snapshots": false,
+            "safeZones": [
+              "tiktok",
+              "reels",
+              "shorts"
+            ],
+            "browserGpuMode": "auto",
+            "includeUnmounted": false
+          }
+        },
+        "createdAt": 1794945476490,
+        "contentHash": "84809263e8c3ea41688c1a48957cf3aa6749f01aa8021b25b7ca3487248fe176",
+        "revision": null,
+        "inputFingerprint": "c3aa1220c74de953d63621cbb9b9e60a34ce2cf43d6537876e7a3c49d28eee53",
+        "inputScope": "local-project-files",
+        "attribution": "unversioned"
+      }
+    ]
+  },
+  "snapshots": {
+    "latest": {
+      "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+      "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-22"
+    },
+    "revisions": {
+      "66a3d332-8de9-45d4-b93a-82449d16dfc1": [
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-0",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-00-at-0.3s.png",
+          "time": 0.3,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523714,
+          "contentHash": "4715cb860a76a64d61efb3d350f6c50044e082a7cd70ce2b954535c5dbd28d51",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-1",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-01-at-0.9s.png",
+          "time": 0.9,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523714,
+          "contentHash": "05fe6ffa60ecce23a53ce97bffa7bec2ccdf37e9887d6c466b3ea955badb2c40",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-2",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-02-at-3.2s.png",
+          "time": 3.2,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523715,
+          "contentHash": "ccbd798fd13a96d0c7c16b7101747f562c06a03988a1d37185e6265b2ed09b6d",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-3",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-03-at-3.9s.png",
+          "time": 3.9,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523715,
+          "contentHash": "ad01e95f43f211270b3b8803367fdabcd118aed0a7d886e5f9e130b4ee8dbd74",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-4",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-04-at-4.7s.png",
+          "time": 4.7,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523715,
+          "contentHash": "9c8d5e8eb2e1819cd59f221f8bd364952bc2d840a3ae8b3ed180f9f3949f82f8",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-5",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-05-at-5.8s.png",
+          "time": 5.8,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523716,
+          "contentHash": "481426cb08d31222ca0bdfc47f62015c52e6510f8f3f56c02f17b681a5480dbd",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-6",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-06-at-7s.png",
+          "time": 7,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523717,
+          "contentHash": "8cc87c4d76b4e81128c9acbfce67a3d79de2e95635ca9f9a3a33da7a579972a6",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-7",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-07-at-8.3s.png",
+          "time": 8.3,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523717,
+          "contentHash": "f0247b86a3959aa9aceb3e0fbd790aee93662a7a4ea2c0510881f99cbad29996",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-8",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-08-at-9.4s.png",
+          "time": 9.4,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523718,
+          "contentHash": "a0ded1fca42920b843f2989174ee8dbd64c2243700609709e278291093e3bad0",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-9",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-09-at-10.6s.png",
+          "time": 10.6,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523719,
+          "contentHash": "66ee043202e30821b217c1fb1ec9223a7558f8e468f342ae89b4d7f78b447c4d",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-10",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-10-at-11.2s.png",
+          "time": 11.2,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523720,
+          "contentHash": "4c0964b788c5a85d21c8a32ecd4eb880f3fa37e2ff510a51d332e3d9c1e9751f",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-11",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-11-at-12.4s.png",
+          "time": 12.4,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523721,
+          "contentHash": "5300a2de2e811a44e40f0ff1493b4463133d882e514f281b7b105a10378d0a67",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-12",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-12-at-13.6s.png",
+          "time": 13.6,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523722,
+          "contentHash": "7916d866ce86aa73e60a817c72cf4680833e65aec6bfc1f0581b881b241391ec",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-13",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-13-at-14s.png",
+          "time": 14,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523723,
+          "contentHash": "31426d20e373a724c7c9534205cb4065b535c42d23c71885c12004b6f85e4c3a",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-14",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-14-at-14.8s.png",
+          "time": 14.8,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523725,
+          "contentHash": "6b3a1b01414cd07a7fe1871610c9677414d2f5c0264a7fa92fd5a4264b41842e",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-15",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-15-at-16.3s.png",
+          "time": 16.3,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523726,
+          "contentHash": "c67427196cc10a83889c063250d7a05c17ae41c54ee97946b71ab7ed09b03685",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-16",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-16-at-17.3s.png",
+          "time": 17.3,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523728,
+          "contentHash": "ec127bdf630839c0a3178899648935dfd0596ffe221cc0bbbe525188c0062fee",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-17",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-17-at-18.6s.png",
+          "time": 18.6,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523730,
+          "contentHash": "efce32ddd11feee285ffaaa8f80c394f4e1572dfb5b6c950e6cf97c8fe42c36d",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-18",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-18-at-20.4s.png",
+          "time": 20.4,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523732,
+          "contentHash": "4433575767474a2f8a8cef4d46cd89ef42a189465eee4e78dc4dcb76c97809d8",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-19",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-19-at-21.45s.png",
+          "time": 21.45,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523734,
+          "contentHash": "7775c1438a1c533bfe443b7d81ba0f1c239eedf0acb42879ba2a917a6e2d4d27",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-20",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-20-at-22.3s.png",
+          "time": 22.3,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523736,
+          "contentHash": "a947f34eac8ca5fc1554e4e2766df8480141ed496d881dc3183a06914bb4b380",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-21",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-21-at-24.3s.png",
+          "time": 24.3,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523738,
+          "contentHash": "93a331c2f54290c0f04873f5424c17a35a6fea9b6ac678ddb6d1f6845214dc1a",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        },
+        {
+          "scope": "full",
+          "id": "57e5813e-2695-49b9-ad56-ffd2ff092bc9-22",
+          "image": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\composition\\.hyperframes\\artifacts\\snapshots\\55ce183b-e34e-4c97-8aa1-bd17eda236f6\\frame-22-at-24.35s.png",
+          "time": 24.35,
+          "metadata": {
+            "width": 1920,
+            "height": 1080,
+            "zoomScale": 1,
+            "browserGpuMode": "auto",
+            "warnings": [],
+            "partial": false
+          },
+          "createdAt": 1794945523741,
+          "contentHash": "93a331c2f54290c0f04873f5424c17a35a6fea9b6ac678ddb6d1f6845214dc1a",
+          "revision": "66a3d332-8de9-45d4-b93a-82449d16dfc1",
+          "inputFingerprint": "bdbb88dac9775951e84a2dc0657f0d071ba575dfe29d430ac3911c19c98881ac",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        }
+      ]
+    },
+    "unversioned": []
+  },
+  "renders": {
+    "latest": {
+      "id": "80a09c9c-a50e-41c3-8823-f13e61010adf",
+      "completedAt": 1794945943889,
+      "output": "D:\\PROGETTI\\Quiz-Arena-Codebase\\brag-output\\brag.mp4",
+      "status": "completed",
+      "revision": "0efa5cac-6602-4c73-a699-03557c064c75"
+    },
+    "retainedRevisions": [
+      "0efa5cac-6602-4c73-a699-03557c064c75",
+      "66a3d332-8de9-45d4-b93a-82449d16dfc1"
+    ]
+  },
+  "pendingArtifactCleanup": []
+}
